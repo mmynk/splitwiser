@@ -1,5 +1,6 @@
 # Backend (Go)
 backend/bin/
+backend/data/
 *.exe
 *.exe~
 *.dll

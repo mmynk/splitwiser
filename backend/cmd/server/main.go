@@ -5,17 +5,22 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
 	"github.com/mmynk/splitwiser/internal/service"
+	"github.com/mmynk/splitwiser/internal/storage/sqlite"
 	"github.com/mmynk/splitwiser/pkg/proto/protoconnect"
 )
 
 const (
-	port = 8080
+	port       = 8080
+	dbPath     = "./data/bills.db"
+	staticPath = "../frontend/static"
 )
 
 func main() {
@@ -25,11 +30,55 @@ func main() {
 	}))
 	slog.SetDefault(logger)
 
+	// Initialize SQLite storage
+	store, err := sqlite.New(dbPath)
+	if err != nil {
+		slog.Error("Failed to initialize storage", "error", err)
+		os.Exit(1)
+	}
+	defer store.Close()
+	slog.Info("Storage initialized", "database", dbPath)
+
 	mux := http.NewServeMux()
 
 	// Register Connect service
-	path, handler := protoconnect.NewSplitServiceHandler(service.NewSplitService())
+	path, handler := protoconnect.NewSplitServiceHandler(service.NewSplitService(store))
 	mux.Handle(path, handler)
+
+	// Serve static files from frontend/static
+	staticDir, err := filepath.Abs(staticPath)
+	if err != nil {
+		slog.Error("Failed to resolve static path", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("Serving static files", "path", staticDir)
+
+	// Handle all non-API routes with static file server
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Check if this is an API request (Connect RPC)
+		if strings.HasPrefix(r.URL.Path, "/splitwiser.v1.") {
+			http.NotFound(w, r)
+			return
+		}
+
+		// Serve static files
+		urlPath := r.URL.Path
+		if urlPath == "/" {
+			urlPath = "/index.html"
+		}
+
+		filePath := filepath.Join(staticDir, filepath.Clean(urlPath))
+
+		// Check if file exists
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			// For SPA-like behavior, serve index.html for unknown paths
+			// But for bill.html, we use query params so this isn't needed
+			http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
+			return
+		}
+
+		http.ServeFile(w, r, filePath)
+	})
 
 	// Add logging and CORS middleware
 	loggedHandler := loggingMiddleware(corsMiddleware(mux))

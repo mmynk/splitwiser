@@ -6,6 +6,8 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/mmynk/splitwiser/internal/calculator"
+	"github.com/mmynk/splitwiser/internal/models"
+	"github.com/mmynk/splitwiser/internal/storage"
 	pb "github.com/mmynk/splitwiser/pkg/proto"
 	"github.com/mmynk/splitwiser/pkg/proto/protoconnect"
 )
@@ -13,14 +15,12 @@ import (
 // SplitService implements the Connect SplitService
 type SplitService struct {
 	protoconnect.UnimplementedSplitServiceHandler
-
-	// Add storage layer when needed
-	// store storage.Store
+	store storage.Store
 }
 
-// NewSplitService creates a new SplitService
-func NewSplitService() *SplitService {
-	return &SplitService{}
+// NewSplitService creates a new SplitService with the given storage backend.
+func NewSplitService(store storage.Store) *SplitService {
+	return &SplitService{store: store}
 }
 
 // CalculateSplit handles bill split calculation
@@ -80,14 +80,140 @@ func (s *SplitService) CalculateSplit(ctx context.Context, req *connect.Request[
 	}), nil
 }
 
-// CreateBill creates a new bill
+// CreateBill creates a new bill and persists it to storage.
 func (s *SplitService) CreateBill(ctx context.Context, req *connect.Request[pb.CreateBillRequest]) (*connect.Response[pb.CreateBillResponse], error) {
-	// TODO: Implement bill storage
-	return nil, connect.NewError(connect.CodeUnimplemented, nil)
+	slog.Info("CreateBill request received",
+		"title", req.Msg.Title,
+		"total", req.Msg.Total,
+		"subtotal", req.Msg.Subtotal,
+		"participants", req.Msg.Participants,
+		"items_count", len(req.Msg.Items),
+	)
+
+	// Convert proto items to models
+	items := make([]models.Item, len(req.Msg.Items))
+	for i, item := range req.Msg.Items {
+		items[i] = models.Item{
+			Description: item.Description,
+			Amount:      item.Amount,
+			AssignedTo:  item.AssignedTo,
+		}
+	}
+
+	// Create bill model
+	bill := &models.Bill{
+		Title:        req.Msg.Title,
+		Items:        items,
+		Total:        req.Msg.Total,
+		Subtotal:     req.Msg.Subtotal,
+		Participants: req.Msg.Participants,
+	}
+
+	// Save to storage (generates ID and CreatedAt)
+	if err := s.store.CreateBill(ctx, bill); err != nil {
+		slog.Error("CreateBill failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	slog.Info("Bill created", "bill_id", bill.ID)
+
+	// Calculate splits
+	calcItems := make([]calculator.Item, len(req.Msg.Items))
+	for i, item := range req.Msg.Items {
+		calcItems[i] = calculator.Item{
+			Description: item.Description,
+			Amount:      item.Amount,
+			AssignedTo:  item.AssignedTo,
+		}
+	}
+
+	splits, err := calculator.CalculateSplit(calcItems, req.Msg.Total, req.Msg.Subtotal, req.Msg.Participants)
+	if err != nil {
+		slog.Error("CalculateSplit failed during CreateBill", "error", err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
+	// Convert splits to proto format
+	protoSplits := make(map[string]*pb.PersonSplit)
+	for person, split := range splits {
+		protoSplits[person] = &pb.PersonSplit{
+			Subtotal: split.Subtotal,
+			Tax:      split.Tax,
+			Total:    split.Total,
+		}
+	}
+
+	return connect.NewResponse(&pb.CreateBillResponse{
+		BillId: bill.ID,
+		Split: &pb.CalculateSplitResponse{
+			Splits:    protoSplits,
+			TaxAmount: req.Msg.Total - req.Msg.Subtotal,
+			Subtotal:  req.Msg.Subtotal,
+		},
+	}), nil
 }
 
-// GetBill retrieves a bill by ID
+// GetBill retrieves a bill by ID from storage.
 func (s *SplitService) GetBill(ctx context.Context, req *connect.Request[pb.GetBillRequest]) (*connect.Response[pb.GetBillResponse], error) {
-	// TODO: Implement bill retrieval
-	return nil, connect.NewError(connect.CodeUnimplemented, nil)
+	slog.Info("GetBill request received", "bill_id", req.Msg.BillId)
+
+	// Retrieve from storage
+	bill, err := s.store.GetBill(ctx, req.Msg.BillId)
+	if err != nil {
+		slog.Error("GetBill failed", "bill_id", req.Msg.BillId, "error", err)
+		return nil, connect.NewError(connect.CodeNotFound, err)
+	}
+
+	// Convert items to proto format
+	protoItems := make([]*pb.Item, len(bill.Items))
+	for i, item := range bill.Items {
+		protoItems[i] = &pb.Item{
+			Description: item.Description,
+			Amount:      item.Amount,
+			AssignedTo:  item.AssignedTo,
+		}
+	}
+
+	// Recalculate splits
+	calcItems := make([]calculator.Item, len(bill.Items))
+	for i, item := range bill.Items {
+		calcItems[i] = calculator.Item{
+			Description: item.Description,
+			Amount:      item.Amount,
+			AssignedTo:  item.AssignedTo,
+		}
+	}
+
+	splits, err := calculator.CalculateSplit(calcItems, bill.Total, bill.Subtotal, bill.Participants)
+	if err != nil {
+		slog.Error("CalculateSplit failed during GetBill", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// Convert splits to proto format
+	protoSplits := make(map[string]*pb.PersonSplit)
+	for person, split := range splits {
+		protoSplits[person] = &pb.PersonSplit{
+			Subtotal: split.Subtotal,
+			Tax:      split.Tax,
+			Total:    split.Total,
+		}
+	}
+
+	slog.Info("GetBill successful", "bill_id", bill.ID, "title", bill.Title)
+
+	return connect.NewResponse(&pb.GetBillResponse{
+		BillId:       bill.ID,
+		Title:        bill.Title,
+		Items:        protoItems,
+		Total:        bill.Total,
+		Subtotal:     bill.Subtotal,
+		Participants: bill.Participants,
+		Split: &pb.CalculateSplitResponse{
+			Splits:    protoSplits,
+			TaxAmount: bill.Total - bill.Subtotal,
+			Subtotal:  bill.Subtotal,
+		},
+		CreatedAt: bill.CreatedAt,
+	}), nil
 }
