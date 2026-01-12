@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>View Bill - Splitwiser</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="container">
+    <!-- Loading State -->
+    <div id="loading" class="loading">
+      <p>Loading bill...</p>
+    </div>
+
+    <!-- Error State -->
+    <div id="error-state" class="hidden">
+      <h1>Bill Not Found</h1>
+      <p id="error-message">The bill you're looking for doesn't exist or has been deleted.</p>
+      <a href="/" role="button">Create New Bill</a>
+    </div>
+
+    <!-- Bill Content -->
+    <div id="bill-content" class="hidden">
+      <header class="bill-header">
+        <div>
+          <h1 id="bill-title">Bill</h1>
+          <p id="bill-date" style="color: var(--pico-muted-color);"></p>
+        </div>
+        <a href="/" role="button" class="secondary">Create New Bill</a>
+      </header>
+
+      <!-- Share Section -->
+      <section class="share-section">
+        <p><strong>Share this bill:</strong></p>
+        <div class="share-url">
+          <input type="text" id="share-url" readonly>
+          <button type="button" id="copy-btn">Copy</button>
+        </div>
+      </section>
+
+      <!-- Bill Summary -->
+      <section class="bill-summary">
+        <div class="summary-item">
+          <div class="label">Subtotal</div>
+          <div class="value" id="summary-subtotal">$0.00</div>
+        </div>
+        <div class="summary-item">
+          <div class="label">Tax & Fees</div>
+          <div class="value" id="summary-tax">$0.00</div>
+        </div>
+        <div class="summary-item">
+          <div class="label">Total</div>
+          <div class="value" id="summary-total">$0.00</div>
+        </div>
+      </section>
+
+      <!-- Items -->
+      <section id="items-section" class="hidden">
+        <h2>Items</h2>
+        <div id="items-list" class="items-list"></div>
+      </section>
+
+      <!-- Split Results -->
+      <section>
+        <h2>Who Owes What</h2>
+        <div id="splits-grid" class="results-grid"></div>
+      </section>
+
+      <!-- Participants -->
+      <section>
+        <h2>Participants</h2>
+        <p id="participants-list"></p>
+      </section>
+    </div>
+  </main>
+
+  <script src="bill.js"></script>
+</body>
+</html>

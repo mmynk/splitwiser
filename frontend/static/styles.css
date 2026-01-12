@@ -1,0 +1,304 @@
+/* Splitwiser Custom Styles */
+/* Built on top of Pico CSS */
+
+:root {
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+}
+
+/* Layout */
+main.container {
+  max-width: 800px;
+  padding-top: var(--spacing-lg);
+  padding-bottom: 3rem;
+}
+
+header {
+  text-align: center;
+  margin-bottom: var(--spacing-lg);
+}
+
+header p {
+  color: var(--pico-muted-color);
+}
+
+section {
+  margin-bottom: var(--spacing-lg);
+}
+
+/* Tax display */
+.tax-display {
+  text-align: right;
+  margin-top: var(--spacing-sm);
+  color: var(--pico-muted-color);
+}
+
+/* Hints */
+.hint {
+  font-size: 0.875rem;
+  color: var(--pico-muted-color);
+  margin-bottom: var(--spacing-sm);
+}
+
+/* Participant row */
+.participant-row {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+}
+
+.participant-row input {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.participant-row .remove-btn {
+  width: auto;
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: 0;
+}
+
+/* Item row */
+.item-row {
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: var(--pico-border-radius);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.item-row .item-header {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+}
+
+.item-row .item-header input[type="text"] {
+  flex: 2;
+  margin-bottom: 0;
+}
+
+.item-row .item-header input[type="number"] {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.item-row .item-header .remove-btn {
+  width: auto;
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: 0;
+}
+
+.item-row .item-assignments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+.item-row .item-assignments label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--pico-border-radius);
+  background: var(--pico-card-background-color);
+  border: 1px solid var(--pico-muted-border-color);
+  margin-bottom: 0;
+}
+
+.item-row .item-assignments label:has(input:checked) {
+  background: var(--pico-primary-background);
+  border-color: var(--pico-primary);
+  color: var(--pico-primary-inverse);
+}
+
+.item-row .item-assignments input[type="checkbox"] {
+  margin: 0;
+  width: auto;
+}
+
+/* Remove button */
+.remove-btn {
+  background: var(--pico-del-color);
+  border-color: var(--pico-del-color);
+}
+
+.remove-btn:hover {
+  background: color-mix(in srgb, var(--pico-del-color) 80%, black);
+  border-color: color-mix(in srgb, var(--pico-del-color) 80%, black);
+}
+
+/* Actions */
+.actions {
+  display: flex;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-lg);
+}
+
+.actions button {
+  flex: 1;
+}
+
+/* Results */
+#results {
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-lg);
+  border-top: 2px solid var(--pico-primary);
+}
+
+.result-card {
+  background: var(--pico-card-background-color);
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: var(--pico-border-radius);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.result-card h3 {
+  margin-bottom: var(--spacing-sm);
+}
+
+.result-card .total {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--pico-primary);
+}
+
+.result-card .breakdown {
+  color: var(--pico-muted-color);
+  font-size: 0.875rem;
+  margin-top: var(--spacing-sm);
+}
+
+/* Error display */
+#error {
+  background: var(--pico-del-color);
+  color: white;
+  padding: var(--spacing-md);
+  border-radius: var(--pico-border-radius);
+  margin-top: var(--spacing-md);
+}
+
+/* Hidden utility */
+.hidden {
+  display: none !important;
+}
+
+/* Bill view page specific styles */
+.bill-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+}
+
+.bill-header h1 {
+  margin-bottom: 0;
+}
+
+.share-section {
+  background: var(--pico-card-background-color);
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: var(--pico-border-radius);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.share-section .share-url {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.share-section input {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.share-section button {
+  width: auto;
+  margin-bottom: 0;
+}
+
+.bill-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.bill-summary .summary-item {
+  text-align: center;
+  padding: var(--spacing-md);
+  background: var(--pico-card-background-color);
+  border-radius: var(--pico-border-radius);
+}
+
+.bill-summary .summary-item .label {
+  font-size: 0.875rem;
+  color: var(--pico-muted-color);
+}
+
+.bill-summary .summary-item .value {
+  font-size: 1.25rem;
+  font-weight: bold;
+}
+
+.items-list {
+  margin-bottom: var(--spacing-lg);
+}
+
+.items-list .item {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--spacing-sm) 0;
+  border-bottom: 1px solid var(--pico-muted-border-color);
+}
+
+.items-list .item:last-child {
+  border-bottom: none;
+}
+
+.items-list .item .item-info {
+  flex: 1;
+}
+
+.items-list .item .item-info .description {
+  font-weight: 500;
+}
+
+.items-list .item .item-info .assigned {
+  font-size: 0.875rem;
+  color: var(--pico-muted-color);
+}
+
+.items-list .item .item-amount {
+  font-weight: 500;
+}
+
+.results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--spacing-md);
+}
+
+/* Loading state */
+.loading {
+  text-align: center;
+  padding: 3rem;
+  color: var(--pico-muted-color);
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .bill-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+}
