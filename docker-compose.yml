@@ -1,0 +1,11 @@
+services:
+  splitwiser:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - splitwiser-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  splitwiser-data:

@@ -1,0 +1,33 @@
+# Build artifacts
+backend/bin/
+backend/data/
+
+# Dependencies (will be downloaded in container)
+backend/pkg/proto/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Documentation
+*.md
+scratch/
+
+# Old frontend (Next.js remnants)
+frontend/src/
+frontend/node_modules/
+frontend/package.json
+frontend/tsconfig.json
+frontend/next.config.ts
+frontend/bun.lockb
+frontend/.next/
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore

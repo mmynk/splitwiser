@@ -1,4 +1,4 @@
-.PHONY: proto backend frontend test clean install dev
+.PHONY: proto backend frontend test clean install dev docker-build docker-run docker-up docker-down
 
 # Generate Protocol Buffers with Connect
 proto:
@@ -47,3 +47,16 @@ clean:
 	rm -rf backend/bin
 	rm -rf backend/data/*.db
 	rm -rf proto/gen
+
+# Docker commands
+docker-build:
+	docker build -t splitwiser .
+
+docker-run:
+	docker run -p 8080:8080 -v splitwiser-data:/app/data splitwiser
+
+docker-up:
+	docker-compose up --build
+
+docker-down:
+	docker-compose down
