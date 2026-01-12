@@ -35,7 +35,13 @@ message CalculateSplitResponse {
 message Item {
   string description = 1;
   double amount = 2;
-  repeated string assigned_to = 3;  // Participant IDs/names
+  repeated string participants = 3;  // Participant IDs/names who split this item
+}
+
+// Item with calculated amount for one person
+message PersonItem {
+  string description = 1;
+  double amount = 2;  // This person's share of the item
 }
 
 // Split calculation for one person
@@ -43,7 +49,7 @@ message PersonSplit {
   double subtotal = 1;
   double tax = 2;
   double total = 3;
-  repeated Item items = 4;
+  repeated PersonItem items = 4;  // Items assigned to this person with their share
 }
 
 // Request to create a bill

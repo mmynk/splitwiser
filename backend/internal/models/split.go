@@ -42,11 +42,17 @@ type Item struct {
 	// Amount is the pre-tax price of this item.
 	Amount float64
 
-	// AssignedTo is the list of participant names who should split this item.
+	// Participants is the list of participant names who should split this item.
 	// If multiple people are assigned, the item is split equally among them.
 	// For MVP, these are participant names (strings).
 	// Future: will reference User IDs when auth is added.
-	AssignedTo []string
+	Participants []string
+}
+
+// PersonItem represents an item's share for one person.
+type PersonItem struct {
+	Description string
+	Amount      float64 // This person's share of the item
 }
 
 // PersonSplit represents one person's calculated share of a bill.
@@ -67,6 +73,6 @@ type PersonSplit struct {
 	// Total is the final amount this person owes (subtotal + tax).
 	Total float64
 
-	// Items are the specific items assigned to this person (optional, for display).
-	Items []Item
+	// Items are the specific items assigned to this person with their share amounts.
+	Items []PersonItem
 }

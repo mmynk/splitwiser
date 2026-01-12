@@ -74,7 +74,7 @@ function removeParticipant(id) {
   // Remove from all item assignments
   if (participant) {
     items.forEach(item => {
-      item.assignedTo = item.assignedTo.filter(name => name !== participant.name);
+      item.participants = item.participants.filter(name => name !== participant.name);
     });
   }
 
@@ -89,9 +89,9 @@ function updateParticipantName(id, oldName, newName) {
 
     // Update item assignments
     items.forEach(item => {
-      const idx = item.assignedTo.indexOf(oldName);
+      const idx = item.participants.indexOf(oldName);
       if (idx !== -1) {
-        item.assignedTo[idx] = newName;
+        item.participants[idx] = newName;
       }
     });
 
@@ -158,7 +158,7 @@ function addItem() {
     id,
     description: '',
     amount: 0,
-    assignedTo: [...validParticipants]
+    participants: [...validParticipants]
   });
   renderItems();
 
@@ -188,11 +188,11 @@ function updateItem(id, field, value) {
 function toggleItemAssignment(itemId, participantName) {
   const item = items.find(i => i.id === itemId);
   if (item) {
-    const idx = item.assignedTo.indexOf(participantName);
+    const idx = item.participants.indexOf(participantName);
     if (idx === -1) {
-      item.assignedTo.push(participantName);
+      item.participants.push(participantName);
     } else {
-      item.assignedTo.splice(idx, 1);
+      item.participants.splice(idx, 1);
     }
   }
 }
@@ -225,7 +225,7 @@ function renderItems() {
           <label>
             <input
               type="checkbox"
-              ${item.assignedTo.includes(p.name) ? 'checked' : ''}
+              ${item.participants.includes(p.name) ? 'checked' : ''}
               data-participant="${escapeHtml(p.name)}"
             >
             ${escapeHtml(p.name)}
@@ -299,17 +299,15 @@ async function calculateSplit() {
     return;
   }
 
-  const validItems = items
-    .filter(i => i.amount > 0)
-    .map(i => ({
-      description: i.description || 'Item',
-      amount: i.amount,
-      assignedTo: i.assignedTo.filter(name => validParticipants.includes(name))
-    }))
-    .filter(i => i.assignedTo.length > 0);
+  // Send items as-is, let backend handle validation
+  const requestItems = items.map(i => ({
+    description: i.description || 'Item',
+    amount: i.amount,
+    participants: i.participants
+  }));
 
   const request = {
-    items: validItems,
+    items: requestItems,
     total,
     subtotal: subtotal || total,
     participants: validParticipants
@@ -357,18 +355,16 @@ async function saveBill() {
     return;
   }
 
-  const validItems = items
-    .filter(i => i.amount > 0)
-    .map(i => ({
-      description: i.description || 'Item',
-      amount: i.amount,
-      assignedTo: i.assignedTo.filter(name => validParticipants.includes(name))
-    }))
-    .filter(i => i.assignedTo.length > 0);
+  // Send items as-is, let backend handle validation
+  const requestItems = items.map(i => ({
+    description: i.description || 'Item',
+    amount: i.amount,
+    participants: i.participants
+  }));
 
   const request = {
     title: 'Bill',
-    items: validItems,
+    items: requestItems,
     total,
     subtotal: subtotal || total,
     participants: validParticipants
@@ -406,11 +402,28 @@ function displayResults(data, participantNames) {
   resultsContent.innerHTML = `
     <div class="results-grid">
       ${participantNames.map(name => {
-        const split = splits[name] || { subtotal: 0, tax: 0, total: 0 };
+        const rawSplit = splits[name] || {};
+        const split = {
+          subtotal: rawSplit.subtotal || 0,
+          tax: rawSplit.tax || 0,
+          total: rawSplit.total || 0,
+          items: rawSplit.items || []
+        };
+        const items = split.items;
         return `
           <div class="result-card">
             <h3>${escapeHtml(name)}</h3>
             <div class="total">$${split.total.toFixed(2)}</div>
+            ${items.length > 0 ? `
+              <div class="items-breakdown">
+                ${items.map(item => `
+                  <div class="item-line">
+                    <span>${escapeHtml(item.description)}</span>
+                    <span>$${item.amount.toFixed(2)}</span>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
             <div class="breakdown">
               Subtotal: $${split.subtotal.toFixed(2)}<br>
               Tax: $${split.tax.toFixed(2)}

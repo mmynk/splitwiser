@@ -18,10 +18,15 @@ import (
 )
 
 const (
-	port       = 8080
-	dbPath     = "./data/bills.db"
-	staticPath = "../frontend/static"
+	port = 8080
 )
+
+func getEnv(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
+}
 
 func main() {
 	// Setup structured logging
@@ -29,6 +34,10 @@ func main() {
 		Level: slog.LevelDebug,
 	}))
 	slog.SetDefault(logger)
+
+	// Get paths from env or use defaults
+	dbPath := getEnv("DB_PATH", "./data/bills.db")
+	staticPath := getEnv("STATIC_PATH", "../frontend/static")
 
 	// Initialize SQLite storage
 	store, err := sqlite.New(dbPath)

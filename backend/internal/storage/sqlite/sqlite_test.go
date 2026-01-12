@@ -32,8 +32,8 @@ func TestSQLiteStore(t *testing.T) {
 			Subtotal:     30.0,
 			Participants: []string{"Alice", "Bob"},
 			Items: []models.Item{
-				{Description: "Pizza", Amount: 20.0, AssignedTo: []string{"Alice", "Bob"}},
-				{Description: "Beer", Amount: 10.0, AssignedTo: []string{"Bob"}},
+				{Description: "Pizza", Amount: 20.0, Participants: []string{"Alice", "Bob"}},
+				{Description: "Beer", Amount: 10.0, Participants: []string{"Bob"}},
 			},
 		}
 
@@ -63,8 +63,8 @@ func TestSQLiteStore(t *testing.T) {
 			Subtotal:     50.0,
 			Participants: []string{"Charlie", "Diana"},
 			Items: []models.Item{
-				{Description: "Steak", Amount: 30.0, AssignedTo: []string{"Charlie"}},
-				{Description: "Salad", Amount: 20.0, AssignedTo: []string{"Diana"}},
+				{Description: "Steak", Amount: 30.0, Participants: []string{"Charlie"}},
+				{Description: "Salad", Amount: 20.0, Participants: []string{"Diana"}},
 			},
 		}
 
@@ -101,9 +101,9 @@ func TestSQLiteStore(t *testing.T) {
 
 		// Verify item assignments
 		for i, item := range retrieved.Items {
-			if len(item.AssignedTo) != len(original.Items[i].AssignedTo) {
+			if len(item.Participants) != len(original.Items[i].Participants) {
 				t.Errorf("Item %d assignments mismatch: got %d, want %d",
-					i, len(item.AssignedTo), len(original.Items[i].AssignedTo))
+					i, len(item.Participants), len(original.Items[i].Participants))
 			}
 		}
 	})

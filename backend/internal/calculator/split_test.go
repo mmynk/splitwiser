@@ -18,8 +18,8 @@ func TestCalculateSplit(t *testing.T) {
 		{
 			name: "simple two-person split with tax",
 			items: []Item{
-				{Description: "Pizza", Amount: 20.0, AssignedTo: []string{"Alice", "Bob"}},
-				{Description: "Salad", Amount: 10.0, AssignedTo: []string{"Alice"}},
+				{Description: "Pizza", Amount: 20.0, Participants: []string{"Alice", "Bob"}},
+				{Description: "Salad", Amount: 10.0, Participants: []string{"Alice"}},
 			},
 			billTotal:    33.0,
 			billSubtotal: 30.0,
@@ -50,7 +50,7 @@ func TestCalculateSplit(t *testing.T) {
 		},
 		{
 			name:         "zero subtotal should error",
-			items:        []Item{{Description: "Item", Amount: 10.0, AssignedTo: []string{"Alice"}}},
+			items:        []Item{{Description: "Item", Amount: 10.0, Participants: []string{"Alice"}}},
 			billTotal:    10.0,
 			billSubtotal: 0.0,
 			participants: []string{"Alice"},
@@ -58,7 +58,7 @@ func TestCalculateSplit(t *testing.T) {
 		},
 		{
 			name:         "no participants should error",
-			items:        []Item{{Description: "Item", Amount: 10.0, AssignedTo: []string{"Alice"}}},
+			items:        []Item{{Description: "Item", Amount: 10.0, Participants: []string{"Alice"}}},
 			billTotal:    10.0,
 			billSubtotal: 10.0,
 			participants: []string{},
@@ -111,6 +111,45 @@ func TestCalculateSplit(t *testing.T) {
 					if math.Abs(split.Total-30.0) > 0.01 {
 						t.Errorf("%s total = %v, want 30.0", person, split.Total)
 					}
+				}
+			},
+		},
+		{
+			name: "items don't cover full subtotal - remainder split equally",
+			items: []Item{
+				{Description: "Banana", Amount: 10.0, Participants: []string{"Ree"}},
+			},
+			billTotal:    100.0,
+			billSubtotal: 90.0,
+			participants: []string{"Mo", "Ree"},
+			wantErr:      false,
+			validateFunc: func(t *testing.T, splits map[string]*PersonSplit) {
+				// Banana ($10) -> Ree only
+				// Remainder ($80) split equally -> $40 each
+				// Mo: subtotal = 40, Ree: subtotal = 10 + 40 = 50
+				// Tax = 10, distributed proportionally
+				// Mo: tax = 40 * (10/90) = 4.44, total = 44.44
+				// Ree: tax = 50 * (10/90) = 5.56, total = 55.56
+				mo := splits["Mo"]
+				if math.Abs(mo.Subtotal-40.0) > 0.01 {
+					t.Errorf("Mo subtotal = %v, want 40.0", mo.Subtotal)
+				}
+				if len(mo.Items) != 1 || mo.Items[0].Description != "Shared" {
+					t.Errorf("Mo should have 1 'Shared' item, got %v", mo.Items)
+				}
+
+				ree := splits["Ree"]
+				if math.Abs(ree.Subtotal-50.0) > 0.01 {
+					t.Errorf("Ree subtotal = %v, want 50.0", ree.Subtotal)
+				}
+				if len(ree.Items) != 2 {
+					t.Errorf("Ree should have 2 items (Banana + Shared), got %d", len(ree.Items))
+				}
+
+				// Verify totals add up to bill total
+				totalOwed := mo.Total + ree.Total
+				if math.Abs(totalOwed-100.0) > 0.01 {
+					t.Errorf("Total owed = %v, want 100.0", totalOwed)
 				}
 			},
 		},

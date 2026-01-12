@@ -115,7 +115,7 @@ func (s *SQLiteStore) CreateBill(ctx context.Context, bill *models.Bill) error {
 		}
 
 		// Insert item assignments
-		for _, participant := range item.AssignedTo {
+		for _, participant := range item.Participants {
 			_, err = tx.ExecContext(ctx,
 				"INSERT INTO item_assignments (item_id, participant) VALUES (?, ?)",
 				item.ID, participant,
@@ -200,7 +200,7 @@ func (s *SQLiteStore) GetBill(ctx context.Context, billID string) (*models.Bill,
 				assignRows.Close()
 				return nil, fmt.Errorf("failed to scan assignment: %w", err)
 			}
-			item.AssignedTo = append(item.AssignedTo, participant)
+			item.Participants = append(item.Participants, participant)
 		}
 		assignRows.Close()
 		if err := assignRows.Err(); err != nil {

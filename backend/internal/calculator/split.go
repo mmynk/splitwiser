@@ -4,18 +4,25 @@ import (
 	"fmt"
 )
 
+// PersonItem represents an item's share for one person
+type PersonItem struct {
+	Description string
+	Amount      float64 // This person's share of the item
+}
+
 // PersonSplit represents the calculated split for one person
 type PersonSplit struct {
 	Subtotal float64
 	Tax      float64
 	Total    float64
+	Items    []PersonItem // Items assigned to this person with their share
 }
 
 // Item represents a single item on the bill
 type Item struct {
-	Description string
-	Amount      float64
-	AssignedTo  []string
+	Description  string
+	Amount       float64
+	Participants []string // was: AssignedTo
 }
 
 // CalculateSplit computes how much each person owes including proportional tax
@@ -37,6 +44,7 @@ func CalculateSplit(items []Item, billTotal float64, billSubtotal float64, parti
 			Subtotal: 0,
 			Tax:      0,
 			Total:    0,
+			Items:    []PersonItem{},
 		}
 	}
 
@@ -55,17 +63,37 @@ func CalculateSplit(items []Item, billTotal float64, billSubtotal float64, parti
 	}
 
 	// Calculate each person's subtotal based on assigned items
+	itemsTotal := 0.0
 	for _, item := range items {
-		if len(item.AssignedTo) == 0 {
+		if len(item.Participants) == 0 {
 			continue
 		}
 
+		itemsTotal += item.Amount
+
 		// Split item among assigned people
-		perPersonAmount := item.Amount / float64(len(item.AssignedTo))
-		for _, person := range item.AssignedTo {
+		perPersonAmount := item.Amount / float64(len(item.Participants))
+		for _, person := range item.Participants {
 			if split, exists := splits[person]; exists {
 				split.Subtotal += perPersonAmount
+				split.Items = append(split.Items, PersonItem{
+					Description: item.Description,
+					Amount:      perPersonAmount,
+				})
 			}
+		}
+	}
+
+	// If items don't account for full subtotal, split remainder equally
+	if itemsTotal < billSubtotal {
+		remainder := billSubtotal - itemsTotal
+		perPersonShare := remainder / float64(len(participants))
+		for _, split := range splits {
+			split.Subtotal += perPersonShare
+			split.Items = append(split.Items, PersonItem{
+				Description: "Shared",
+				Amount:      perPersonShare,
+			})
 		}
 	}
 

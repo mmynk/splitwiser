@@ -114,7 +114,7 @@ function displayBill(bill) {
       <div class="item">
         <div class="item-info">
           <div class="description">${escapeHtml(item.description || 'Item')}</div>
-          <div class="assigned">${(item.assignedTo || []).map(escapeHtml).join(', ')}</div>
+          <div class="assigned">${(item.participants || []).map(escapeHtml).join(', ')}</div>
         </div>
         <div class="item-amount">$${(item.amount || 0).toFixed(2)}</div>
       </div>
@@ -126,11 +126,28 @@ function displayBill(bill) {
   const participants = bill.participants || [];
 
   splitsGridEl.innerHTML = participants.map(name => {
-    const split = splits[name] || { subtotal: 0, tax: 0, total: 0 };
+    const rawSplit = splits[name] || {};
+    const split = {
+      subtotal: rawSplit.subtotal || 0,
+      tax: rawSplit.tax || 0,
+      total: rawSplit.total || 0,
+      items: rawSplit.items || []
+    };
+    const personItems = split.items;
     return `
       <div class="result-card">
         <h3>${escapeHtml(name)}</h3>
         <div class="total">$${split.total.toFixed(2)}</div>
+        ${personItems.length > 0 ? `
+          <div class="items-breakdown">
+            ${personItems.map(item => `
+              <div class="item-line">
+                <span>${escapeHtml(item.description)}</span>
+                <span>$${item.amount.toFixed(2)}</span>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
         <div class="breakdown">
           Subtotal: $${split.subtotal.toFixed(2)}<br>
           Tax: $${split.tax.toFixed(2)}

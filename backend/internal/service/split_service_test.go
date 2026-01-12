@@ -90,8 +90,8 @@ func TestCalculateSplit_WithItems(t *testing.T) {
 
 	resp, err := client.CalculateSplit(context.Background(), connect.NewRequest(&pb.CalculateSplitRequest{
 		Items: []*pb.Item{
-			{Description: "Pizza", Amount: 20, AssignedTo: []string{"Alice"}},
-			{Description: "Salad", Amount: 10, AssignedTo: []string{"Bob"}},
+			{Description: "Pizza", Amount: 20, Participants: []string{"Alice"}},
+			{Description: "Salad", Amount: 10, Participants: []string{"Bob"}},
 		},
 		Total:        33, // $3 tax
 		Subtotal:     30,
@@ -114,6 +114,17 @@ func TestCalculateSplit_WithItems(t *testing.T) {
 	if alice.Total != 22 {
 		t.Errorf("Alice total: expected 22, got %f", alice.Total)
 	}
+	// Verify itemized breakdown
+	if len(alice.Items) != 1 {
+		t.Errorf("Alice items: expected 1, got %d", len(alice.Items))
+	} else {
+		if alice.Items[0].Description != "Pizza" {
+			t.Errorf("Alice item description: expected 'Pizza', got '%s'", alice.Items[0].Description)
+		}
+		if alice.Items[0].Amount != 20 {
+			t.Errorf("Alice item amount: expected 20, got %f", alice.Items[0].Amount)
+		}
+	}
 
 	bob := resp.Msg.Splits["Bob"]
 	if bob.Subtotal != 10 {
@@ -124,6 +135,17 @@ func TestCalculateSplit_WithItems(t *testing.T) {
 	}
 	if bob.Total != 11 {
 		t.Errorf("Bob total: expected 11, got %f", bob.Total)
+	}
+	// Verify itemized breakdown
+	if len(bob.Items) != 1 {
+		t.Errorf("Bob items: expected 1, got %d", len(bob.Items))
+	} else {
+		if bob.Items[0].Description != "Salad" {
+			t.Errorf("Bob item description: expected 'Salad', got '%s'", bob.Items[0].Description)
+		}
+		if bob.Items[0].Amount != 10 {
+			t.Errorf("Bob item amount: expected 10, got %f", bob.Items[0].Amount)
+		}
 	}
 
 	if resp.Msg.TaxAmount != 3 {
@@ -137,7 +159,7 @@ func TestCalculateSplit_SharedItem(t *testing.T) {
 
 	resp, err := client.CalculateSplit(context.Background(), connect.NewRequest(&pb.CalculateSplitRequest{
 		Items: []*pb.Item{
-			{Description: "Shared Pizza", Amount: 30, AssignedTo: []string{"Alice", "Bob", "Charlie"}},
+			{Description: "Shared Pizza", Amount: 30, Participants: []string{"Alice", "Bob", "Charlie"}},
 		},
 		Total:        33,
 		Subtotal:     30,
@@ -165,8 +187,8 @@ func TestCreateBill_And_GetBill(t *testing.T) {
 	createResp, err := client.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
 		Title: "Dinner",
 		Items: []*pb.Item{
-			{Description: "Burger", Amount: 15, AssignedTo: []string{"Alice"}},
-			{Description: "Fries", Amount: 5, AssignedTo: []string{"Alice", "Bob"}},
+			{Description: "Burger", Amount: 15, Participants: []string{"Alice"}},
+			{Description: "Fries", Amount: 5, Participants: []string{"Alice", "Bob"}},
 		},
 		Total:        22,
 		Subtotal:     20,

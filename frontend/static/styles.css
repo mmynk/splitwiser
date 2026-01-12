@@ -167,6 +167,25 @@ section {
   color: var(--pico-primary);
 }
 
+.result-card .items-breakdown {
+  margin: var(--spacing-sm) 0;
+  padding: var(--spacing-sm);
+  background: var(--pico-background-color);
+  border-radius: var(--pico-border-radius);
+  font-size: 0.875rem;
+}
+
+.result-card .items-breakdown .item-line {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.25rem 0;
+  border-bottom: 1px dashed var(--pico-muted-border-color);
+}
+
+.result-card .items-breakdown .item-line:last-child {
+  border-bottom: none;
+}
+
 .result-card .breakdown {
   color: var(--pico-muted-color);
   font-size: 0.875rem;

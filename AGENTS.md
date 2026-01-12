@@ -2,6 +2,17 @@
 
 This file provides guidance to AI coding assistants when working with code in this repository.
 
+## Development Philosophy
+
+**Priorities:**
+1. Move fast
+2. Do things right
+
+**Non-priorities:**
+- Backward compatibility (early development, not a concern)
+
+Feel free to tear down and recreate as needed. Clean code over legacy support.
+
 ## Project Overview
 
 Splitwiser is a free and open source alternative to Splitwise. It improves upon Splitwise with granular item-level splitting and automatic tax/fee distribution.
@@ -17,11 +28,11 @@ Splitwiser is a free and open source alternative to Splitwise. It improves upon 
 - Structured logging with slog for request/response tracing
 - Handles bill management and split calculations
 
-### Frontend (Next.js + TypeScript)
-- Web application with Connect client (@connectrpc/connect)
-- Uses generated TypeScript types from Protocol Buffers
+### Frontend (Plain HTML/JS/CSS)
+- Static files served by Go backend
+- Located in `frontend/static/`
 - Simple, focused UI for receipt entry and split calculation
-- Real-time split calculation and results display
+- Calls Connect RPC API via fetch
 
 ### Protocol Buffers
 - API contract defined in `proto/splitwiser.proto`
@@ -49,14 +60,8 @@ cd backend && ./bin/server
 ```
 
 ### Frontend
-```bash
-make frontend-dev        # Start Next.js dev server (port :3000)
-make frontend-build      # Build for production
-
-# Manual commands:
-cd frontend && bun run dev
-cd frontend && bun run build
-```
+Frontend is plain HTML/JS/CSS served by the Go backend. No build step needed.
+Files are in `frontend/static/`.
 
 ### Testing Connect API
 ```bash
@@ -64,14 +69,14 @@ cd frontend && bun run build
 curl -X POST http://localhost:8080/splitwiser.v1.SplitService/CalculateSplit \
   -H "Content-Type: application/json" \
   -d '{
-    "items": [{"description": "Pizza", "amount": 20, "assignedTo": ["Alice", "Bob"]}],
+    "items": [{"description": "Pizza", "amount": 20, "participants": ["Alice", "Bob"]}],
     "total": 33,
     "subtotal": 30,
     "participants": ["Alice", "Bob"]
   }'
 
 # Or use grpcurl (Connect is gRPC-compatible):
-grpcurl -plaintext -d '{"items":[{"description":"Pizza","amount":20,"assigned_to":["Alice","Bob"]}],"total":33,"subtotal":30,"participants":["Alice","Bob"]}' localhost:8080 splitwiser.v1.SplitService/CalculateSplit
+grpcurl -plaintext -d '{"items":[{"description":"Pizza","amount":20,"participants":["Alice","Bob"]}],"total":33,"subtotal":30,"participants":["Alice","Bob"]}' localhost:8080 splitwiser.v1.SplitService/CalculateSplit
 ```
 
 ## Key Splitting Algorithm
@@ -111,9 +116,8 @@ The Python script (`../scripts/splitwiser.py`) has bugs that should NOT be repli
 ### Proto Generation
 After modifying `proto/splitwiser.proto`:
 1. Run `make proto` to regenerate Go code with Connect
-2. Run `cd frontend && bun run proto:generate` for TypeScript code
-3. Update service implementations in `backend/internal/service/`
-4. Frontend client automatically uses new generated types
+2. Update service implementations in `backend/internal/service/`
+3. Frontend uses plain fetch (no TypeScript generation needed)
 
 ## Code Organization
 
@@ -123,18 +127,20 @@ backend/
 ├── internal/
 │   ├── calculator/      # Core splitting algorithm (pure functions)
 │   ├── service/         # Connect service implementations
-│   └── models/          # Database models (future - when adding persistence)
+│   ├── storage/         # SQLite storage layer
+│   └── models/          # Domain models
 ├── pkg/
 │   └── proto/          # Generated protobuf code
 │       └── protoconnect/ # Generated Connect service code
+├── data/               # SQLite database (bills.db)
 
 frontend/
-├── src/
-│   ├── api/
-│   │   └── generated/  # Generated Connect client + protobuf types
-│   ├── components/      # React components (future)
-│   └── pages/          # Next.js pages
-└── public/             # Static assets
+└── static/             # Plain HTML/JS/CSS (served by backend)
+    ├── index.html      # Bill creation form
+    ├── bill.html       # Bill view page
+    ├── app.js          # Form logic, API calls
+    ├── bill.js         # Bill view logic
+    └── styles.css      # Styling
 
 proto/
 └── splitwiser.proto    # API contract (source of truth)

@@ -40,12 +40,12 @@ func (s *SplitService) CalculateSplit(ctx context.Context, req *connect.Request[
 			"index", i+1,
 			"description", item.Description,
 			"amount", item.Amount,
-			"assigned_to", item.AssignedTo,
+			"participants", item.Participants,
 		)
 		items[i] = calculator.Item{
-			Description: item.Description,
-			Amount:      item.Amount,
-			AssignedTo:  item.AssignedTo,
+			Description:  item.Description,
+			Amount:       item.Amount,
+			Participants: item.Participants,
 		}
 	}
 
@@ -60,16 +60,26 @@ func (s *SplitService) CalculateSplit(ctx context.Context, req *connect.Request[
 	// Convert splits to proto format
 	protoSplits := make(map[string]*pb.PersonSplit)
 	for person, split := range splits {
+		// Convert items to proto format
+		protoItems := make([]*pb.PersonItem, len(split.Items))
+		for i, item := range split.Items {
+			protoItems[i] = &pb.PersonItem{
+				Description: item.Description,
+				Amount:      item.Amount,
+			}
+		}
 		slog.Debug("Person split",
 			"person", person,
 			"subtotal", split.Subtotal,
 			"tax", split.Tax,
 			"total", split.Total,
+			"items_count", len(split.Items),
 		)
 		protoSplits[person] = &pb.PersonSplit{
 			Subtotal: split.Subtotal,
 			Tax:      split.Tax,
 			Total:    split.Total,
+			Items:    protoItems,
 		}
 	}
 
@@ -94,9 +104,9 @@ func (s *SplitService) CreateBill(ctx context.Context, req *connect.Request[pb.C
 	items := make([]models.Item, len(req.Msg.Items))
 	for i, item := range req.Msg.Items {
 		items[i] = models.Item{
-			Description: item.Description,
-			Amount:      item.Amount,
-			AssignedTo:  item.AssignedTo,
+			Description:  item.Description,
+			Amount:       item.Amount,
+			Participants: item.Participants,
 		}
 	}
 
@@ -121,9 +131,9 @@ func (s *SplitService) CreateBill(ctx context.Context, req *connect.Request[pb.C
 	calcItems := make([]calculator.Item, len(req.Msg.Items))
 	for i, item := range req.Msg.Items {
 		calcItems[i] = calculator.Item{
-			Description: item.Description,
-			Amount:      item.Amount,
-			AssignedTo:  item.AssignedTo,
+			Description:  item.Description,
+			Amount:       item.Amount,
+			Participants: item.Participants,
 		}
 	}
 
@@ -136,10 +146,19 @@ func (s *SplitService) CreateBill(ctx context.Context, req *connect.Request[pb.C
 	// Convert splits to proto format
 	protoSplits := make(map[string]*pb.PersonSplit)
 	for person, split := range splits {
+		// Convert items to proto format
+		protoItems := make([]*pb.PersonItem, len(split.Items))
+		for i, item := range split.Items {
+			protoItems[i] = &pb.PersonItem{
+				Description: item.Description,
+				Amount:      item.Amount,
+			}
+		}
 		protoSplits[person] = &pb.PersonSplit{
 			Subtotal: split.Subtotal,
 			Tax:      split.Tax,
 			Total:    split.Total,
+			Items:    protoItems,
 		}
 	}
 
@@ -168,9 +187,9 @@ func (s *SplitService) GetBill(ctx context.Context, req *connect.Request[pb.GetB
 	protoItems := make([]*pb.Item, len(bill.Items))
 	for i, item := range bill.Items {
 		protoItems[i] = &pb.Item{
-			Description: item.Description,
-			Amount:      item.Amount,
-			AssignedTo:  item.AssignedTo,
+			Description:  item.Description,
+			Amount:       item.Amount,
+			Participants: item.Participants,
 		}
 	}
 
@@ -178,9 +197,9 @@ func (s *SplitService) GetBill(ctx context.Context, req *connect.Request[pb.GetB
 	calcItems := make([]calculator.Item, len(bill.Items))
 	for i, item := range bill.Items {
 		calcItems[i] = calculator.Item{
-			Description: item.Description,
-			Amount:      item.Amount,
-			AssignedTo:  item.AssignedTo,
+			Description:  item.Description,
+			Amount:       item.Amount,
+			Participants: item.Participants,
 		}
 	}
 
@@ -193,10 +212,19 @@ func (s *SplitService) GetBill(ctx context.Context, req *connect.Request[pb.GetB
 	// Convert splits to proto format
 	protoSplits := make(map[string]*pb.PersonSplit)
 	for person, split := range splits {
+		// Convert items to proto format
+		personItems := make([]*pb.PersonItem, len(split.Items))
+		for i, item := range split.Items {
+			personItems[i] = &pb.PersonItem{
+				Description: item.Description,
+				Amount:      item.Amount,
+			}
+		}
 		protoSplits[person] = &pb.PersonSplit{
 			Subtotal: split.Subtotal,
 			Tax:      split.Tax,
 			Total:    split.Total,
+			Items:    personItems,
 		}
 	}
 
