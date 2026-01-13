@@ -2,6 +2,11 @@
 
 const API_BASE = 'http://localhost:8080';
 
+// State
+let currentBill = null;
+let editForm = null;
+let isEditMode = false;
+
 // DOM Elements
 const loadingEl = document.getElementById('loading');
 const errorStateEl = document.getElementById('error-state');
@@ -19,6 +24,16 @@ const itemsListEl = document.getElementById('items-list');
 const splitsGridEl = document.getElementById('splits-grid');
 const participantsListEl = document.getElementById('participants-list');
 
+// Edit mode elements
+const editBtn = document.getElementById('edit-btn');
+const editFormEl = document.getElementById('edit-form');
+const viewModeEl = document.getElementById('view-mode');
+const saveEditBtn = document.getElementById('save-edit-btn');
+const cancelEditBtn = document.getElementById('cancel-edit-btn');
+const editErrorEl = document.getElementById('edit-error');
+const addParticipantBtn = document.getElementById('edit-add-participant');
+const addItemBtn = document.getElementById('edit-add-item');
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
   const billId = getBillId();
@@ -31,6 +46,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Set share URL
   shareUrlEl.value = window.location.href;
+
+  // Initialize edit form handler
+  editForm = new BillForm();
+  editForm.init({
+    participantsList: document.getElementById('edit-participants-list'),
+    itemsList: document.getElementById('edit-items-list'),
+    totalInput: document.getElementById('edit-total'),
+    subtotalInput: document.getElementById('edit-subtotal'),
+    taxAmountEl: document.getElementById('edit-tax-amount')
+  });
 });
 
 // Copy button
@@ -50,6 +75,28 @@ copyBtn.addEventListener('click', async () => {
       copyBtn.textContent = 'Copy';
     }, 2000);
   }
+});
+
+// Edit mode handlers
+editBtn.addEventListener('click', () => {
+  enterEditMode();
+});
+
+cancelEditBtn.addEventListener('click', () => {
+  exitEditMode();
+});
+
+addParticipantBtn.addEventListener('click', () => {
+  editForm.addParticipant('');
+});
+
+addItemBtn.addEventListener('click', () => {
+  editForm.addItem();
+});
+
+editFormEl.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  await saveChanges();
 });
 
 // Get bill ID from URL
@@ -73,6 +120,7 @@ async function loadBill(billId) {
     }
 
     const data = await response.json();
+    currentBill = data;
     displayBill(data);
   } catch (err) {
     showError(err.message);
@@ -87,7 +135,7 @@ function displayBill(bill) {
   // Title and date
   billTitleEl.textContent = bill.title || 'Bill';
   if (bill.createdAt) {
-    const date = new Date(bill.createdAt);
+    const date = new Date(bill.createdAt * 1000);
     billDateEl.textContent = date.toLocaleDateString('en-US', {
       month: 'long',
       day: 'numeric',
@@ -119,6 +167,8 @@ function displayBill(bill) {
         <div class="item-amount">$${(item.amount || 0).toFixed(2)}</div>
       </div>
     `).join('');
+  } else {
+    itemsSectionEl.classList.add('hidden');
   }
 
   // Splits
@@ -160,11 +210,88 @@ function displayBill(bill) {
   participantsListEl.textContent = participants.join(', ');
 }
 
+// Enter edit mode
+function enterEditMode() {
+  if (!currentBill) return;
+
+  isEditMode = true;
+  editFormEl.classList.remove('hidden');
+  viewModeEl.classList.add('hidden');
+  editBtn.classList.add('hidden');
+
+  // Load current bill data into form
+  editForm.loadBill(currentBill);
+}
+
+// Exit edit mode
+function exitEditMode() {
+  isEditMode = false;
+  editFormEl.classList.add('hidden');
+  viewModeEl.classList.remove('hidden');
+  editBtn.classList.remove('hidden');
+  hideEditError();
+}
+
+// Save changes
+async function saveChanges() {
+  hideEditError();
+
+  const validation = editForm.validate();
+  if (!validation.valid) {
+    showEditError(validation.error);
+    return;
+  }
+
+  const data = editForm.getData();
+  const billId = getBillId();
+
+  const request = {
+    billId,
+    title: currentBill.title,
+    ...data
+  };
+
+  try {
+    saveEditBtn.setAttribute('aria-busy', 'true');
+    saveEditBtn.disabled = true;
+
+    const response = await fetch(`${API_BASE}/splitwiser.v1.SplitService/UpdateBill`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request)
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to save changes');
+    }
+
+    // Reload bill to get updated data
+    await loadBill(billId);
+    exitEditMode();
+  } catch (err) {
+    showEditError(err.message);
+  } finally {
+    saveEditBtn.removeAttribute('aria-busy');
+    saveEditBtn.disabled = false;
+  }
+}
+
 // Show error state
 function showError(message) {
   loadingEl.classList.add('hidden');
   errorStateEl.classList.remove('hidden');
   errorMessageEl.textContent = message;
+}
+
+// Edit error handling
+function showEditError(message) {
+  editErrorEl.textContent = message;
+  editErrorEl.classList.remove('hidden');
+}
+
+function hideEditError() {
+  editErrorEl.classList.add('hidden');
 }
 
 // Utility

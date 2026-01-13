@@ -28,7 +28,10 @@
           <h1 id="bill-title">Bill</h1>
           <p id="bill-date" style="color: var(--pico-muted-color);"></p>
         </div>
-        <a href="/" role="button" class="secondary">Create New Bill</a>
+        <div class="header-actions">
+          <button type="button" id="edit-btn" class="outline">Edit</button>
+          <a href="/" role="button" class="secondary">New Bill</a>
+        </div>
       </header>
 
       <!-- Share Section -->
@@ -40,6 +43,47 @@
         </div>
       </section>
 
+      <!-- Edit Form (hidden by default) -->
+      <form id="edit-form" class="hidden">
+        <section>
+          <h2>Bill Details</h2>
+          <div class="grid">
+            <label>
+              Total (with tax)
+              <input type="number" id="edit-total" step="0.01" min="0" placeholder="0.00" required>
+            </label>
+            <label>
+              Subtotal (before tax)
+              <input type="number" id="edit-subtotal" step="0.01" min="0" placeholder="0.00" required>
+            </label>
+          </div>
+          <p class="tax-display">Tax & Fees: <strong id="edit-tax-amount">$0.00</strong></p>
+        </section>
+
+        <section>
+          <h2>Participants</h2>
+          <p class="hint">Press Enter to add a new participant</p>
+          <div id="edit-participants-list"></div>
+          <button type="button" id="edit-add-participant" class="secondary outline">+ Add Participant</button>
+        </section>
+
+        <section>
+          <h2>Items <small>(optional)</small></h2>
+          <p class="hint">Leave empty to split equally among all participants</p>
+          <div id="edit-items-list"></div>
+          <button type="button" id="edit-add-item" class="secondary outline">+ Add Item</button>
+        </section>
+
+        <div class="actions">
+          <button type="submit" id="save-edit-btn">Save Changes</button>
+          <button type="button" id="cancel-edit-btn" class="secondary">Cancel</button>
+        </div>
+
+        <div id="edit-error" class="hidden"></div>
+      </form>
+
+      <!-- View Mode Content -->
+      <div id="view-mode">
       <!-- Bill Summary -->
       <section class="bill-summary">
         <div class="summary-item">
@@ -73,9 +117,11 @@
         <h2>Participants</h2>
         <p id="participants-list"></p>
       </section>
+      </div><!-- end view-mode -->
     </div>
   </main>
 
+  <script src="form-components.js"></script>
   <script src="bill.js"></script>
 </body>
 </html>

@@ -14,6 +14,9 @@ service SplitService {
 
   // Get bill details
   rpc GetBill(GetBillRequest) returns (GetBillResponse);
+
+  // Update an existing bill
+  rpc UpdateBill(UpdateBillRequest) returns (UpdateBillResponse);
 }
 
 // Request to calculate a split
@@ -79,4 +82,18 @@ message GetBillResponse {
   repeated string participants = 6;
   CalculateSplitResponse split = 7;
   int64 created_at = 8;
+}
+
+message UpdateBillRequest {
+  string bill_id = 1;
+  string title = 2;
+  repeated Item items = 3;
+  double total = 4;
+  double subtotal = 5;
+  repeated string participants = 6;
+}
+
+message UpdateBillResponse {
+  string bill_id = 1;
+  CalculateSplitResponse split = 2;
 }

@@ -219,6 +219,31 @@ section {
   margin-bottom: 0;
 }
 
+.header-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.header-actions button,
+.header-actions a {
+  margin-bottom: 0;
+}
+
+/* Edit form on bill page */
+#edit-form {
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-lg);
+  border-top: 2px solid var(--pico-primary);
+}
+
+#edit-error {
+  background: var(--pico-del-color);
+  color: white;
+  padding: var(--spacing-md);
+  border-radius: var(--pico-border-radius);
+  margin-top: var(--spacing-md);
+}
+
 .share-section {
   background: var(--pico-card-background-color);
   border: 1px solid var(--pico-muted-border-color);

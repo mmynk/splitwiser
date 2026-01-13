@@ -216,6 +216,94 @@ func (s *SQLiteStore) GetBill(ctx context.Context, billID string) (*models.Bill,
 	return bill, nil
 }
 
+// UpdateBill updates an existing bill, replacing all items and participants.
+func (s *SQLiteStore) UpdateBill(ctx context.Context, bill *models.Bill) error {
+	if bill.ID == "" {
+		return fmt.Errorf("bill ID is required for update")
+	}
+
+	// Check if bill exists
+	var exists int
+	err := s.db.QueryRowContext(ctx, "SELECT 1 FROM bills WHERE id = ?", bill.ID).Scan(&exists)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("bill not found: %s", bill.ID)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to check bill existence: %w", err)
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Update bill fields
+	_, err = tx.ExecContext(ctx,
+		"UPDATE bills SET title = ?, total = ?, subtotal = ? WHERE id = ?",
+		bill.Title, bill.Total, bill.Subtotal, bill.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update bill: %w", err)
+	}
+
+	// Delete existing items (cascades to item_assignments via FK)
+	_, err = tx.ExecContext(ctx, "DELETE FROM items WHERE bill_id = ?", bill.ID)
+	if err != nil {
+		return fmt.Errorf("failed to delete existing items: %w", err)
+	}
+
+	// Delete existing participants
+	_, err = tx.ExecContext(ctx, "DELETE FROM participants WHERE bill_id = ?", bill.ID)
+	if err != nil {
+		return fmt.Errorf("failed to delete existing participants: %w", err)
+	}
+
+	// Insert new participants
+	for _, name := range bill.Participants {
+		_, err = tx.ExecContext(ctx,
+			"INSERT INTO participants (bill_id, name) VALUES (?, ?)",
+			bill.ID, name,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to insert participant: %w", err)
+		}
+	}
+
+	// Insert new items and their assignments
+	for i := range bill.Items {
+		item := &bill.Items[i]
+		if item.ID == "" {
+			item.ID = uuid.New().String()
+		}
+
+		_, err = tx.ExecContext(ctx,
+			"INSERT INTO items (id, bill_id, description, amount) VALUES (?, ?, ?, ?)",
+			item.ID, bill.ID, item.Description, item.Amount,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to insert item: %w", err)
+		}
+
+		// Insert item assignments
+		for _, participant := range item.Participants {
+			_, err = tx.ExecContext(ctx,
+				"INSERT INTO item_assignments (item_id, participant) VALUES (?, ?)",
+				item.ID, participant,
+			)
+			if err != nil {
+				return fmt.Errorf("failed to insert item assignment: %w", err)
+			}
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
 // generateTitle creates an auto-generated title from participants.
 func generateTitle(participants []string) string {
 	if len(participants) == 0 {

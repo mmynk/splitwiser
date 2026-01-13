@@ -274,3 +274,117 @@ func TestCalculateSplit_NoParticipants(t *testing.T) {
 		t.Error("expected error for no participants")
 	}
 }
+
+func TestUpdateBill(t *testing.T) {
+	client, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// First create a bill
+	createResp, err := client.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title: "Original Dinner",
+		Items: []*pb.Item{
+			{Description: "Pizza", Amount: 20, Participants: []string{"Alice", "Bob"}},
+		},
+		Total:        33,
+		Subtotal:     30,
+		Participants: []string{"Alice", "Bob"},
+	}))
+
+	if err != nil {
+		t.Fatalf("CreateBill failed: %v", err)
+	}
+
+	billId := createResp.Msg.BillId
+
+	// Update the bill
+	updateResp, err := client.UpdateBill(context.Background(), connect.NewRequest(&pb.UpdateBillRequest{
+		BillId: billId,
+		Title:  "Updated Dinner",
+		Items: []*pb.Item{
+			{Description: "Pizza", Amount: 20, Participants: []string{"Alice", "Bob"}},
+			{Description: "Beer", Amount: 15, Participants: []string{"Bob"}},
+		},
+		Total:        44,
+		Subtotal:     35,
+		Participants: []string{"Alice", "Bob"},
+	}))
+
+	if err != nil {
+		t.Fatalf("UpdateBill failed: %v", err)
+	}
+
+	if updateResp.Msg.BillId != billId {
+		t.Errorf("expected bill ID %s, got %s", billId, updateResp.Msg.BillId)
+	}
+
+	if updateResp.Msg.Split == nil {
+		t.Fatal("expected split in response")
+	}
+
+	// Verify splits are recalculated correctly
+	// Alice: $10 (half of pizza), Bob: $10 (half of pizza) + $15 (beer) = $25
+	// Tax ratio: Alice 10/35, Bob 25/35
+	// Tax = $9 total. Alice tax = 9*10/35 ≈ 2.57, Bob tax = 9*25/35 ≈ 6.43
+	aliceSplit := updateResp.Msg.Split.Splits["Alice"]
+	if aliceSplit == nil {
+		t.Fatal("expected Alice in splits")
+	}
+	if aliceSplit.Subtotal != 10 {
+		t.Errorf("Alice subtotal: expected 10, got %f", aliceSplit.Subtotal)
+	}
+
+	bobSplit := updateResp.Msg.Split.Splits["Bob"]
+	if bobSplit == nil {
+		t.Fatal("expected Bob in splits")
+	}
+	if bobSplit.Subtotal != 25 {
+		t.Errorf("Bob subtotal: expected 25, got %f", bobSplit.Subtotal)
+	}
+
+	// Retrieve and verify persisted changes
+	getResp, err := client.GetBill(context.Background(), connect.NewRequest(&pb.GetBillRequest{
+		BillId: billId,
+	}))
+
+	if err != nil {
+		t.Fatalf("GetBill failed: %v", err)
+	}
+
+	if getResp.Msg.Title != "Updated Dinner" {
+		t.Errorf("title not updated: expected 'Updated Dinner', got '%s'", getResp.Msg.Title)
+	}
+
+	if getResp.Msg.Total != 44 {
+		t.Errorf("total not updated: expected 44, got %f", getResp.Msg.Total)
+	}
+
+	if len(getResp.Msg.Items) != 2 {
+		t.Errorf("items count: expected 2, got %d", len(getResp.Msg.Items))
+	}
+}
+
+func TestUpdateBill_NotFound(t *testing.T) {
+	client, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	_, err := client.UpdateBill(context.Background(), connect.NewRequest(&pb.UpdateBillRequest{
+		BillId:       "nonexistent-id",
+		Title:        "Test",
+		Total:        10,
+		Subtotal:     10,
+		Participants: []string{"Alice"},
+	}))
+
+	if err == nil {
+		t.Error("expected error for nonexistent bill")
+	}
+
+	connectErr, ok := err.(*connect.Error)
+	if !ok {
+		t.Fatalf("expected connect.Error, got %T", err)
+	}
+
+	if connectErr.Code() != connect.CodeNotFound {
+		t.Errorf("expected CodeNotFound, got %v", connectErr.Code())
+	}
+}

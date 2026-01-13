@@ -19,6 +19,10 @@ type Store interface {
 	// Returns nil and an error if the bill is not found.
 	GetBill(ctx context.Context, billID string) (*models.Bill, error)
 
+	// UpdateBill updates an existing bill.
+	// Returns an error if the bill is not found.
+	UpdateBill(ctx context.Context, bill *models.Bill) error
+
 	// Close releases any resources held by the store.
 	Close() error
 }

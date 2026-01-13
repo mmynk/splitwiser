@@ -245,3 +245,87 @@ func (s *SplitService) GetBill(ctx context.Context, req *connect.Request[pb.GetB
 		CreatedAt: bill.CreatedAt,
 	}), nil
 }
+
+// UpdateBill updates an existing bill.
+func (s *SplitService) UpdateBill(ctx context.Context, req *connect.Request[pb.UpdateBillRequest]) (*connect.Response[pb.UpdateBillResponse], error) {
+	slog.Info("UpdateBill request received",
+		"bill_id", req.Msg.BillId,
+		"title", req.Msg.Title,
+		"total", req.Msg.Total,
+		"subtotal", req.Msg.Subtotal,
+		"participants", req.Msg.Participants,
+		"items_count", len(req.Msg.Items),
+	)
+
+	// Convert proto items to models
+	items := make([]models.Item, len(req.Msg.Items))
+	for i, item := range req.Msg.Items {
+		items[i] = models.Item{
+			Description:  item.Description,
+			Amount:       item.Amount,
+			Participants: item.Participants,
+		}
+	}
+
+	// Create bill model
+	bill := &models.Bill{
+		ID:           req.Msg.BillId,
+		Title:        req.Msg.Title,
+		Items:        items,
+		Total:        req.Msg.Total,
+		Subtotal:     req.Msg.Subtotal,
+		Participants: req.Msg.Participants,
+	}
+
+	// Update in storage
+	if err := s.store.UpdateBill(ctx, bill); err != nil {
+		slog.Error("UpdateBill failed", "error", err)
+		return nil, connect.NewError(connect.CodeNotFound, err)
+	}
+
+	slog.Info("Bill updated", "bill_id", bill.ID)
+
+	// Calculate splits
+	calcItems := make([]calculator.Item, len(req.Msg.Items))
+	for i, item := range req.Msg.Items {
+		calcItems[i] = calculator.Item{
+			Description:  item.Description,
+			Amount:       item.Amount,
+			Participants: item.Participants,
+		}
+	}
+
+	splits, err := calculator.CalculateSplit(calcItems, req.Msg.Total, req.Msg.Subtotal, req.Msg.Participants)
+	if err != nil {
+		slog.Error("CalculateSplit failed during UpdateBill", "error", err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
+	// Convert splits to proto format
+	protoSplits := make(map[string]*pb.PersonSplit)
+	for person, split := range splits {
+		// Convert items to proto format
+		protoItems := make([]*pb.PersonItem, len(split.Items))
+		for i, item := range split.Items {
+			protoItems[i] = &pb.PersonItem{
+				Description: item.Description,
+				Amount:      item.Amount,
+			}
+		}
+		protoSplits[person] = &pb.PersonSplit{
+			Subtotal: split.Subtotal,
+			Tax:      split.Tax,
+			Total:    split.Total,
+			Items:    protoItems,
+		}
+	}
+
+	return connect.NewResponse(&pb.UpdateBillResponse{
+		BillId: bill.ID,
+		Split: &pb.CalculateSplitResponse{
+			Splits:    protoSplits,
+			TaxAmount: req.Msg.Total - req.Msg.Subtotal,
+			Subtotal:  req.Msg.Subtotal,
+		},
+	}), nil
+}

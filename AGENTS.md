@@ -63,7 +63,29 @@ cd backend && ./bin/server
 Frontend is plain HTML/JS/CSS served by the Go backend. No build step needed.
 Files are in `frontend/static/`.
 
-### Testing Connect API
+## Testing Guidelines
+
+**IMPORTANT**: Always add integration tests for new API endpoints. Do NOT use curl-based manual tests.
+
+- **Service-level integration tests**: `backend/internal/service/split_service_test.go`
+  - Tests full RPC request/response cycle with real HTTP server
+  - Uses `setupTestServer()` helper for consistent test setup
+  - Each test gets isolated temp SQLite database
+
+- **Storage-level unit tests**: `backend/internal/storage/sqlite/sqlite_test.go`
+  - Tests database operations directly
+
+- **Calculator unit tests**: `backend/internal/calculator/split_test.go`
+  - Tests core splitting algorithm
+
+When adding a new RPC endpoint:
+1. Add service-level integration test in `split_service_test.go`
+2. Add storage-level test in `sqlite_test.go` if new storage method
+3. Run `make backend-test` to verify all tests pass
+
+### Manual API Testing (Reference Only)
+The curl examples below are for quick manual testing reference. **Always prefer writing integration tests.**
+
 ```bash
 # Using curl (Connect supports standard HTTP):
 curl -X POST http://localhost:8080/splitwiser.v1.SplitService/CalculateSplit \
@@ -137,9 +159,10 @@ backend/
 frontend/
 └── static/             # Plain HTML/JS/CSS (served by backend)
     ├── index.html      # Bill creation form
-    ├── bill.html       # Bill view page
-    ├── app.js          # Form logic, API calls
-    ├── bill.js         # Bill view logic
+    ├── bill.html       # Bill view/edit page
+    ├── app.js          # Bill creation form logic
+    ├── bill.js         # Bill view/edit logic
+    ├── form-components.js  # Shared form components (participants, items)
     └── styles.css      # Styling
 
 proto/

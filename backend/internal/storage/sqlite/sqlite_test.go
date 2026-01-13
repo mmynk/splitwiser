@@ -141,6 +141,81 @@ func TestSQLiteStore(t *testing.T) {
 		}
 	})
 
+	t.Run("UpdateBill modifies existing bill", func(t *testing.T) {
+		// Create a bill first
+		original := &models.Bill{
+			Title:        "Original Dinner",
+			Total:        50.0,
+			Subtotal:     45.0,
+			Participants: []string{"Alice", "Bob"},
+			Items: []models.Item{
+				{Description: "Pasta", Amount: 25.0, Participants: []string{"Alice"}},
+				{Description: "Wine", Amount: 20.0, Participants: []string{"Bob"}},
+			},
+		}
+
+		err := store.CreateBill(ctx, original)
+		if err != nil {
+			t.Fatalf("CreateBill failed: %v", err)
+		}
+
+		// Update the bill
+		updated := &models.Bill{
+			ID:           original.ID,
+			Title:        "Updated Dinner",
+			Total:        75.0,
+			Subtotal:     70.0,
+			Participants: []string{"Alice", "Bob", "Charlie"},
+			Items: []models.Item{
+				{Description: "Pizza", Amount: 30.0, Participants: []string{"Alice", "Bob"}},
+				{Description: "Beer", Amount: 20.0, Participants: []string{"Charlie"}},
+				{Description: "Dessert", Amount: 20.0, Participants: []string{"Alice", "Bob", "Charlie"}},
+			},
+		}
+
+		err = store.UpdateBill(ctx, updated)
+		if err != nil {
+			t.Fatalf("UpdateBill failed: %v", err)
+		}
+
+		// Retrieve and verify
+		retrieved, err := store.GetBill(ctx, original.ID)
+		if err != nil {
+			t.Fatalf("GetBill after update failed: %v", err)
+		}
+
+		if retrieved.Title != "Updated Dinner" {
+			t.Errorf("Title not updated: got %s, want Updated Dinner", retrieved.Title)
+		}
+		if retrieved.Total != 75.0 {
+			t.Errorf("Total not updated: got %f, want 75.0", retrieved.Total)
+		}
+		if retrieved.Subtotal != 70.0 {
+			t.Errorf("Subtotal not updated: got %f, want 70.0", retrieved.Subtotal)
+		}
+		if len(retrieved.Participants) != 3 {
+			t.Errorf("Participants count mismatch: got %d, want 3", len(retrieved.Participants))
+		}
+		if len(retrieved.Items) != 3 {
+			t.Errorf("Items count mismatch: got %d, want 3", len(retrieved.Items))
+		}
+	})
+
+	t.Run("UpdateBill returns error for nonexistent bill", func(t *testing.T) {
+		bill := &models.Bill{
+			ID:           "nonexistent-id",
+			Title:        "Test",
+			Total:        10.0,
+			Subtotal:     10.0,
+			Participants: []string{"Alice"},
+		}
+
+		err := store.UpdateBill(ctx, bill)
+		if err == nil {
+			t.Error("Expected error for nonexistent bill, got nil")
+		}
+	})
+
 	t.Run("Auto-generated title format", func(t *testing.T) {
 		// Two participants
 		bill1 := &models.Bill{
