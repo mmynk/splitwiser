@@ -28,6 +28,10 @@ type Bill struct {
 
 	// CreatedAt is the Unix timestamp when the bill was created.
 	CreatedAt int64
+
+	// GroupID is the optional group this bill belongs to.
+	// Empty string means the bill is not associated with any group.
+	GroupID string
 }
 
 // Item represents a single line item on a bill.

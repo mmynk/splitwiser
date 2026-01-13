@@ -50,9 +50,12 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	// Register Connect service
-	path, handler := protoconnect.NewSplitServiceHandler(service.NewSplitService(store))
-	mux.Handle(path, handler)
+	// Register Connect services
+	splitPath, splitHandler := protoconnect.NewSplitServiceHandler(service.NewSplitService(store))
+	mux.Handle(splitPath, splitHandler)
+
+	groupPath, groupHandler := protoconnect.NewGroupServiceHandler(service.NewGroupService(store))
+	mux.Handle(groupPath, groupHandler)
 
 	// Serve static files from frontend/static
 	staticDir, err := filepath.Abs(staticPath)

@@ -5,6 +5,8 @@ const API_BASE = 'http://localhost:8080';
 // State
 let participants = [];
 let items = [];
+let groups = [];
+let selectedGroupId = null;
 
 // DOM Elements
 const form = document.getElementById('bill-form');
@@ -20,12 +22,15 @@ const saveBtn = document.getElementById('save-btn');
 const resultsSection = document.getElementById('results');
 const resultsContent = document.getElementById('results-content');
 const errorEl = document.getElementById('error');
+const groupSelector = document.getElementById('group-selector');
+const groupSelect = document.getElementById('group-select');
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
   addParticipant('');
   addParticipant('');
   updateTaxDisplay();
+  loadGroups();
 });
 
 // Event Listeners
@@ -33,6 +38,7 @@ addParticipantBtn.addEventListener('click', () => addParticipant(''));
 addItemBtn.addEventListener('click', () => addItem());
 totalInput.addEventListener('input', updateTaxDisplay);
 subtotalInput.addEventListener('input', updateTaxDisplay);
+groupSelect.addEventListener('change', handleGroupSelect);
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -49,6 +55,65 @@ function updateTaxDisplay() {
   const subtotal = parseFloat(subtotalInput.value) || 0;
   const tax = total - subtotal;
   taxAmountEl.textContent = `$${tax.toFixed(2)}`;
+}
+
+// Groups
+async function loadGroups() {
+  try {
+    const response = await fetch(`${API_BASE}/splitwiser.v1.GroupService/ListGroups`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+
+    if (!response.ok) {
+      console.error('Failed to load groups');
+      return;
+    }
+
+    const data = await response.json();
+    groups = data.groups || [];
+
+    if (groups.length > 0) {
+      groupSelector.classList.remove('hidden');
+      renderGroupOptions();
+    }
+  } catch (err) {
+    console.error('Failed to load groups:', err);
+  }
+}
+
+function renderGroupOptions() {
+  groupSelect.innerHTML = '<option value="">Select a group...</option>' +
+    groups.map(g => `<option value="${g.id}">${escapeHtml(g.name)} (${(g.members || []).length} members)</option>`).join('');
+}
+
+function handleGroupSelect() {
+  const groupId = groupSelect.value;
+  if (!groupId) {
+    selectedGroupId = null;
+    return;
+  }
+
+  const group = groups.find(g => g.id === groupId);
+  if (!group) return;
+
+  selectedGroupId = groupId;
+
+  // Replace participants with group members
+  participants = [];
+  (group.members || []).forEach(name => {
+    const id = Date.now() + Math.random();
+    participants.push({ id, name });
+  });
+
+  // Clear items (their participant assignments are now invalid)
+  items.forEach(item => {
+    item.participants = [...(group.members || [])];
+  });
+
+  renderParticipants();
+  renderItems();
 }
 
 // Participants
@@ -369,6 +434,11 @@ async function saveBill() {
     subtotal: subtotal || total,
     participants: validParticipants
   };
+
+  // Include group_id if a group was selected
+  if (selectedGroupId) {
+    request.groupId = selectedGroupId;
+  }
 
   try {
     saveBtn.setAttribute('aria-busy', 'true');

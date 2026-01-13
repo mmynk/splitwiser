@@ -80,9 +80,13 @@ func (s *SQLiteStore) CreateBill(ctx context.Context, bill *models.Bill) error {
 	defer tx.Rollback()
 
 	// Insert bill
+	var groupID interface{} = nil
+	if bill.GroupID != "" {
+		groupID = bill.GroupID
+	}
 	_, err = tx.ExecContext(ctx,
-		"INSERT INTO bills (id, title, total, subtotal, created_at) VALUES (?, ?, ?, ?, ?)",
-		bill.ID, bill.Title, bill.Total, bill.Subtotal, bill.CreatedAt,
+		"INSERT INTO bills (id, title, total, subtotal, created_at, group_id) VALUES (?, ?, ?, ?, ?, ?)",
+		bill.ID, bill.Title, bill.Total, bill.Subtotal, bill.CreatedAt, groupID,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to insert bill: %w", err)
@@ -137,15 +141,19 @@ func (s *SQLiteStore) CreateBill(ctx context.Context, bill *models.Bill) error {
 func (s *SQLiteStore) GetBill(ctx context.Context, billID string) (*models.Bill, error) {
 	// Get bill
 	bill := &models.Bill{}
+	var groupID sql.NullString
 	err := s.db.QueryRowContext(ctx,
-		"SELECT id, title, total, subtotal, created_at FROM bills WHERE id = ?",
+		"SELECT id, title, total, subtotal, created_at, group_id FROM bills WHERE id = ?",
 		billID,
-	).Scan(&bill.ID, &bill.Title, &bill.Total, &bill.Subtotal, &bill.CreatedAt)
+	).Scan(&bill.ID, &bill.Title, &bill.Total, &bill.Subtotal, &bill.CreatedAt, &groupID)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("bill not found: %s", billID)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get bill: %w", err)
+	}
+	if groupID.Valid {
+		bill.GroupID = groupID.String
 	}
 
 	// Get participants
@@ -239,9 +247,13 @@ func (s *SQLiteStore) UpdateBill(ctx context.Context, bill *models.Bill) error {
 	defer tx.Rollback()
 
 	// Update bill fields
+	var groupID interface{} = nil
+	if bill.GroupID != "" {
+		groupID = bill.GroupID
+	}
 	_, err = tx.ExecContext(ctx,
-		"UPDATE bills SET title = ?, total = ?, subtotal = ? WHERE id = ?",
-		bill.Title, bill.Total, bill.Subtotal, bill.ID,
+		"UPDATE bills SET title = ?, total = ?, subtotal = ?, group_id = ? WHERE id = ?",
+		bill.Title, bill.Total, bill.Subtotal, groupID, bill.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update bill: %w", err)
@@ -316,4 +328,213 @@ func generateTitle(participants []string) string {
 		strings.Join(participants[:2], ", "),
 		len(participants)-2,
 	)
+}
+
+// CreateGroup persists a new group to the database.
+func (s *SQLiteStore) CreateGroup(ctx context.Context, group *models.Group) error {
+	// Generate IDs if not set
+	if group.ID == "" {
+		group.ID = uuid.New().String()
+	}
+	if group.CreatedAt == 0 {
+		group.CreatedAt = time.Now().Unix()
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Insert group
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO groups (id, name, created_at) VALUES (?, ?, ?)",
+		group.ID, group.Name, group.CreatedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to insert group: %w", err)
+	}
+
+	// Insert members
+	for _, name := range group.Members {
+		_, err = tx.ExecContext(ctx,
+			"INSERT INTO group_members (group_id, name) VALUES (?, ?)",
+			group.ID, name,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to insert group member: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+// GetGroup retrieves a group by ID, including all members.
+func (s *SQLiteStore) GetGroup(ctx context.Context, groupID string) (*models.Group, error) {
+	// Get group
+	group := &models.Group{}
+	err := s.db.QueryRowContext(ctx,
+		"SELECT id, name, created_at FROM groups WHERE id = ?",
+		groupID,
+	).Scan(&group.ID, &group.Name, &group.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("group not found: %s", groupID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get group: %w", err)
+	}
+
+	// Get members
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT name FROM group_members WHERE group_id = ? ORDER BY name",
+		groupID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get group members: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("failed to scan group member: %w", err)
+		}
+		group.Members = append(group.Members, name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate group members: %w", err)
+	}
+
+	return group, nil
+}
+
+// ListGroups retrieves all groups with their members.
+func (s *SQLiteStore) ListGroups(ctx context.Context) ([]*models.Group, error) {
+	// Get all groups
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT id, name, created_at FROM groups ORDER BY created_at DESC",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list groups: %w", err)
+	}
+	defer rows.Close()
+
+	var groups []*models.Group
+	for rows.Next() {
+		group := &models.Group{}
+		if err := rows.Scan(&group.ID, &group.Name, &group.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan group: %w", err)
+		}
+		groups = append(groups, group)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate groups: %w", err)
+	}
+
+	// Get members for each group
+	for _, group := range groups {
+		memberRows, err := s.db.QueryContext(ctx,
+			"SELECT name FROM group_members WHERE group_id = ? ORDER BY name",
+			group.ID,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get group members: %w", err)
+		}
+
+		for memberRows.Next() {
+			var name string
+			if err := memberRows.Scan(&name); err != nil {
+				memberRows.Close()
+				return nil, fmt.Errorf("failed to scan group member: %w", err)
+			}
+			group.Members = append(group.Members, name)
+		}
+		memberRows.Close()
+		if err := memberRows.Err(); err != nil {
+			return nil, fmt.Errorf("failed to iterate group members: %w", err)
+		}
+	}
+
+	return groups, nil
+}
+
+// UpdateGroup updates an existing group, replacing all members.
+func (s *SQLiteStore) UpdateGroup(ctx context.Context, group *models.Group) error {
+	if group.ID == "" {
+		return fmt.Errorf("group ID is required for update")
+	}
+
+	// Check if group exists
+	var exists int
+	err := s.db.QueryRowContext(ctx, "SELECT 1 FROM groups WHERE id = ?", group.ID).Scan(&exists)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("group not found: %s", group.ID)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to check group existence: %w", err)
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Update group fields
+	_, err = tx.ExecContext(ctx,
+		"UPDATE groups SET name = ? WHERE id = ?",
+		group.Name, group.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update group: %w", err)
+	}
+
+	// Delete existing members
+	_, err = tx.ExecContext(ctx, "DELETE FROM group_members WHERE group_id = ?", group.ID)
+	if err != nil {
+		return fmt.Errorf("failed to delete existing members: %w", err)
+	}
+
+	// Insert new members
+	for _, name := range group.Members {
+		_, err = tx.ExecContext(ctx,
+			"INSERT INTO group_members (group_id, name) VALUES (?, ?)",
+			group.ID, name,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to insert group member: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteGroup removes a group by ID.
+// Bills associated with the group will have their group_id set to NULL (via ON DELETE SET NULL).
+func (s *SQLiteStore) DeleteGroup(ctx context.Context, groupID string) error {
+	// Check if group exists
+	var exists int
+	err := s.db.QueryRowContext(ctx, "SELECT 1 FROM groups WHERE id = ?", groupID).Scan(&exists)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("group not found: %s", groupID)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to check group existence: %w", err)
+	}
+
+	// Delete group (cascades to group_members, sets bills.group_id to NULL)
+	_, err = s.db.ExecContext(ctx, "DELETE FROM groups WHERE id = ?", groupID)
+	if err != nil {
+		return fmt.Errorf("failed to delete group: %w", err)
+	}
+
+	return nil
 }

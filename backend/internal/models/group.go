@@ -1,35 +1,21 @@
 package models
 
-// Group represents a recurring group of people who frequently split bills together.
+// Group represents a reusable participant list.
+// Groups can own bills, enabling group bill history.
 //
-// NOTE: This model is for FUTURE use when authentication is added.
-// The MVP does not use groups - participants are entered manually for each bill.
-//
-// Future features:
-//   - Recurring groups (e.g., "Roommates", "Hiking Crew", "Office Lunch Group")
-//   - Default participants when creating a bill within a group
-//   - Group bill history
-//   - Group settings (default split method, currency, etc.)
+// Future: When authentication is added, Members will reference User IDs
+// instead of names. The model is designed to be extensible for this transition.
 type Group struct {
 	// ID is the unique identifier for the group (UUID format).
 	ID string
 
-	// Name is the display name of the group (e.g., "Roommates", "Pizza Fridays").
+	// Name is the display name of the group (e.g., "Roommates", "Work Lunch").
 	Name string
 
-	// MemberIDs is the list of user IDs who belong to this group.
-	// Using IDs instead of User pointers to avoid circular references.
-	MemberIDs []string
-
-	// CreatedBy is the user ID of the person who created the group.
-	CreatedBy string
+	// Members is the list of participant names in this group.
+	// Future: will reference User IDs when auth is added.
+	Members []string
 
 	// CreatedAt is the Unix timestamp when the group was created.
 	CreatedAt int64
-
-	// Future fields to consider:
-	// - Description string (group purpose)
-	// - Currency string (default currency for bills)
-	// - DefaultSplitMethod string ("equal", "itemized", etc.)
-	// - Archived bool (soft delete)
 }

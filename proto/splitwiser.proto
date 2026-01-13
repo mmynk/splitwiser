@@ -19,6 +19,24 @@ service SplitService {
   rpc UpdateBill(UpdateBillRequest) returns (UpdateBillResponse);
 }
 
+// Service for group management
+service GroupService {
+  // Create a new group
+  rpc CreateGroup(CreateGroupRequest) returns (CreateGroupResponse);
+
+  // Get group details
+  rpc GetGroup(GetGroupRequest) returns (GetGroupResponse);
+
+  // List all groups
+  rpc ListGroups(ListGroupsRequest) returns (ListGroupsResponse);
+
+  // Update an existing group
+  rpc UpdateGroup(UpdateGroupRequest) returns (UpdateGroupResponse);
+
+  // Delete a group
+  rpc DeleteGroup(DeleteGroupRequest) returns (DeleteGroupResponse);
+}
+
 // Request to calculate a split
 message CalculateSplitRequest {
   repeated Item items = 1;
@@ -62,6 +80,7 @@ message CreateBillRequest {
   double total = 3;
   double subtotal = 4;
   repeated string participants = 5;
+  optional string group_id = 6;  // Optional - links bill to a group
 }
 
 message CreateBillResponse {
@@ -82,6 +101,7 @@ message GetBillResponse {
   repeated string participants = 6;
   CalculateSplitResponse split = 7;
   int64 created_at = 8;
+  optional string group_id = 9;  // Optional - links bill to a group
 }
 
 message UpdateBillRequest {
@@ -91,9 +111,62 @@ message UpdateBillRequest {
   double total = 4;
   double subtotal = 5;
   repeated string participants = 6;
+  optional string group_id = 7;  // Optional - links bill to a group
 }
 
 message UpdateBillResponse {
   string bill_id = 1;
   CalculateSplitResponse split = 2;
 }
+
+// Group represents a reusable participant list
+message Group {
+  string id = 1;
+  string name = 2;
+  repeated string members = 3;  // Member names (future: user IDs)
+  int64 created_at = 4;
+}
+
+// Request to create a group
+message CreateGroupRequest {
+  string name = 1;
+  repeated string members = 2;
+}
+
+message CreateGroupResponse {
+  Group group = 1;
+}
+
+// Request to get a group
+message GetGroupRequest {
+  string group_id = 1;
+}
+
+message GetGroupResponse {
+  Group group = 1;
+}
+
+// Request to list all groups
+message ListGroupsRequest {}
+
+message ListGroupsResponse {
+  repeated Group groups = 1;
+}
+
+// Request to update a group
+message UpdateGroupRequest {
+  string group_id = 1;
+  string name = 2;
+  repeated string members = 3;
+}
+
+message UpdateGroupResponse {
+  Group group = 1;
+}
+
+// Request to delete a group
+message DeleteGroupRequest {
+  string group_id = 1;
+}
+
+message DeleteGroupResponse {}

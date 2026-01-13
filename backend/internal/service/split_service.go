@@ -118,6 +118,9 @@ func (s *SplitService) CreateBill(ctx context.Context, req *connect.Request[pb.C
 		Subtotal:     req.Msg.Subtotal,
 		Participants: req.Msg.Participants,
 	}
+	if req.Msg.GetGroupId() != "" {
+		bill.GroupID = req.Msg.GetGroupId()
+	}
 
 	// Save to storage (generates ID and CreatedAt)
 	if err := s.store.CreateBill(ctx, bill); err != nil {
@@ -230,7 +233,7 @@ func (s *SplitService) GetBill(ctx context.Context, req *connect.Request[pb.GetB
 
 	slog.Info("GetBill successful", "bill_id", bill.ID, "title", bill.Title)
 
-	return connect.NewResponse(&pb.GetBillResponse{
+	resp := &pb.GetBillResponse{
 		BillId:       bill.ID,
 		Title:        bill.Title,
 		Items:        protoItems,
@@ -243,7 +246,11 @@ func (s *SplitService) GetBill(ctx context.Context, req *connect.Request[pb.GetB
 			Subtotal:  bill.Subtotal,
 		},
 		CreatedAt: bill.CreatedAt,
-	}), nil
+	}
+	if bill.GroupID != "" {
+		resp.GroupId = &bill.GroupID
+	}
+	return connect.NewResponse(resp), nil
 }
 
 // UpdateBill updates an existing bill.
@@ -275,6 +282,9 @@ func (s *SplitService) UpdateBill(ctx context.Context, req *connect.Request[pb.U
 		Total:        req.Msg.Total,
 		Subtotal:     req.Msg.Subtotal,
 		Participants: req.Msg.Participants,
+	}
+	if req.Msg.GetGroupId() != "" {
+		bill.GroupID = req.Msg.GetGroupId()
 	}
 
 	// Update in storage

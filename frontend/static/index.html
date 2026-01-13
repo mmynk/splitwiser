@@ -12,6 +12,7 @@
     <header>
       <h1>Splitwiser</h1>
       <p>Split bills fairly with item-level assignments and proportional tax distribution.</p>
+      <p><a href="/groups.html">Manage Groups &rarr;</a></p>
     </header>
 
     <form id="bill-form">
@@ -34,6 +35,14 @@
       <!-- Participants -->
       <section>
         <h2>Participants</h2>
+        <div id="group-selector" class="hidden" style="margin-bottom: var(--spacing-md);">
+          <label>
+            Load from group
+            <select id="group-select">
+              <option value="">Select a group...</option>
+            </select>
+          </label>
+        </div>
         <p class="hint">Press Enter to add a new participant</p>
         <div id="participants-list"></div>
         <button type="button" id="add-participant" class="secondary outline">+ Add Participant</button>
