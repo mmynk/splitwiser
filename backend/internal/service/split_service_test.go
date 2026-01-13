@@ -15,6 +15,12 @@ import (
 
 // setupTestServer creates a test server with an in-memory SQLite database
 func setupTestServer(t *testing.T) (protoconnect.SplitServiceClient, func()) {
+	splitClient, _, cleanup := setupTestServerWithGroupService(t)
+	return splitClient, cleanup
+}
+
+// setupTestServerWithGroupService creates a test server with both Split and Group services
+func setupTestServerWithGroupService(t *testing.T) (protoconnect.SplitServiceClient, protoconnect.GroupServiceClient, func()) {
 	t.Helper()
 
 	// Create temp database
@@ -30,16 +36,25 @@ func setupTestServer(t *testing.T) (protoconnect.SplitServiceClient, func()) {
 		t.Fatalf("failed to create store: %v", err)
 	}
 
-	// Create service and handler
-	svc := NewSplitService(store)
-	path, handler := protoconnect.NewSplitServiceHandler(svc)
+	// Create services and handlers
+	splitSvc := NewSplitService(store)
+	splitPath, splitHandler := protoconnect.NewSplitServiceHandler(splitSvc)
+
+	groupSvc := NewGroupService(store)
+	groupPath, groupHandler := protoconnect.NewGroupServiceHandler(groupSvc)
 
 	mux := http.NewServeMux()
-	mux.Handle(path, handler)
+	mux.Handle(splitPath, splitHandler)
+	mux.Handle(groupPath, groupHandler)
 
 	server := httptest.NewServer(mux)
 
-	client := protoconnect.NewSplitServiceClient(
+	splitClient := protoconnect.NewSplitServiceClient(
+		http.DefaultClient,
+		server.URL,
+	)
+
+	groupClient := protoconnect.NewGroupServiceClient(
 		http.DefaultClient,
 		server.URL,
 	)
@@ -50,7 +65,7 @@ func setupTestServer(t *testing.T) (protoconnect.SplitServiceClient, func()) {
 		os.Remove(tmpFile.Name())
 	}
 
-	return client, cleanup
+	return splitClient, groupClient, cleanup
 }
 
 func TestCalculateSplit_EqualSplit(t *testing.T) {
@@ -386,5 +401,122 @@ func TestUpdateBill_NotFound(t *testing.T) {
 
 	if connectErr.Code() != connect.CodeNotFound {
 		t.Errorf("expected CodeNotFound, got %v", connectErr.Code())
+	}
+}
+
+func TestListBillsByGroup(t *testing.T) {
+	splitClient, groupClient, cleanup := setupTestServerWithGroupService(t)
+	defer cleanup()
+
+	// First, create a group
+	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
+		Name:    "Test Group",
+		Members: []string{"Alice", "Bob"},
+	}))
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+	groupID := groupResp.Msg.Group.Id
+
+	// Create first bill in group
+	bill1Resp, err := splitClient.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:        "Group Dinner 1",
+		Items:        []*pb.Item{{Description: "Pizza", Amount: 30}},
+		Total:        33,
+		Subtotal:     30,
+		Participants: []string{"Alice", "Bob"},
+		GroupId:      &groupID,
+	}))
+	if err != nil {
+		t.Fatalf("CreateBill 1 failed: %v", err)
+	}
+
+	// Create second bill in same group
+	bill2Resp, err := splitClient.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:        "Group Lunch",
+		Items:        []*pb.Item{{Description: "Burgers", Amount: 20}},
+		Total:        22,
+		Subtotal:     20,
+		Participants: []string{"Alice", "Bob"},
+		GroupId:      &groupID,
+	}))
+	if err != nil {
+		t.Fatalf("CreateBill 2 failed: %v", err)
+	}
+
+	// Create bill without group (should not appear in results)
+	_, err = splitClient.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:        "Individual Bill",
+		Items:        []*pb.Item{{Description: "Coffee", Amount: 5}},
+		Total:        5,
+		Subtotal:     5,
+		Participants: []string{"Charlie"},
+	}))
+	if err != nil {
+		t.Fatalf("CreateBill 3 failed: %v", err)
+	}
+
+	// List bills by group
+	listResp, err := splitClient.ListBillsByGroup(context.Background(), connect.NewRequest(&pb.ListBillsByGroupRequest{
+		GroupId: groupID,
+	}))
+	if err != nil {
+		t.Fatalf("ListBillsByGroup failed: %v", err)
+	}
+
+	// Verify we got exactly 2 bills
+	if len(listResp.Msg.Bills) != 2 {
+		t.Fatalf("expected 2 bills, got %d", len(listResp.Msg.Bills))
+	}
+
+	// Verify bills are in the response (order is by created_at DESC)
+	billIDs := map[string]bool{
+		bill1Resp.Msg.BillId: false,
+		bill2Resp.Msg.BillId: false,
+	}
+
+	for _, summary := range listResp.Msg.Bills {
+		if _, exists := billIDs[summary.BillId]; exists {
+			billIDs[summary.BillId] = true
+		}
+
+		// Verify summary fields
+		if summary.Title == "" {
+			t.Error("expected non-empty title")
+		}
+		if summary.Total <= 0 {
+			t.Error("expected positive total")
+		}
+		if summary.ParticipantCount != 2 {
+			t.Errorf("expected 2 participants, got %d", summary.ParticipantCount)
+		}
+		if summary.CreatedAt == 0 {
+			t.Error("expected non-zero created_at")
+		}
+	}
+
+	// Verify both bills were found
+	for billID, found := range billIDs {
+		if !found {
+			t.Errorf("bill %s not found in list response", billID)
+		}
+	}
+}
+
+func TestListBillsByGroup_EmptyGroup(t *testing.T) {
+	splitClient, _, cleanup := setupTestServerWithGroupService(t)
+	defer cleanup()
+
+	// List bills for a group with no bills
+	listResp, err := splitClient.ListBillsByGroup(context.Background(), connect.NewRequest(&pb.ListBillsByGroupRequest{
+		GroupId: "empty-group-id",
+	}))
+	if err != nil {
+		t.Fatalf("ListBillsByGroup failed: %v", err)
+	}
+
+	// Should return empty list, not error
+	if len(listResp.Msg.Bills) != 0 {
+		t.Errorf("expected 0 bills, got %d", len(listResp.Msg.Bills))
 	}
 }

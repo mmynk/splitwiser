@@ -346,10 +346,17 @@ function renderGroups() {
   }
 
   groupsList.innerHTML = groups.map(group => `
-    <div class="result-card">
+    <div class="result-card" id="group-${group.id}">
       <h3>${escapeHtml(group.name)}</h3>
       <div class="breakdown">
-        ${(group.members || []).map(m => escapeHtml(m)).join(', ') || 'No members'}
+        <strong>Members:</strong> ${(group.members || []).map(m => escapeHtml(m)).join(', ') || 'No members'}
+      </div>
+      <div id="bills-${group.id}" class="group-bills" style="margin-top: var(--spacing-md);">
+        <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+          <strong>Bills:</strong>
+          <button type="button" class="secondary outline" style="font-size: 0.9em; padding: 0.25em 0.5em;" onclick="toggleBills('${group.id}')">Show Bills</button>
+        </div>
+        <div id="bills-list-${group.id}" style="display: none; margin-top: var(--spacing-sm);"></div>
       </div>
       <div style="margin-top: var(--spacing-md); display: flex; gap: var(--spacing-sm);">
         <button type="button" class="secondary outline" onclick="startEdit(${JSON.stringify(group).replace(/"/g, '&quot;')})">Edit</button>
@@ -357,6 +364,94 @@ function renderGroups() {
       </div>
     </div>
   `).join('');
+}
+
+// Toggle bills display for a group
+async function toggleBills(groupId) {
+  const billsList = document.getElementById(`bills-list-${groupId}`);
+  const button = event.target;
+
+  if (billsList.style.display === 'none') {
+    // Load and show bills
+    button.setAttribute('aria-busy', 'true');
+    button.textContent = 'Loading...';
+
+    try {
+      const bills = await loadBillsForGroup(groupId);
+      renderBillsList(groupId, bills);
+      billsList.style.display = 'block';
+      button.textContent = 'Hide Bills';
+    } catch (err) {
+      showError(err.message);
+      button.textContent = 'Show Bills';
+    } finally {
+      button.removeAttribute('aria-busy');
+    }
+  } else {
+    // Hide bills
+    billsList.style.display = 'none';
+    button.textContent = 'Show Bills';
+  }
+}
+
+// Load bills for a specific group
+async function loadBillsForGroup(groupId) {
+  const response = await fetch(`${API_BASE}/splitwiser.v1.SplitService/ListBillsByGroup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ groupId })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to load bills');
+  }
+
+  const data = await response.json();
+  return data.bills || [];
+}
+
+// Render bills list for a group
+function renderBillsList(groupId, bills) {
+  const billsList = document.getElementById(`bills-list-${groupId}`);
+
+  if (bills.length === 0) {
+    billsList.innerHTML = '<p style="color: var(--muted-color); font-style: italic;">No bills yet for this group.</p>';
+    return;
+  }
+
+  billsList.innerHTML = `
+    <table role="grid">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Total</th>
+          <th>Participants</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${bills.map(bill => `
+          <tr>
+            <td><a href="/bill.html?id=${bill.billId}">${escapeHtml(bill.title)}</a></td>
+            <td>$${bill.total.toFixed(2)}</td>
+            <td>${bill.participantCount}</td>
+            <td>${formatDate(bill.createdAt)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// Format Unix timestamp to readable date
+function formatDate(timestamp) {
+  const date = new Date(timestamp * 1000);
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
 }
 
 // Error Handling

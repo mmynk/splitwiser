@@ -17,6 +17,9 @@ service SplitService {
 
   // Update an existing bill
   rpc UpdateBill(UpdateBillRequest) returns (UpdateBillResponse);
+
+  // List bills for a group
+  rpc ListBillsByGroup(ListBillsByGroupRequest) returns (ListBillsByGroupResponse);
 }
 
 // Service for group management
@@ -117,6 +120,24 @@ message UpdateBillRequest {
 message UpdateBillResponse {
   string bill_id = 1;
   CalculateSplitResponse split = 2;
+}
+
+// Request to list bills by group
+message ListBillsByGroupRequest {
+  string group_id = 1;
+}
+
+// Summary of a bill (without full split details)
+message BillSummary {
+  string bill_id = 1;
+  string title = 2;
+  double total = 3;
+  int64 created_at = 4;
+  int32 participant_count = 5;
+}
+
+message ListBillsByGroupResponse {
+  repeated BillSummary bills = 1;
 }
 
 // Group represents a reusable participant list

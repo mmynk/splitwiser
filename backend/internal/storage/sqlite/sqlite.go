@@ -316,6 +316,108 @@ func (s *SQLiteStore) UpdateBill(ctx context.Context, bill *models.Bill) error {
 	return nil
 }
 
+// ListBillsByGroup retrieves all bills associated with a group.
+func (s *SQLiteStore) ListBillsByGroup(ctx context.Context, groupID string) ([]*models.Bill, error) {
+	// Get all bills for the group
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT id, title, total, subtotal, created_at, group_id FROM bills WHERE group_id = ? ORDER BY created_at DESC",
+		groupID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list bills by group: %w", err)
+	}
+	defer rows.Close()
+
+	var bills []*models.Bill
+	for rows.Next() {
+		bill := &models.Bill{}
+		var groupIDStr sql.NullString
+		if err := rows.Scan(&bill.ID, &bill.Title, &bill.Total, &bill.Subtotal, &bill.CreatedAt, &groupIDStr); err != nil {
+			return nil, fmt.Errorf("failed to scan bill: %w", err)
+		}
+		if groupIDStr.Valid {
+			bill.GroupID = groupIDStr.String
+		}
+
+		// Get participants for this bill
+		participantRows, err := s.db.QueryContext(ctx,
+			"SELECT name FROM participants WHERE bill_id = ? ORDER BY name",
+			bill.ID,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get participants: %w", err)
+		}
+
+		for participantRows.Next() {
+			var name string
+			if err := participantRows.Scan(&name); err != nil {
+				participantRows.Close()
+				return nil, fmt.Errorf("failed to scan participant: %w", err)
+			}
+			bill.Participants = append(bill.Participants, name)
+		}
+		participantRows.Close()
+		if err := participantRows.Err(); err != nil {
+			return nil, fmt.Errorf("failed to iterate participants: %w", err)
+		}
+
+		// Get items for this bill (we include them for completeness, though the API might not need them)
+		itemRows, err := s.db.QueryContext(ctx,
+			"SELECT id, description, amount FROM items WHERE bill_id = ?",
+			bill.ID,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get items: %w", err)
+		}
+
+		for itemRows.Next() {
+			var item models.Item
+			if err := itemRows.Scan(&item.ID, &item.Description, &item.Amount); err != nil {
+				itemRows.Close()
+				return nil, fmt.Errorf("failed to scan item: %w", err)
+			}
+
+			// Get assignments for this item
+			assignRows, err := s.db.QueryContext(ctx,
+				"SELECT participant FROM item_assignments WHERE item_id = ? ORDER BY participant",
+				item.ID,
+			)
+			if err != nil {
+				itemRows.Close()
+				return nil, fmt.Errorf("failed to get item assignments: %w", err)
+			}
+
+			for assignRows.Next() {
+				var participant string
+				if err := assignRows.Scan(&participant); err != nil {
+					assignRows.Close()
+					itemRows.Close()
+					return nil, fmt.Errorf("failed to scan assignment: %w", err)
+				}
+				item.Participants = append(item.Participants, participant)
+			}
+			assignRows.Close()
+			if err := assignRows.Err(); err != nil {
+				itemRows.Close()
+				return nil, fmt.Errorf("failed to iterate assignments: %w", err)
+			}
+
+			bill.Items = append(bill.Items, item)
+		}
+		itemRows.Close()
+		if err := itemRows.Err(); err != nil {
+			return nil, fmt.Errorf("failed to iterate items: %w", err)
+		}
+
+		bills = append(bills, bill)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate bills: %w", err)
+	}
+
+	return bills, nil
+}
+
 // generateTitle creates an auto-generated title from participants.
 func generateTitle(participants []string) string {
 	if len(participants) == 0 {

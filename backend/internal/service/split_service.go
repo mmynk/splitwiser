@@ -339,3 +339,33 @@ func (s *SplitService) UpdateBill(ctx context.Context, req *connect.Request[pb.U
 		},
 	}), nil
 }
+
+// ListBillsByGroup retrieves all bills associated with a group.
+func (s *SplitService) ListBillsByGroup(ctx context.Context, req *connect.Request[pb.ListBillsByGroupRequest]) (*connect.Response[pb.ListBillsByGroupResponse], error) {
+	slog.Info("ListBillsByGroup request received", "group_id", req.Msg.GroupId)
+
+	// Retrieve bills from storage
+	bills, err := s.store.ListBillsByGroup(ctx, req.Msg.GroupId)
+	if err != nil {
+		slog.Error("ListBillsByGroup failed", "group_id", req.Msg.GroupId, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// Convert to bill summaries
+	summaries := make([]*pb.BillSummary, len(bills))
+	for i, bill := range bills {
+		summaries[i] = &pb.BillSummary{
+			BillId:           bill.ID,
+			Title:            bill.Title,
+			Total:            bill.Total,
+			CreatedAt:        bill.CreatedAt,
+			ParticipantCount: int32(len(bill.Participants)),
+		}
+	}
+
+	slog.Info("ListBillsByGroup successful", "group_id", req.Msg.GroupId, "count", len(bills))
+
+	return connect.NewResponse(&pb.ListBillsByGroupResponse{
+		Bills: summaries,
+	}), nil
+}
