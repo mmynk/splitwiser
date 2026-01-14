@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package splitwiser.v1;
+
+import "common.proto";
+
+option go_package = "github.com/mmynk/splitwiser/pkg/proto;proto";
+
+// Service for bill splitting operations
+service SplitService {
+  // Calculate split for a bill
+  rpc CalculateSplit(CalculateSplitRequest) returns (CalculateSplitResponse);
+
+  // Create a new bill
+  rpc CreateBill(CreateBillRequest) returns (CreateBillResponse);
+
+  // Get bill details
+  rpc GetBill(GetBillRequest) returns (GetBillResponse);
+
+  // Update an existing bill
+  rpc UpdateBill(UpdateBillRequest) returns (UpdateBillResponse);
+
+  // List bills for a group
+  rpc ListBillsByGroup(ListBillsByGroupRequest) returns (ListBillsByGroupResponse);
+}
+
+// Request to calculate a split
+message CalculateSplitRequest {
+  repeated Item items = 1;
+  double total = 2;        // Total bill amount including tax
+  double subtotal = 3;     // Subtotal before tax
+  repeated string participants = 4;
+}
+
+// Response with calculated split
+message CalculateSplitResponse {
+  map<string, PersonSplit> splits = 1;
+  double tax_amount = 2;
+  double subtotal = 3;
+}
+
+// Request to create a bill
+message CreateBillRequest {
+  string title = 1;
+  double total = 2;
+  double subtotal = 3;
+  repeated Item items = 4;
+  repeated string participants = 5;
+  optional string payer_id = 6;  // Participant who paid this bill
+  optional string group_id = 7;  // Links bill to a group
+}
+
+message CreateBillResponse {
+  string bill_id = 1;
+  CalculateSplitResponse split = 2;
+}
+
+message GetBillRequest {
+  string bill_id = 1;
+}
+
+message GetBillResponse {
+  string bill_id = 1;
+  string title = 2;
+  double total = 3;
+  double subtotal = 4;
+  repeated Item items = 5;
+  repeated string participants = 6;
+  string payer_id = 7;  // Non-optional - always has a payer
+  optional string group_id = 8;
+  int64 created_at = 9;
+  CalculateSplitResponse split = 10;
+}
+
+message UpdateBillRequest {
+  string bill_id = 1;
+  string title = 2;
+  double total = 3;
+  double subtotal = 4;
+  repeated Item items = 5;
+  repeated string participants = 6;
+  optional string payer_id = 7;  // Participant who paid this bill
+  optional string group_id = 8;  // Links bill to a group
+}
+
+message UpdateBillResponse {
+  string bill_id = 1;
+  CalculateSplitResponse split = 2;
+}
+
+// Request to list bills by group
+message ListBillsByGroupRequest {
+  string group_id = 1;
+}
+
+// Summary of a bill (without full split details)
+message BillSummary {
+  string bill_id = 1;
+  string title = 2;
+  double total = 3;
+  string payer_id = 4;  // Non-optional - always has a payer
+  int64 created_at = 5;
+  int32 participant_count = 6;
+}
+
+message ListBillsByGroupResponse {
+  repeated BillSummary bills = 1;
+}

@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+package splitwiser.v1;
+
+option go_package = "github.com/mmynk/splitwiser/pkg/proto;proto";
+
+// Service for group management
+service GroupService {
+  // Create a new group
+  rpc CreateGroup(CreateGroupRequest) returns (CreateGroupResponse);
+
+  // Get group details
+  rpc GetGroup(GetGroupRequest) returns (GetGroupResponse);
+
+  // List all groups
+  rpc ListGroups(ListGroupsRequest) returns (ListGroupsResponse);
+
+  // Update an existing group
+  rpc UpdateGroup(UpdateGroupRequest) returns (UpdateGroupResponse);
+
+  // Delete a group
+  rpc DeleteGroup(DeleteGroupRequest) returns (DeleteGroupResponse);
+
+  // Get balances for a group
+  rpc GetGroupBalances(GetGroupBalancesRequest) returns (GetGroupBalancesResponse);
+}
+
+// Group represents a reusable participant list
+message Group {
+  string id = 1;
+  string name = 2;
+  repeated string members = 3;  // Member names (future: user IDs)
+  int64 created_at = 4;
+}
+
+// Request to create a group
+message CreateGroupRequest {
+  string name = 1;
+  repeated string members = 2;
+}
+
+message CreateGroupResponse {
+  Group group = 1;
+}
+
+// Request to get a group
+message GetGroupRequest {
+  string group_id = 1;
+}
+
+message GetGroupResponse {
+  Group group = 1;
+}
+
+// Request to list all groups
+message ListGroupsRequest {}
+
+message ListGroupsResponse {
+  repeated Group groups = 1;
+}
+
+// Request to update a group
+message UpdateGroupRequest {
+  string group_id = 1;
+  string name = 2;
+  repeated string members = 3;
+}
+
+message UpdateGroupResponse {
+  Group group = 1;
+}
+
+// Request to delete a group
+message DeleteGroupRequest {
+  string group_id = 1;
+}
+
+message DeleteGroupResponse {}
+
+// Request to get group balances
+message GetGroupBalancesRequest {
+  string group_id = 1;
+}
+
+// Balance information for one group member
+message MemberBalance {
+  string member_name = 1;
+  double net_balance = 2;  // Positive = owed money, Negative = owes money
+  double total_paid = 3;   // Total amount paid across all bills
+  double total_owed = 4;   // Total amount this person owes
+}
+
+// Represents a debt from one person to another
+message DebtEdge {
+  string from = 1;  // Person who owes
+  string to = 2;    // Person who is owed
+  double amount = 3;
+}
+
+// Response with group balance information
+message GetGroupBalancesResponse {
+  repeated MemberBalance member_balances = 1;
+  repeated DebtEdge debt_matrix = 2;  // Detailed who-owes-whom
+}

@@ -373,3 +373,250 @@ func TestBillWithGroupId(t *testing.T) {
 		t.Errorf("GroupId mismatch: expected %s, got %s", groupId, getResp.Msg.GetGroupId())
 	}
 }
+
+func TestGetGroupBalances_SingleBill(t *testing.T) {
+	groupClient, splitClient, cleanup := setupGroupTestServer(t)
+	defer cleanup()
+
+	// Create a group
+	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
+		Name:    "Test Group",
+		Members: []string{"Alice", "Bob"},
+	}))
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+	groupId := groupResp.Msg.Group.Id
+
+	// Create a bill where Alice paid $100
+	alicePayer := "Alice"
+	_, err = splitClient.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:        "Dinner",
+		Items:        []*pb.Item{},
+		Total:        100,
+		Subtotal:     100,
+		Participants: []string{"Alice", "Bob"},
+		GroupId:      &groupId,
+		PayerId:      &alicePayer,
+	}))
+	if err != nil {
+		t.Fatalf("CreateBill failed: %v", err)
+	}
+
+	// Get balances
+	balResp, err := groupClient.GetGroupBalances(context.Background(), connect.NewRequest(&pb.GetGroupBalancesRequest{
+		GroupId: groupId,
+	}))
+	if err != nil {
+		t.Fatalf("GetGroupBalances failed: %v", err)
+	}
+
+	// Verify balances
+	if len(balResp.Msg.MemberBalances) != 2 {
+		t.Fatalf("expected 2 member balances, got %d", len(balResp.Msg.MemberBalances))
+	}
+
+	// Alice paid $100, owes $50 → net = +$50
+	// Bob paid $0, owes $50 → net = -$50
+	var aliceBalance, bobBalance *pb.MemberBalance
+	for _, bal := range balResp.Msg.MemberBalances {
+		if bal.MemberName == "Alice" {
+			aliceBalance = bal
+		} else if bal.MemberName == "Bob" {
+			bobBalance = bal
+		}
+	}
+
+	if aliceBalance == nil {
+		t.Fatal("Alice balance not found")
+	}
+	if aliceBalance.TotalPaid != 100 {
+		t.Errorf("Alice total paid: expected 100, got %f", aliceBalance.TotalPaid)
+	}
+	if aliceBalance.TotalOwed != 50 {
+		t.Errorf("Alice total owed: expected 50, got %f", aliceBalance.TotalOwed)
+	}
+	if aliceBalance.NetBalance != 50 {
+		t.Errorf("Alice net balance: expected 50, got %f", aliceBalance.NetBalance)
+	}
+
+	if bobBalance == nil {
+		t.Fatal("Bob balance not found")
+	}
+	if bobBalance.TotalPaid != 0 {
+		t.Errorf("Bob total paid: expected 0, got %f", bobBalance.TotalPaid)
+	}
+	if bobBalance.TotalOwed != 50 {
+		t.Errorf("Bob total owed: expected 50, got %f", bobBalance.TotalOwed)
+	}
+	if bobBalance.NetBalance != -50 {
+		t.Errorf("Bob net balance: expected -50, got %f", bobBalance.NetBalance)
+	}
+
+	// Verify debt matrix - Bob owes Alice $50
+	if len(balResp.Msg.DebtMatrix) != 1 {
+		t.Fatalf("expected 1 debt edge, got %d", len(balResp.Msg.DebtMatrix))
+	}
+	debt := balResp.Msg.DebtMatrix[0]
+	if debt.From != "Bob" || debt.To != "Alice" || debt.Amount != 50 {
+		t.Errorf("debt: expected Bob→Alice $50, got %s→%s $%f", debt.From, debt.To, debt.Amount)
+	}
+}
+
+func TestGetGroupBalances_MultipleBills(t *testing.T) {
+	groupClient, splitClient, cleanup := setupGroupTestServer(t)
+	defer cleanup()
+
+	// Create a group with 3 members
+	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
+		Name:    "Test Group",
+		Members: []string{"Alice", "Bob", "Charlie"},
+	}))
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+	groupId := groupResp.Msg.Group.Id
+
+	// Bill 1: Alice paid $90 for all 3 people
+	alicePayer := "Alice"
+	_, err = splitClient.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:        "Dinner 1",
+		Total:        90,
+		Subtotal:     90,
+		Participants: []string{"Alice", "Bob", "Charlie"},
+		GroupId:      &groupId,
+		PayerId:      &alicePayer,
+	}))
+	if err != nil {
+		t.Fatalf("CreateBill 1 failed: %v", err)
+	}
+
+	// Bill 2: Bob paid $60 for all 3 people
+	bobPayer := "Bob"
+	_, err = splitClient.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:        "Dinner 2",
+		Total:        60,
+		Subtotal:     60,
+		Participants: []string{"Alice", "Bob", "Charlie"},
+		GroupId:      &groupId,
+		PayerId:      &bobPayer,
+	}))
+	if err != nil {
+		t.Fatalf("CreateBill 2 failed: %v", err)
+	}
+
+	// Get balances
+	balResp, err := groupClient.GetGroupBalances(context.Background(), connect.NewRequest(&pb.GetGroupBalancesRequest{
+		GroupId: groupId,
+	}))
+	if err != nil {
+		t.Fatalf("GetGroupBalances failed: %v", err)
+	}
+
+	// Alice: paid $90, owes $50 → net = +$40
+	// Bob: paid $60, owes $50 → net = +$10
+	// Charlie: paid $0, owes $50 → net = -$50
+	var aliceBalance, bobBalance, charlieBalance *pb.MemberBalance
+	for _, bal := range balResp.Msg.MemberBalances {
+		switch bal.MemberName {
+		case "Alice":
+			aliceBalance = bal
+		case "Bob":
+			bobBalance = bal
+		case "Charlie":
+			charlieBalance = bal
+		}
+	}
+
+	if aliceBalance == nil || bobBalance == nil || charlieBalance == nil {
+		t.Fatal("missing member balances")
+	}
+
+	// Check net balances
+	if aliceBalance.NetBalance != 40 {
+		t.Errorf("Alice net: expected 40, got %f", aliceBalance.NetBalance)
+	}
+	if bobBalance.NetBalance != 10 {
+		t.Errorf("Bob net: expected 10, got %f", bobBalance.NetBalance)
+	}
+	if charlieBalance.NetBalance != -50 {
+		t.Errorf("Charlie net: expected -50, got %f", charlieBalance.NetBalance)
+	}
+
+	// Verify total debts add up (Charlie owes both Alice and Bob)
+	if len(balResp.Msg.DebtMatrix) != 2 {
+		t.Fatalf("expected 2 debt edges, got %d", len(balResp.Msg.DebtMatrix))
+	}
+}
+
+func TestGetGroupBalances_NoBills(t *testing.T) {
+	groupClient, _, cleanup := setupGroupTestServer(t)
+	defer cleanup()
+
+	// Create a group with no bills
+	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
+		Name:    "Empty Group",
+		Members: []string{"Alice", "Bob"},
+	}))
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+	groupId := groupResp.Msg.Group.Id
+
+	// Get balances
+	balResp, err := groupClient.GetGroupBalances(context.Background(), connect.NewRequest(&pb.GetGroupBalancesRequest{
+		GroupId: groupId,
+	}))
+	if err != nil {
+		t.Fatalf("GetGroupBalances failed: %v", err)
+	}
+
+	// Should return empty balances
+	if len(balResp.Msg.MemberBalances) != 0 {
+		t.Errorf("expected 0 balances, got %d", len(balResp.Msg.MemberBalances))
+	}
+	if len(balResp.Msg.DebtMatrix) != 0 {
+		t.Errorf("expected 0 debts, got %d", len(balResp.Msg.DebtMatrix))
+	}
+}
+
+func TestGetGroupBalances_BillsWithoutPayer(t *testing.T) {
+	groupClient, splitClient, cleanup := setupGroupTestServer(t)
+	defer cleanup()
+
+	// Create a group
+	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
+		Name:    "Test Group",
+		Members: []string{"Alice", "Bob"},
+	}))
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+	groupId := groupResp.Msg.Group.Id
+
+	// Create a bill without payer
+	_, err = splitClient.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:        "Dinner",
+		Total:        100,
+		Subtotal:     100,
+		Participants: []string{"Alice", "Bob"},
+		GroupId:      &groupId,
+		// No PayerId
+	}))
+	if err != nil {
+		t.Fatalf("CreateBill failed: %v", err)
+	}
+
+	// Get balances - should skip bills without payer
+	balResp, err := groupClient.GetGroupBalances(context.Background(), connect.NewRequest(&pb.GetGroupBalancesRequest{
+		GroupId: groupId,
+	}))
+	if err != nil {
+		t.Fatalf("GetGroupBalances failed: %v", err)
+	}
+
+	// Should return empty since bill has no payer
+	if len(balResp.Msg.MemberBalances) != 0 {
+		t.Errorf("expected 0 balances (no payer), got %d", len(balResp.Msg.MemberBalances))
+	}
+}

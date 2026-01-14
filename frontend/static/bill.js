@@ -14,6 +14,10 @@ const errorMessageEl = document.getElementById('error-message');
 const billContentEl = document.getElementById('bill-content');
 const billTitleEl = document.getElementById('bill-title');
 const billDateEl = document.getElementById('bill-date');
+const groupDisplayEl = document.getElementById('group-display');
+const groupLinkEl = document.getElementById('group-link');
+const payerDisplayEl = document.getElementById('payer-display');
+const payerNameEl = document.getElementById('payer-name');
 const shareUrlEl = document.getElementById('share-url');
 const copyBtn = document.getElementById('copy-btn');
 const summarySubtotalEl = document.getElementById('summary-subtotal');
@@ -33,6 +37,8 @@ const cancelEditBtn = document.getElementById('cancel-edit-btn');
 const editErrorEl = document.getElementById('edit-error');
 const addParticipantBtn = document.getElementById('edit-add-participant');
 const addItemBtn = document.getElementById('edit-add-item');
+const editTitleInput = document.getElementById('edit-title');
+const editPayerSelect = document.getElementById('edit-payer-select');
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -145,6 +151,25 @@ function displayBill(bill) {
     });
   }
 
+  // Group
+  if (bill.groupId) {
+    groupDisplayEl.classList.remove('hidden');
+    groupLinkEl.href = `/group.html?id=${bill.groupId}`;
+    groupLinkEl.textContent = 'View Group';
+    // Optionally fetch group name
+    fetchGroupName(bill.groupId);
+  } else {
+    groupDisplayEl.classList.add('hidden');
+  }
+
+  // Payer
+  if (bill.payerId) {
+    payerDisplayEl.classList.remove('hidden');
+    payerNameEl.textContent = bill.payerId;
+  } else {
+    payerDisplayEl.classList.add('hidden');
+  }
+
   // Summary
   const total = bill.total || 0;
   const subtotal = bill.subtotal || total;
@@ -221,6 +246,18 @@ function enterEditMode() {
 
   // Load current bill data into form
   editForm.loadBill(currentBill);
+
+  // Load title
+  editTitleInput.value = currentBill.title || '';
+
+  // Populate payer dropdown
+  const participants = currentBill.participants || [];
+  editPayerSelect.innerHTML = '<option value="">Not recorded</option>' +
+    participants.map(p =>
+      `<option value="${escapeHtml(p)}" ${p === currentBill.payerId ? 'selected' : ''}>
+        ${escapeHtml(p)}
+      </option>`
+    ).join('');
 }
 
 // Exit edit mode
@@ -247,7 +284,8 @@ async function saveChanges() {
 
   const request = {
     billId,
-    title: currentBill.title,
+    title: editTitleInput.value.trim() || '',
+    payerId: editPayerSelect.value || undefined,
     ...data
   };
 
@@ -292,6 +330,25 @@ function showEditError(message) {
 
 function hideEditError() {
   editErrorEl.classList.add('hidden');
+}
+
+// Fetch and display group name
+async function fetchGroupName(groupId) {
+  try {
+    const response = await fetch(`${API_BASE}/splitwiser.v1.GroupService/GetGroup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupId })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      groupLinkEl.textContent = data.name || 'View Group';
+    }
+  } catch (err) {
+    // Silent fail - just keep default "View Group" text
+    console.error('Failed to fetch group name:', err);
+  }
 }
 
 // Utility

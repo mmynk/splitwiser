@@ -358,9 +358,10 @@ function renderGroups() {
         </div>
         <div id="bills-list-${group.id}" style="display: none; margin-top: var(--spacing-sm);"></div>
       </div>
-      <div style="margin-top: var(--spacing-md); display: flex; gap: var(--spacing-sm);">
-        <button type="button" class="secondary outline" onclick="startEdit(${JSON.stringify(group).replace(/"/g, '&quot;')})">Edit</button>
-        <button type="button" class="remove-btn" onclick="deleteGroup('${group.id}', '${escapeHtml(group.name)}')">Delete</button>
+      <div style="margin-top: var(--spacing-md); display: flex; gap: var(--spacing-sm); flex-wrap: wrap;">
+        <a href="/group.html?id=${group.id}" role="button" class="contrast" style="flex: 2; text-align: center; margin-bottom: 0;">View Group</a>
+        <button type="button" class="secondary outline" onclick="startEdit(${JSON.stringify(group).replace(/"/g, '&quot;')})" style="flex: 1;">Edit</button>
+        <button type="button" class="remove-btn" onclick="deleteGroup('${group.id}', '${escapeHtml(group.name)}')" style="flex: 1;">Delete</button>
       </div>
     </div>
   `).join('');

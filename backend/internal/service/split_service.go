@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"connectrpc.com/connect"
@@ -21,6 +22,19 @@ type SplitService struct {
 // NewSplitService creates a new SplitService with the given storage backend.
 func NewSplitService(store storage.Store) *SplitService {
 	return &SplitService{store: store}
+}
+
+// validatePayerID checks if the payer is one of the participants.
+func validatePayerID(payerID string, participants []string) error {
+	if payerID == "" {
+		return nil // Optional field
+	}
+	for _, p := range participants {
+		if p == payerID {
+			return nil
+		}
+	}
+	return fmt.Errorf("payer_id '%s' must be one of the participants", payerID)
 }
 
 // CalculateSplit handles bill split calculation
@@ -110,6 +124,12 @@ func (s *SplitService) CreateBill(ctx context.Context, req *connect.Request[pb.C
 		}
 	}
 
+	// Validate payer
+	if err := validatePayerID(req.Msg.GetPayerId(), req.Msg.Participants); err != nil {
+		slog.Error("CreateBill payer validation failed", "error", err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
 	// Create bill model
 	bill := &models.Bill{
 		Title:        req.Msg.Title,
@@ -120,6 +140,9 @@ func (s *SplitService) CreateBill(ctx context.Context, req *connect.Request[pb.C
 	}
 	if req.Msg.GetGroupId() != "" {
 		bill.GroupID = req.Msg.GetGroupId()
+	}
+	if req.Msg.GetPayerId() != "" {
+		bill.PayerID = req.Msg.GetPayerId()
 	}
 
 	// Save to storage (generates ID and CreatedAt)
@@ -240,6 +263,7 @@ func (s *SplitService) GetBill(ctx context.Context, req *connect.Request[pb.GetB
 		Total:        bill.Total,
 		Subtotal:     bill.Subtotal,
 		Participants: bill.Participants,
+		PayerId:      bill.PayerID,  // Now non-optional
 		Split: &pb.CalculateSplitResponse{
 			Splits:    protoSplits,
 			TaxAmount: bill.Total - bill.Subtotal,
@@ -274,6 +298,12 @@ func (s *SplitService) UpdateBill(ctx context.Context, req *connect.Request[pb.U
 		}
 	}
 
+	// Validate payer
+	if err := validatePayerID(req.Msg.GetPayerId(), req.Msg.Participants); err != nil {
+		slog.Error("UpdateBill payer validation failed", "error", err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
 	// Create bill model
 	bill := &models.Bill{
 		ID:           req.Msg.BillId,
@@ -285,6 +315,9 @@ func (s *SplitService) UpdateBill(ctx context.Context, req *connect.Request[pb.U
 	}
 	if req.Msg.GetGroupId() != "" {
 		bill.GroupID = req.Msg.GetGroupId()
+	}
+	if req.Msg.GetPayerId() != "" {
+		bill.PayerID = req.Msg.GetPayerId()
 	}
 
 	// Update in storage
@@ -358,6 +391,7 @@ func (s *SplitService) ListBillsByGroup(ctx context.Context, req *connect.Reques
 			BillId:           bill.ID,
 			Title:            bill.Title,
 			Total:            bill.Total,
+			PayerId:          bill.PayerID,  // Now non-optional
 			CreatedAt:        bill.CreatedAt,
 			ParticipantCount: int32(len(bill.Participants)),
 		}

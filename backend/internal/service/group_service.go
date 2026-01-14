@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"connectrpc.com/connect"
+	"github.com/mmynk/splitwiser/internal/calculator"
 	"github.com/mmynk/splitwiser/internal/models"
 	"github.com/mmynk/splitwiser/internal/storage"
 	pb "github.com/mmynk/splitwiser/pkg/proto"
@@ -155,4 +157,95 @@ func (s *GroupService) DeleteGroup(ctx context.Context, req *connect.Request[pb.
 	slog.Info("Group deleted", "group_id", req.Msg.GroupId)
 
 	return connect.NewResponse(&pb.DeleteGroupResponse{}), nil
+}
+
+// GetGroupBalances calculates balances across all bills in a group.
+func (s *GroupService) GetGroupBalances(ctx context.Context, req *connect.Request[pb.GetGroupBalancesRequest]) (*connect.Response[pb.GetGroupBalancesResponse], error) {
+	groupID := req.Msg.GetGroupId()
+	slog.Info("GetGroupBalances request received", "group_id", groupID)
+
+	if groupID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("group_id required"))
+	}
+
+	// Verify group exists
+	_, err := s.store.GetGroup(ctx, groupID)
+	if err != nil {
+		slog.Error("GetGroupBalances failed - group not found", "group_id", groupID, "error", err)
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("group not found"))
+	}
+
+	// Get all bills for this group
+	billSummaries, err := s.store.ListBillsByGroup(ctx, groupID)
+	if err != nil {
+		slog.Error("GetGroupBalances failed - could not list bills", "group_id", groupID, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// Fetch full bill details for each
+	var bills []calculator.BillForBalance
+	for _, summary := range billSummaries {
+		bill, err := s.store.GetBill(ctx, summary.ID)
+		if err != nil {
+			slog.Error("GetGroupBalances failed - could not get bill", "bill_id", summary.ID, "error", err)
+			return nil, connect.NewError(connect.CodeInternal, err)
+		}
+
+		// Convert to calculator format
+		calcItems := make([]calculator.Item, len(bill.Items))
+		for i, item := range bill.Items {
+			calcItems[i] = calculator.Item{
+				Description:  item.Description,
+				Amount:       item.Amount,
+				Participants: item.Participants,
+			}
+		}
+
+		bills = append(bills, calculator.BillForBalance{
+			Total:        bill.Total,
+			Subtotal:     bill.Subtotal,
+			PayerID:      bill.PayerID,
+			Items:        calcItems,
+			Participants: bill.Participants,
+		})
+	}
+
+	// Calculate balances
+	memberBalances, debtEdges, err := calculator.CalculateGroupBalances(bills)
+	if err != nil {
+		slog.Error("GetGroupBalances failed - calculation error", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// Convert to proto messages
+	pbBalances := make([]*pb.MemberBalance, len(memberBalances))
+	for i, bal := range memberBalances {
+		pbBalances[i] = &pb.MemberBalance{
+			MemberName:  bal.MemberName,
+			NetBalance:  bal.NetBalance,
+			TotalPaid:   bal.TotalPaid,
+			TotalOwed:   bal.TotalOwed,
+		}
+	}
+
+	pbDebts := make([]*pb.DebtEdge, len(debtEdges))
+	for i, debt := range debtEdges {
+		pbDebts[i] = &pb.DebtEdge{
+			From:   debt.From,
+			To:     debt.To,
+			Amount: debt.Amount,
+		}
+	}
+
+	slog.Info("GetGroupBalances successful",
+		"group_id", groupID,
+		"bills_count", len(bills),
+		"members_count", len(memberBalances),
+		"debts_count", len(debtEdges),
+	)
+
+	return connect.NewResponse(&pb.GetGroupBalancesResponse{
+		MemberBalances: pbBalances,
+		DebtMatrix:     pbDebts,
+	}), nil
 }

@@ -47,6 +47,10 @@
       <form id="edit-form" class="hidden">
         <section>
           <h2>Bill Details</h2>
+          <label>
+            Bill Name <small>(optional - auto-generated if empty)</small>
+            <input type="text" id="edit-title" placeholder="e.g., Team Lunch, Grocery Run">
+          </label>
           <div class="grid">
             <label>
               Total (with tax)
@@ -67,6 +71,13 @@
           <button type="button" id="edit-add-participant" class="secondary outline">+ Add Participant</button>
         </section>
 
+        <section id="edit-payer-section">
+          <h2>Who paid this bill?</h2>
+          <select id="edit-payer-select">
+            <option value="">Not recorded</option>
+          </select>
+        </section>
+
         <section>
           <h2>Items <small>(optional)</small></h2>
           <p class="hint">Leave empty to split equally among all participants</p>
@@ -84,6 +95,16 @@
 
       <!-- View Mode Content -->
       <div id="view-mode">
+      <!-- Group Display -->
+      <section id="group-display" class="hidden">
+        <p><strong>Group:</strong> <a href="" id="group-link"></a></p>
+      </section>
+
+      <!-- Payer Display -->
+      <section id="payer-display" class="hidden">
+        <p><strong>Paid by:</strong> <span id="payer-name"></span></p>
+      </section>
+
       <!-- Bill Summary -->
       <section class="bill-summary">
         <div class="summary-item">
