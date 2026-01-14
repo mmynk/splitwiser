@@ -735,3 +735,60 @@ func TestUpdateBill_ChangePayer(t *testing.T) {
 		t.Errorf("expected payerId 'Bob', got '%s'", getResp.Msg.GetPayerId())
 	}
 }
+
+func TestDeleteBill(t *testing.T) {
+	client, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Create a bill
+	createResp, err := client.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:        "Dinner",
+		Items:        []*pb.Item{{Description: "Pizza", Amount: 20, Participants: []string{"Alice", "Bob"}}},
+		Total:        33,
+		Subtotal:     30,
+		Participants: []string{"Alice", "Bob"},
+	}))
+	if err != nil {
+		t.Fatalf("CreateBill failed: %v", err)
+	}
+
+	billID := createResp.Msg.BillId
+
+	// Delete the bill
+	_, err = client.DeleteBill(context.Background(), connect.NewRequest(&pb.DeleteBillRequest{
+		BillId: billID,
+	}))
+	if err != nil {
+		t.Fatalf("DeleteBill failed: %v", err)
+	}
+
+	// Verify bill is deleted
+	_, err = client.GetBill(context.Background(), connect.NewRequest(&pb.GetBillRequest{
+		BillId: billID,
+	}))
+	if err == nil {
+		t.Error("Expected error when getting deleted bill, got nil")
+	}
+}
+
+func TestDeleteBill_NotFound(t *testing.T) {
+	client, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Try to delete non-existent bill
+	_, err := client.DeleteBill(context.Background(), connect.NewRequest(&pb.DeleteBillRequest{
+		BillId: "nonexistent-id",
+	}))
+	if err == nil {
+		t.Error("Expected error for nonexistent bill")
+	}
+
+	connectErr, ok := err.(*connect.Error)
+	if !ok {
+		t.Fatalf("Expected connect.Error, got %T", err)
+	}
+
+	if connectErr.Code() != connect.CodeNotFound {
+		t.Errorf("Expected CodeNotFound, got %v", connectErr.Code())
+	}
+}

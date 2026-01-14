@@ -328,6 +328,27 @@ func (s *SQLiteStore) UpdateBill(ctx context.Context, bill *models.Bill) error {
 	return nil
 }
 
+// DeleteBill removes a bill and its associated data (items, participants, assignments).
+func (s *SQLiteStore) DeleteBill(ctx context.Context, billID string) error {
+	// Check if bill exists
+	var exists int
+	err := s.db.QueryRowContext(ctx, "SELECT 1 FROM bills WHERE id = ?", billID).Scan(&exists)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("bill not found: %s", billID)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to check bill existence: %w", err)
+	}
+
+	// Delete bill (cascades to items, participants, and item_assignments via FK)
+	_, err = s.db.ExecContext(ctx, "DELETE FROM bills WHERE id = ?", billID)
+	if err != nil {
+		return fmt.Errorf("failed to delete bill: %w", err)
+	}
+
+	return nil
+}
+
 // ListBillsByGroup retrieves all bills associated with a group.
 func (s *SQLiteStore) ListBillsByGroup(ctx context.Context, groupID string) ([]*models.Bill, error) {
 	// Get all bills for the group

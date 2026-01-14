@@ -22,6 +22,9 @@ service SplitService {
 
   // List bills for a group
   rpc ListBillsByGroup(ListBillsByGroupRequest) returns (ListBillsByGroupResponse);
+
+  // Delete a bill
+  rpc DeleteBill(DeleteBillRequest) returns (DeleteBillResponse);
 }
 
 // Request to calculate a split
@@ -106,3 +109,10 @@ message BillSummary {
 message ListBillsByGroupResponse {
   repeated BillSummary bills = 1;
 }
+
+// Request to delete a bill
+message DeleteBillRequest {
+  string bill_id = 1;
+}
+
+message DeleteBillResponse {}

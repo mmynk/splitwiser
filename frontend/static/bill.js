@@ -30,6 +30,7 @@ const participantsListEl = document.getElementById('participants-list');
 
 // Edit mode elements
 const editBtn = document.getElementById('edit-btn');
+const deleteBtn = document.getElementById('delete-btn');
 const editFormEl = document.getElementById('edit-form');
 const viewModeEl = document.getElementById('view-mode');
 const saveEditBtn = document.getElementById('save-edit-btn');
@@ -86,6 +87,10 @@ copyBtn.addEventListener('click', async () => {
 // Edit mode handlers
 editBtn.addEventListener('click', () => {
   enterEditMode();
+});
+
+deleteBtn.addEventListener('click', async () => {
+  await deleteBill();
 });
 
 cancelEditBtn.addEventListener('click', () => {
@@ -348,6 +353,41 @@ async function fetchGroupName(groupId) {
   } catch (err) {
     // Silent fail - just keep default "View Group" text
     console.error('Failed to fetch group name:', err);
+  }
+}
+
+// Delete bill
+async function deleteBill() {
+  if (!confirm('Are you sure you want to delete this bill? This cannot be undone.')) {
+    return;
+  }
+
+  const billId = getBillId();
+  deleteBtn.setAttribute('aria-busy', 'true');
+  deleteBtn.disabled = true;
+
+  try {
+    const response = await fetch(`${API_BASE}/splitwiser.v1.SplitService/DeleteBill`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ billId })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to delete bill');
+    }
+
+    // Redirect to home or group page if bill belonged to a group
+    if (currentBill?.groupId) {
+      window.location.href = `/group.html?id=${currentBill.groupId}`;
+    } else {
+      window.location.href = '/';
+    }
+  } catch (err) {
+    alert(`Failed to delete bill: ${err.message}`);
+    deleteBtn.removeAttribute('aria-busy');
+    deleteBtn.disabled = false;
   }
 }
 

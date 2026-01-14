@@ -23,6 +23,10 @@ type Store interface {
 	// Returns an error if the bill is not found.
 	UpdateBill(ctx context.Context, bill *models.Bill) error
 
+	// DeleteBill removes a bill by its ID.
+	// Returns an error if the bill is not found.
+	DeleteBill(ctx context.Context, billID string) error
+
 	// ListBillsByGroup retrieves all bills associated with a group.
 	// Returns an empty slice if the group has no bills.
 	ListBillsByGroup(ctx context.Context, groupID string) ([]*models.Bill, error)

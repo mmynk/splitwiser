@@ -136,12 +136,40 @@ async function loadBills() {
             <td>$${bill.total.toFixed(2)}</td>
             <td>${bill.payerId ? escapeHtml(bill.payerId) : '<em>Not recorded</em>'}</td>
             <td>${date}</td>
+            <td>
+              <button type="button" class="secondary outline" style="font-size: 0.85em; padding: 0.25em 0.75em;" onclick="deleteBill('${bill.billId}', '${escapeHtml(bill.title)}')">Delete</button>
+            </td>
           </tr>
         `;
       })
       .join('');
   } catch (err) {
     showError('Failed to load bills: ' + err.message);
+  }
+}
+
+async function deleteBill(billId, billTitle) {
+  if (!confirm(`Delete "${billTitle}"? This cannot be undone.`)) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/splitwiser.v1.SplitService/DeleteBill`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ billId })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to delete bill');
+    }
+
+    // Reload the page to refresh bills and balances
+    await loadBalances();
+    await loadBills();
+  } catch (err) {
+    showError('Failed to delete bill: ' + err.message);
   }
 }
 

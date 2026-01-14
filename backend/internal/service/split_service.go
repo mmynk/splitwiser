@@ -373,6 +373,24 @@ func (s *SplitService) UpdateBill(ctx context.Context, req *connect.Request[pb.U
 	}), nil
 }
 
+// DeleteBill deletes a bill.
+func (s *SplitService) DeleteBill(ctx context.Context, req *connect.Request[pb.DeleteBillRequest]) (*connect.Response[pb.DeleteBillResponse], error) {
+	slog.Info("DeleteBill request received", "bill_id", req.Msg.BillId)
+
+	if req.Msg.BillId == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("bill_id required"))
+	}
+
+	if err := s.store.DeleteBill(ctx, req.Msg.BillId); err != nil {
+		slog.Error("DeleteBill failed", "error", err)
+		return nil, connect.NewError(connect.CodeNotFound, err)
+	}
+
+	slog.Info("Bill deleted", "bill_id", req.Msg.BillId)
+
+	return connect.NewResponse(&pb.DeleteBillResponse{}), nil
+}
+
 // ListBillsByGroup retrieves all bills associated with a group.
 func (s *SplitService) ListBillsByGroup(ctx context.Context, req *connect.Request[pb.ListBillsByGroupRequest]) (*connect.Response[pb.ListBillsByGroupResponse], error) {
 	slog.Info("ListBillsByGroup request received", "group_id", req.Msg.GroupId)
