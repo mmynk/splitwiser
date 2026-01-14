@@ -21,12 +21,13 @@ Reusable participant groups for common splitting scenarios.
 - ✅ Group detail page with balance views (group.html/group.js)
 - ✅ Bill view/edit page updates for title/payer display
 - ✅ Balance card styling with color-coded net balances
-- ✅ "View Group" link in groups list
+- ✅ Clickable group names in groups list (replaced separate "View Group" button)
 - ✅ Toggle between total balances and detailed debt matrix views
 - ✅ Show group link on bill page when bill belongs to a group
-- ✅ Improved button sizing (View Group is larger than Edit/Delete)
+- ✅ Delete bill functionality from bill detail page and group bills list
 - ✅ Proto refactoring: split into common.proto, bill.proto, group.proto
 - ✅ Debt simplification algorithm: minimizes number of transactions
+- ✅ Fixed payer_id in ListBillsByGroup response
 
 **Technical Implementation:**
 - Single payer per bill (extensible to multiple payers via bill_payments table)

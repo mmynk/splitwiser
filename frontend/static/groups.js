@@ -347,7 +347,7 @@ function renderGroups() {
 
   groupsList.innerHTML = groups.map(group => `
     <div class="result-card" id="group-${group.id}">
-      <h3>${escapeHtml(group.name)}</h3>
+      <h3><a href="/group.html?id=${group.id}" style="color: var(--pico-primary); text-decoration: none; cursor: pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${escapeHtml(group.name)}</a></h3>
       <div class="breakdown">
         <strong>Members:</strong> ${(group.members || []).map(m => escapeHtml(m)).join(', ') || 'No members'}
       </div>
@@ -359,7 +359,6 @@ function renderGroups() {
         <div id="bills-list-${group.id}" style="display: none; margin-top: var(--spacing-sm);"></div>
       </div>
       <div style="margin-top: var(--spacing-md); display: flex; gap: var(--spacing-sm); flex-wrap: wrap;">
-        <a href="/group.html?id=${group.id}" role="button" class="contrast" style="flex: 2; text-align: center; margin-bottom: 0;">View Group</a>
         <button type="button" class="secondary outline" onclick="startEdit(${JSON.stringify(group).replace(/"/g, '&quot;')})" style="flex: 1;">Edit</button>
         <button type="button" class="remove-btn" onclick="deleteGroup('${group.id}', '${escapeHtml(group.name)}')" style="flex: 1;">Delete</button>
       </div>
