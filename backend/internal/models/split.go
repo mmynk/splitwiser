@@ -32,6 +32,12 @@ type Bill struct {
 	// GroupID is the optional group this bill belongs to.
 	// Empty string means the bill is not associated with any group.
 	GroupID string
+
+	// PayerID is the participant name who paid this bill.
+	// For MVP, this is a single payer (one person pays entire bill).
+	// Future: replace with PayerShares []PayerShare for split payments.
+	// Empty string means no payer recorded (legacy bills).
+	PayerID string
 }
 
 // Item represents a single line item on a bill.

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Group - Splitwiser</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="container">
+    <nav>
+      <ul>
+        <li><a href="/groups.html">← Back to Groups</a></li>
+      </ul>
+      <ul>
+        <li><a href="/" id="new-bill-link" role="button" class="secondary">+ New Bill</a></li>
+      </ul>
+    </nav>
+
+    <header>
+      <h1 id="group-name">Loading...</h1>
+      <p id="group-members"></p>
+    </header>
+
+    <section id="balances-section">
+      <h2>Balances</h2>
+
+      <div id="no-bills-message" class="hidden">
+        <p>No bills yet. <a href="/" id="create-first-bill">Create the first bill</a></p>
+      </div>
+
+      <div id="balances-content">
+        <!-- View Toggle -->
+        <div class="view-toggle" style="margin-bottom: 1rem;">
+          <button id="total-view-btn" class="contrast">Total Balances</button>
+          <button id="detailed-view-btn" class="outline">Detailed Debts</button>
+        </div>
+
+        <!-- Total Balances View (default) -->
+        <div id="total-balances">
+          <div class="balance-grid"></div>
+        </div>
+
+        <!-- Detailed Debt Matrix (hidden by default) -->
+        <div id="debt-matrix" class="hidden">
+          <table role="grid">
+            <thead>
+              <tr>
+                <th>Debtor</th>
+                <th>Owes To</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody id="debt-table-body">
+            </tbody>
+          </table>
+          <p id="no-debts-message" class="hidden">All settled up!</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="bills-section">
+      <h2>Bills</h2>
+      <table role="grid">
+        <thead>
+          <tr>
+            <th>Bill</th>
+            <th>Total</th>
+            <th>Paid By</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody id="bills-table-body">
+        </tbody>
+      </table>
+    </section>
+
+    <div id="error" class="error hidden"></div>
+  </main>
+
+  <script src="group.js"></script>
+</body>
+</html>

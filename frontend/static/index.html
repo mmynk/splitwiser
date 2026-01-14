@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Splitwiser - Split Bills Fairly</title>
+  <title>Splitwiser - Split Bills Wisely</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -19,6 +19,11 @@
       <!-- Bill Details -->
       <section>
         <h2>Bill Details</h2>
+        <label>
+          Bill Name <small>(optional - auto-generated if empty)</small>
+          <input type="text" id="bill-title" placeholder="e.g., Team Lunch, Grocery Run">
+          <small>Leave empty for auto-generated name like "Pizza - Alice, Bob"</small>
+        </label>
         <div class="grid">
           <label>
             Total (with tax)
@@ -46,6 +51,14 @@
         <p class="hint">Press Enter to add a new participant</p>
         <div id="participants-list"></div>
         <button type="button" id="add-participant" class="secondary outline">+ Add Participant</button>
+      </section>
+
+      <!-- Payer Selection -->
+      <section id="payer-section" class="hidden">
+        <h2>Who paid this bill?</h2>
+        <select id="payer-select">
+          <option value="">Select payer...</option>
+        </select>
       </section>
 
       <!-- Items (Optional) -->

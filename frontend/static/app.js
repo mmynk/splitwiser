@@ -7,9 +7,11 @@ let participants = [];
 let items = [];
 let groups = [];
 let selectedGroupId = null;
+let selectedPayerId = '';
 
 // DOM Elements
 const form = document.getElementById('bill-form');
+const billTitleInput = document.getElementById('bill-title');
 const totalInput = document.getElementById('total');
 const subtotalInput = document.getElementById('subtotal');
 const taxAmountEl = document.getElementById('tax-amount');
@@ -24,6 +26,8 @@ const resultsContent = document.getElementById('results-content');
 const errorEl = document.getElementById('error');
 const groupSelector = document.getElementById('group-selector');
 const groupSelect = document.getElementById('group-select');
+const payerSection = document.getElementById('payer-section');
+const payerSelect = document.getElementById('payer-select');
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -39,6 +43,9 @@ addItemBtn.addEventListener('click', () => addItem());
 totalInput.addEventListener('input', updateTaxDisplay);
 subtotalInput.addEventListener('input', updateTaxDisplay);
 groupSelect.addEventListener('change', handleGroupSelect);
+payerSelect.addEventListener('change', () => {
+  selectedPayerId = payerSelect.value;
+});
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -197,6 +204,7 @@ function renderParticipants() {
         updateParticipantName(id, oldName, newName);
         e.target.dataset.oldName = newName;
       }
+      updatePayerDropdown();
     });
 
     input.addEventListener('input', (e) => {
@@ -213,6 +221,34 @@ function renderParticipants() {
       removeParticipant(id);
     });
   });
+
+  updatePayerDropdown();
+}
+
+// Update payer dropdown when participants change
+function updatePayerDropdown() {
+  const validParticipants = participants.filter(p => p.name.trim()).map(p => p.name);
+
+  if (validParticipants.length === 0) {
+    payerSection.classList.add('hidden');
+    return;
+  }
+
+  payerSection.classList.remove('hidden');
+
+  // Rebuild options
+  payerSelect.innerHTML = '<option value="">Select payer...</option>' +
+    validParticipants.map(p =>
+      `<option value="${escapeHtml(p)}" ${p === selectedPayerId ? 'selected' : ''}>
+        ${escapeHtml(p)}
+      </option>`
+    ).join('');
+
+  // Auto-select first participant if none selected
+  if (!selectedPayerId && validParticipants.length > 0) {
+    selectedPayerId = validParticipants[0];
+    payerSelect.value = selectedPayerId;
+  }
 }
 
 // Items
@@ -428,11 +464,12 @@ async function saveBill() {
   }));
 
   const request = {
-    title: 'Bill',
+    title: billTitleInput.value.trim() || '',  // Empty = auto-generate
     items: requestItems,
     total,
     subtotal: subtotal || total,
-    participants: validParticipants
+    participants: validParticipants,
+    payerId: selectedPayerId || undefined
   };
 
   // Include group_id if a group was selected

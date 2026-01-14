@@ -520,3 +520,218 @@ func TestListBillsByGroup_EmptyGroup(t *testing.T) {
 		t.Errorf("expected 0 bills, got %d", len(listResp.Msg.Bills))
 	}
 }
+
+func TestCreateBill_AutoGenerateTitle_WithItems(t *testing.T) {
+	client, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Create bill with empty title - should auto-generate from items and participants
+	resp, err := client.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title: "", // Empty title
+		Items: []*pb.Item{
+			{Description: "Pizza", Amount: 20, Participants: []string{"Alice", "Bob"}},
+		},
+		Total:        33,
+		Subtotal:     30,
+		Participants: []string{"Alice", "Bob"},
+	}))
+
+	if err != nil {
+		t.Fatalf("CreateBill failed: %v", err)
+	}
+
+	// Retrieve the bill
+	getResp, err := client.GetBill(context.Background(), connect.NewRequest(&pb.GetBillRequest{
+		BillId: resp.Msg.BillId,
+	}))
+
+	if err != nil {
+		t.Fatalf("GetBill failed: %v", err)
+	}
+
+	// Title should be auto-generated as "Pizza - Alice, Bob"
+	expectedTitle := "Pizza - Alice, Bob"
+	if getResp.Msg.Title != expectedTitle {
+		t.Errorf("expected title '%s', got '%s'", expectedTitle, getResp.Msg.Title)
+	}
+}
+
+func TestCreateBill_AutoGenerateTitle_MultipleItems(t *testing.T) {
+	client, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Create bill with multiple items
+	resp, err := client.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title: "", // Empty title
+		Items: []*pb.Item{
+			{Description: "Pizza", Amount: 20, Participants: []string{"Alice", "Bob"}},
+			{Description: "Beer", Amount: 15, Participants: []string{"Bob"}},
+			{Description: "Salad", Amount: 10, Participants: []string{"Alice"}},
+		},
+		Total:        50,
+		Subtotal:     45,
+		Participants: []string{"Alice", "Bob"},
+	}))
+
+	if err != nil {
+		t.Fatalf("CreateBill failed: %v", err)
+	}
+
+	// Retrieve the bill
+	getResp, err := client.GetBill(context.Background(), connect.NewRequest(&pb.GetBillRequest{
+		BillId: resp.Msg.BillId,
+	}))
+
+	if err != nil {
+		t.Fatalf("GetBill failed: %v", err)
+	}
+
+	// Title should be "Pizza, Beer, Salad - Alice, Bob"
+	expectedTitle := "Pizza, Beer, Salad - Alice, Bob"
+	if getResp.Msg.Title != expectedTitle {
+		t.Errorf("expected title '%s', got '%s'", expectedTitle, getResp.Msg.Title)
+	}
+}
+
+func TestCreateBill_AutoGenerateTitle_NoItems(t *testing.T) {
+	client, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Create bill with no items
+	resp, err := client.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:        "", // Empty title
+		Items:        []*pb.Item{},
+		Total:        100,
+		Subtotal:     100,
+		Participants: []string{"Alice", "Bob", "Charlie"},
+	}))
+
+	if err != nil {
+		t.Fatalf("CreateBill failed: %v", err)
+	}
+
+	// Retrieve the bill
+	getResp, err := client.GetBill(context.Background(), connect.NewRequest(&pb.GetBillRequest{
+		BillId: resp.Msg.BillId,
+	}))
+
+	if err != nil {
+		t.Fatalf("GetBill failed: %v", err)
+	}
+
+	// Title should be "Split with Alice, Bob, Charlie"
+	expectedTitle := "Split with Alice, Bob, Charlie"
+	if getResp.Msg.Title != expectedTitle {
+		t.Errorf("expected title '%s', got '%s'", expectedTitle, getResp.Msg.Title)
+	}
+}
+
+func TestCreateBill_WithPayer(t *testing.T) {
+	client, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	payerID := "Alice"
+	resp, err := client.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:        "Dinner",
+		Items:        []*pb.Item{{Description: "Pizza", Amount: 30}},
+		Total:        33,
+		Subtotal:     30,
+		Participants: []string{"Alice", "Bob"},
+		PayerId:      &payerID,
+	}))
+
+	if err != nil {
+		t.Fatalf("CreateBill failed: %v", err)
+	}
+
+	// Retrieve and verify payer is saved
+	getResp, err := client.GetBill(context.Background(), connect.NewRequest(&pb.GetBillRequest{
+		BillId: resp.Msg.BillId,
+	}))
+
+	if err != nil {
+		t.Fatalf("GetBill failed: %v", err)
+	}
+
+	if getResp.Msg.GetPayerId() != "Alice" {
+		t.Errorf("expected payerId 'Alice', got '%s'", getResp.Msg.GetPayerId())
+	}
+}
+
+func TestCreateBill_InvalidPayer(t *testing.T) {
+	client, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Try to create bill with payer that's not a participant
+	invalidPayer := "Charlie"
+	_, err := client.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:        "Dinner",
+		Items:        []*pb.Item{{Description: "Pizza", Amount: 30}},
+		Total:        33,
+		Subtotal:     30,
+		Participants: []string{"Alice", "Bob"},
+		PayerId:      &invalidPayer,
+	}))
+
+	if err == nil {
+		t.Error("expected error for invalid payer")
+	}
+
+	connectErr, ok := err.(*connect.Error)
+	if !ok {
+		t.Fatalf("expected connect.Error, got %T", err)
+	}
+
+	if connectErr.Code() != connect.CodeInvalidArgument {
+		t.Errorf("expected CodeInvalidArgument, got %v", connectErr.Code())
+	}
+}
+
+func TestUpdateBill_ChangePayer(t *testing.T) {
+	client, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Create bill with Alice as payer
+	alicePayer := "Alice"
+	createResp, err := client.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:        "Dinner",
+		Items:        []*pb.Item{{Description: "Pizza", Amount: 30}},
+		Total:        33,
+		Subtotal:     30,
+		Participants: []string{"Alice", "Bob"},
+		PayerId:      &alicePayer,
+	}))
+
+	if err != nil {
+		t.Fatalf("CreateBill failed: %v", err)
+	}
+
+	// Update to change payer to Bob
+	bobPayer := "Bob"
+	_, err = client.UpdateBill(context.Background(), connect.NewRequest(&pb.UpdateBillRequest{
+		BillId:       createResp.Msg.BillId,
+		Title:        "Dinner",
+		Items:        []*pb.Item{{Description: "Pizza", Amount: 30}},
+		Total:        33,
+		Subtotal:     30,
+		Participants: []string{"Alice", "Bob"},
+		PayerId:      &bobPayer,
+	}))
+
+	if err != nil {
+		t.Fatalf("UpdateBill failed: %v", err)
+	}
+
+	// Verify payer changed
+	getResp, err := client.GetBill(context.Background(), connect.NewRequest(&pb.GetBillRequest{
+		BillId: createResp.Msg.BillId,
+	}))
+
+	if err != nil {
+		t.Fatalf("GetBill failed: %v", err)
+	}
+
+	if getResp.Msg.GetPayerId() != "Bob" {
+		t.Errorf("expected payerId 'Bob', got '%s'", getResp.Msg.GetPayerId())
+	}
+}

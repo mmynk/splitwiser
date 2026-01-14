@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS bills (
     subtotal REAL NOT NULL,
     created_at INTEGER NOT NULL,
     group_id TEXT,
+    payer_id TEXT,
     FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE SET NULL
 );
 

@@ -246,7 +246,7 @@ func TestSQLiteStore(t *testing.T) {
 			Participants: []string{"Alice", "Bob", "Charlie", "Diana"},
 		}
 		store.CreateBill(ctx, bill3)
-		if bill3.Title != "Split with Alice, Bob and 2 others" {
+		if bill3.Title != "Split with Alice, Bob & 2 others" {
 			t.Errorf("Unexpected title for 4 participants: %s", bill3.Title)
 		}
 	})
@@ -254,21 +254,26 @@ func TestSQLiteStore(t *testing.T) {
 
 func TestGenerateTitle(t *testing.T) {
 	tests := []struct {
+		items        []models.Item
 		participants []string
 		wantContains string
 	}{
-		{[]string{}, "Bill -"},
-		{[]string{"Alice"}, "Split with Alice"},
-		{[]string{"Alice", "Bob"}, "Split with Alice, Bob"},
-		{[]string{"Alice", "Bob", "Charlie"}, "Split with Alice, Bob, Charlie"},
-		{[]string{"Alice", "Bob", "Charlie", "Diana"}, "and 2 others"},
+		{nil, []string{}, "Bill -"},
+		{nil, []string{"Alice"}, "Split with Alice"},
+		{nil, []string{"Alice", "Bob"}, "Split with Alice, Bob"},
+		{nil, []string{"Alice", "Bob", "Charlie"}, "Split with Alice, Bob, Charlie"},
+		{nil, []string{"Alice", "Bob", "Charlie", "Diana"}, "& 2 others"},
+		{[]models.Item{{Description: "Pizza"}}, []string{"Alice", "Bob"}, "Pizza - Alice, Bob"},
+		{[]models.Item{{Description: "Pizza"}, {Description: "Beer"}}, []string{"Alice", "Bob"}, "Pizza, Beer - Alice, Bob"},
+		{[]models.Item{{Description: "Pizza"}, {Description: "Beer"}, {Description: "Fries"}, {Description: "Coke"}}, []string{"Alice"}, "Pizza, Beer & 2 more - Alice"},
+		{[]models.Item{{Description: "Pizza"}}, nil, "Pizza"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.wantContains, func(t *testing.T) {
-			got := generateTitle(tt.participants)
+			got := generateTitle(tt.items, tt.participants)
 			if !contains(got, tt.wantContains) {
-				t.Errorf("generateTitle(%v) = %q, want to contain %q", tt.participants, got, tt.wantContains)
+				t.Errorf("generateTitle(items=%d, participants=%v) = %q, want to contain %q", len(tt.items), tt.participants, got, tt.wantContains)
 			}
 		})
 	}

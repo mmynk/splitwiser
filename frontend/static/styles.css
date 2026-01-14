@@ -336,6 +336,76 @@ section {
   color: var(--pico-muted-color);
 }
 
+/* Group detail page - Balance cards */
+.balance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.balance-card {
+  padding: var(--spacing-md);
+  border-radius: var(--pico-border-radius);
+  text-align: center;
+  border: 2px solid transparent;
+}
+
+.balance-card.positive {
+  background-color: color-mix(in srgb, #28a745 10%, var(--pico-card-background-color));
+  border-left: 4px solid #28a745;
+}
+
+.balance-card.negative {
+  background-color: color-mix(in srgb, #dc3545 10%, var(--pico-card-background-color));
+  border-left: 4px solid #dc3545;
+}
+
+.balance-card.neutral {
+  background-color: var(--pico-card-background-color);
+  border-left: 4px solid var(--pico-muted-border-color);
+}
+
+.balance-card h3 {
+  margin-bottom: var(--spacing-sm);
+  font-size: 1rem;
+}
+
+.balance-amount {
+  font-size: 1.75rem;
+  font-weight: bold;
+  margin: var(--spacing-sm) 0;
+}
+
+.balance-card.positive .balance-amount {
+  color: #28a745;
+}
+
+.balance-card.negative .balance-amount {
+  color: #dc3545;
+}
+
+.balance-card.neutral .balance-amount {
+  color: var(--pico-muted-color);
+}
+
+.balance-details {
+  font-size: 0.875rem;
+  color: var(--pico-muted-color);
+  margin-top: var(--spacing-sm);
+}
+
+.view-toggle {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.view-toggle button {
+  flex: 1;
+  margin-bottom: 0;
+}
+
 /* Responsive */
 @media (max-width: 600px) {
   .bill-summary {

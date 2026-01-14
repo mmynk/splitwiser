@@ -1,3 +1,17 @@
+## Development Status
+
+**Current Phase:** Early development / Test mode
+
+We are in active development and prioritizing rapid iteration over data stability:
+- Database can be destroyed and recreated at any time
+- No migration path for existing data required
+- Breaking changes are acceptable
+- Focus on getting features right, not backward compatibility
+
+When we approach production readiness, this will change to require proper migrations.
+
+---
+
 # Agent Instructions
 
 This file provides guidance to AI coding assistants when working with code in this repository.

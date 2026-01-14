@@ -70,7 +70,7 @@ func (s *SQLiteStore) CreateBill(ctx context.Context, bill *models.Bill) error {
 		bill.CreatedAt = time.Now().Unix()
 	}
 	if bill.Title == "" {
-		bill.Title = generateTitle(bill.Participants)
+		bill.Title = generateTitle(bill.Items, bill.Participants)
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -84,9 +84,13 @@ func (s *SQLiteStore) CreateBill(ctx context.Context, bill *models.Bill) error {
 	if bill.GroupID != "" {
 		groupID = bill.GroupID
 	}
+	var payerID interface{} = nil
+	if bill.PayerID != "" {
+		payerID = bill.PayerID
+	}
 	_, err = tx.ExecContext(ctx,
-		"INSERT INTO bills (id, title, total, subtotal, created_at, group_id) VALUES (?, ?, ?, ?, ?, ?)",
-		bill.ID, bill.Title, bill.Total, bill.Subtotal, bill.CreatedAt, groupID,
+		"INSERT INTO bills (id, title, total, subtotal, created_at, group_id, payer_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		bill.ID, bill.Title, bill.Total, bill.Subtotal, bill.CreatedAt, groupID, payerID,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to insert bill: %w", err)
@@ -142,10 +146,11 @@ func (s *SQLiteStore) GetBill(ctx context.Context, billID string) (*models.Bill,
 	// Get bill
 	bill := &models.Bill{}
 	var groupID sql.NullString
+	var payerID sql.NullString
 	err := s.db.QueryRowContext(ctx,
-		"SELECT id, title, total, subtotal, created_at, group_id FROM bills WHERE id = ?",
+		"SELECT id, title, total, subtotal, created_at, group_id, payer_id FROM bills WHERE id = ?",
 		billID,
-	).Scan(&bill.ID, &bill.Title, &bill.Total, &bill.Subtotal, &bill.CreatedAt, &groupID)
+	).Scan(&bill.ID, &bill.Title, &bill.Total, &bill.Subtotal, &bill.CreatedAt, &groupID, &payerID)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("bill not found: %s", billID)
 	}
@@ -154,6 +159,9 @@ func (s *SQLiteStore) GetBill(ctx context.Context, billID string) (*models.Bill,
 	}
 	if groupID.Valid {
 		bill.GroupID = groupID.String
+	}
+	if payerID.Valid {
+		bill.PayerID = payerID.String
 	}
 
 	// Get participants
@@ -251,9 +259,13 @@ func (s *SQLiteStore) UpdateBill(ctx context.Context, bill *models.Bill) error {
 	if bill.GroupID != "" {
 		groupID = bill.GroupID
 	}
+	var payerID interface{} = nil
+	if bill.PayerID != "" {
+		payerID = bill.PayerID
+	}
 	_, err = tx.ExecContext(ctx,
-		"UPDATE bills SET title = ?, total = ?, subtotal = ?, group_id = ? WHERE id = ?",
-		bill.Title, bill.Total, bill.Subtotal, groupID, bill.ID,
+		"UPDATE bills SET title = ?, total = ?, subtotal = ?, group_id = ?, payer_id = ? WHERE id = ?",
+		bill.Title, bill.Total, bill.Subtotal, groupID, payerID, bill.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update bill: %w", err)
@@ -418,18 +430,47 @@ func (s *SQLiteStore) ListBillsByGroup(ctx context.Context, groupID string) ([]*
 	return bills, nil
 }
 
-// generateTitle creates an auto-generated title from participants.
-func generateTitle(participants []string) string {
-	if len(participants) == 0 {
+// generateTitle creates an auto-generated title using hybrid "Items - Participants" format.
+func generateTitle(items []models.Item, participants []string) string {
+	// Strategy: "Items - Participants"
+
+	itemsStr := ""
+	if len(items) > 0 {
+		if len(items) == 1 {
+			itemsStr = items[0].Description
+		} else if len(items) <= 3 {
+			descriptions := make([]string, len(items))
+			for i, item := range items {
+				descriptions[i] = item.Description
+			}
+			itemsStr = strings.Join(descriptions, ", ")
+		} else {
+			descriptions := make([]string, 2)
+			descriptions[0] = items[0].Description
+			descriptions[1] = items[1].Description
+			itemsStr = fmt.Sprintf("%s & %d more", strings.Join(descriptions, ", "), len(items)-2)
+		}
+	}
+
+	participantsStr := ""
+	if len(participants) <= 3 {
+		participantsStr = strings.Join(participants, ", ")
+	} else {
+		participantsStr = fmt.Sprintf("%s & %d others",
+			strings.Join(participants[:2], ", "),
+			len(participants)-2)
+	}
+
+	// Combine
+	if itemsStr != "" && participantsStr != "" {
+		return fmt.Sprintf("%s - %s", itemsStr, participantsStr)
+	} else if itemsStr != "" {
+		return itemsStr
+	} else if participantsStr != "" {
+		return fmt.Sprintf("Split with %s", participantsStr)
+	} else {
 		return fmt.Sprintf("Bill - %s", time.Now().Format("Jan 2, 2006"))
 	}
-	if len(participants) <= 3 {
-		return fmt.Sprintf("Split with %s", strings.Join(participants, ", "))
-	}
-	return fmt.Sprintf("Split with %s and %d others",
-		strings.Join(participants[:2], ", "),
-		len(participants)-2,
-	)
 }
 
 // CreateGroup persists a new group to the database.
