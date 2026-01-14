@@ -273,6 +273,11 @@ func (s *SplitService) GetBill(ctx context.Context, req *connect.Request[pb.GetB
 	}
 	if bill.GroupID != "" {
 		resp.GroupId = &bill.GroupID
+		// Fetch group name
+		group, err := s.store.GetGroup(ctx, bill.GroupID)
+		if err == nil && group != nil {
+			resp.GroupName = &group.Name
+		}
 	}
 	return connect.NewResponse(resp), nil
 }

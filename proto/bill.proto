@@ -73,6 +73,7 @@ message GetBillResponse {
   optional string group_id = 8;
   int64 created_at = 9;
   CalculateSplitResponse split = 10;
+  optional string group_name = 11;  // Name of the group (if group_id is set)
 }
 
 message UpdateBillRequest {

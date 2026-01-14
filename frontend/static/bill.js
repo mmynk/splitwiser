@@ -160,9 +160,7 @@ function displayBill(bill) {
   if (bill.groupId) {
     groupDisplayEl.classList.remove('hidden');
     groupLinkEl.href = `/group.html?id=${bill.groupId}`;
-    groupLinkEl.textContent = 'View Group';
-    // Optionally fetch group name
-    fetchGroupName(bill.groupId);
+    groupLinkEl.textContent = bill.groupName || 'View Group';
   } else {
     groupDisplayEl.classList.add('hidden');
   }
@@ -335,25 +333,6 @@ function showEditError(message) {
 
 function hideEditError() {
   editErrorEl.classList.add('hidden');
-}
-
-// Fetch and display group name
-async function fetchGroupName(groupId) {
-  try {
-    const response = await fetch(`${API_BASE}/splitwiser.v1.GroupService/GetGroup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ groupId })
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      groupLinkEl.textContent = data.name || 'View Group';
-    }
-  } catch (err) {
-    // Silent fail - just keep default "View Group" text
-    console.error('Failed to fetch group name:', err);
-  }
 }
 
 // Delete bill
