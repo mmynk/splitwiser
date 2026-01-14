@@ -50,6 +50,12 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	// Health check endpoint
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	})
+
 	// Register Connect services
 	splitPath, splitHandler := protoconnect.NewSplitServiceHandler(service.NewSplitService(store))
 	mux.Handle(splitPath, splitHandler)
