@@ -353,7 +353,7 @@ func (s *SQLiteStore) DeleteBill(ctx context.Context, billID string) error {
 func (s *SQLiteStore) ListBillsByGroup(ctx context.Context, groupID string) ([]*models.Bill, error) {
 	// Get all bills for the group
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT id, title, total, subtotal, created_at, group_id FROM bills WHERE group_id = ? ORDER BY created_at DESC",
+		"SELECT id, title, total, subtotal, payer_id, created_at, group_id FROM bills WHERE group_id = ? ORDER BY created_at DESC",
 		groupID,
 	)
 	if err != nil {
@@ -364,9 +364,13 @@ func (s *SQLiteStore) ListBillsByGroup(ctx context.Context, groupID string) ([]*
 	var bills []*models.Bill
 	for rows.Next() {
 		bill := &models.Bill{}
+		var payerIDStr sql.NullString
 		var groupIDStr sql.NullString
-		if err := rows.Scan(&bill.ID, &bill.Title, &bill.Total, &bill.Subtotal, &bill.CreatedAt, &groupIDStr); err != nil {
+		if err := rows.Scan(&bill.ID, &bill.Title, &bill.Total, &bill.Subtotal, &payerIDStr, &bill.CreatedAt, &groupIDStr); err != nil {
 			return nil, fmt.Errorf("failed to scan bill: %w", err)
+		}
+		if payerIDStr.Valid {
+			bill.PayerID = payerIDStr.String
 		}
 		if groupIDStr.Valid {
 			bill.GroupID = groupIDStr.String
