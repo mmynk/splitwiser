@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>View Bill - Splitwiser</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="container">
+    <!-- Loading State -->
+    <div id="loading" class="loading">
+      <p>Loading bill...</p>
+    </div>
+
+    <!-- Error State -->
+    <div id="error-state" class="hidden">
+      <h1>Bill Not Found</h1>
+      <p id="error-message">The bill you're looking for doesn't exist or has been deleted.</p>
+      <a href="/" role="button">Create New Bill</a>
+    </div>
+
+    <!-- Bill Content -->
+    <div id="bill-content" class="hidden">
+      <header class="bill-header">
+        <div>
+          <h1 id="bill-title">Bill</h1>
+          <p id="bill-date" style="color: var(--pico-muted-color);"></p>
+        </div>
+        <div class="header-actions">
+          <button type="button" id="edit-btn" class="outline">Edit</button>
+          <button type="button" id="delete-btn" class="secondary outline">Delete</button>
+          <a href="/" role="button" class="secondary">New Bill</a>
+        </div>
+      </header>
+
+      <!-- Share Section -->
+      <section class="share-section">
+        <p><strong>Share this bill:</strong></p>
+        <div class="share-url">
+          <input type="text" id="share-url" readonly>
+          <button type="button" id="copy-btn">Copy</button>
+        </div>
+      </section>
+
+      <!-- Edit Form (hidden by default) -->
+      <form id="edit-form" class="hidden">
+        <section>
+          <h2>Bill Details</h2>
+          <label>
+            Bill Name <small>(optional - auto-generated if empty)</small>
+            <input type="text" id="edit-title" placeholder="e.g., Team Lunch, Grocery Run">
+          </label>
+          <div class="grid">
+            <label>
+              Total (with tax)
+              <input type="number" id="edit-total" step="0.01" min="0" placeholder="0.00" required>
+            </label>
+            <label>
+              Subtotal (before tax)
+              <input type="number" id="edit-subtotal" step="0.01" min="0" placeholder="0.00" required>
+            </label>
+          </div>
+          <p class="tax-display">Tax & Fees: <strong id="edit-tax-amount">$0.00</strong></p>
+        </section>
+
+        <section>
+          <h2>Participants</h2>
+          <p class="hint">Press Enter to add a new participant</p>
+          <div id="edit-participants-list"></div>
+          <button type="button" id="edit-add-participant" class="secondary outline">+ Add Participant</button>
+        </section>
+
+        <section id="edit-payer-section">
+          <h2>Who paid this bill?</h2>
+          <select id="edit-payer-select">
+            <option value="">Not recorded</option>
+          </select>
+        </section>
+
+        <section>
+          <h2>Items <small>(optional)</small></h2>
+          <p class="hint">Leave empty to split equally among all participants</p>
+          <div id="edit-items-list"></div>
+          <button type="button" id="edit-add-item" class="secondary outline">+ Add Item</button>
+        </section>
+
+        <div class="actions">
+          <button type="submit" id="save-edit-btn">Save Changes</button>
+          <button type="button" id="cancel-edit-btn" class="secondary">Cancel</button>
+        </div>
+
+        <div id="edit-error" class="hidden"></div>
+      </form>
+
+      <!-- View Mode Content -->
+      <div id="view-mode">
+      <!-- Group Display -->
+      <section id="group-display" class="hidden">
+        <p><strong>Group:</strong> <a href="" id="group-link"></a></p>
+      </section>
+
+      <!-- Payer Display -->
+      <section id="payer-display" class="hidden">
+        <p><strong>Paid by:</strong> <span id="payer-name"></span></p>
+      </section>
+
+      <!-- Bill Summary -->
+      <section class="bill-summary">
+        <div class="summary-item">
+          <div class="label">Subtotal</div>
+          <div class="value" id="summary-subtotal">$0.00</div>
+        </div>
+        <div class="summary-item">
+          <div class="label">Tax & Fees</div>
+          <div class="value" id="summary-tax">$0.00</div>
+        </div>
+        <div class="summary-item">
+          <div class="label">Total</div>
+          <div class="value" id="summary-total">$0.00</div>
+        </div>
+      </section>
+
+      <!-- Items -->
+      <section id="items-section" class="hidden">
+        <h2>Items</h2>
+        <div id="items-list" class="items-list"></div>
+      </section>
+
+      <!-- Split Results -->
+      <section>
+        <h2>Who Owes What</h2>
+        <div id="splits-grid" class="results-grid"></div>
+      </section>
+
+      <!-- Participants -->
+      <section>
+        <h2>Participants</h2>
+        <p id="participants-list"></p>
+      </section>
+      </div><!-- end view-mode -->
+    </div>
+  </main>
+
+  <script src="form-components.js"></script>
+  <script src="bill.js"></script>
+</body>
+</html>

@@ -8,7 +8,7 @@ option go_package = "github.com/mmynk/splitwiser/pkg/proto;proto";
 message Item {
   string description = 1;
   double amount = 2;
-  repeated string participants = 3;  // Participant IDs/names who split this item
+  repeated string participant_ids = 3;  // User IDs of participants who split this item
 }
 
 // Item with calculated amount for one person

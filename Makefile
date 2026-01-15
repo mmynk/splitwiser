@@ -50,13 +50,13 @@ clean:
 
 # Docker commands
 docker-build:
-	docker build -t splitwiser .
+	podman build -t splitwiser .
 
 docker-run:
-	docker run -p 8080:8080 -v splitwiser-data:/app/data splitwiser
+	podman run -p 8080:8080 -v splitwiser-data:/app/data splitwiser
 
 docker-up:
-	docker-compose up --build
+	podman compose up --build
 
 docker-down:
-	docker-compose down
+	podman compose down

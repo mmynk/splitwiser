@@ -9,16 +9,21 @@ import (
 	"strings"
 	"time"
 
+	"connectrpc.com/connect"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
+	"github.com/mmynk/splitwiser/internal/auth"
+	"github.com/mmynk/splitwiser/internal/middleware"
 	"github.com/mmynk/splitwiser/internal/service"
 	"github.com/mmynk/splitwiser/internal/storage/sqlite"
 	"github.com/mmynk/splitwiser/pkg/proto/protoconnect"
 )
 
 const (
-	port = 8080
+	port              = 8080
+	jwtSecret         = "your-secret-key-change-in-production" // TODO: Move to env var
+	jwtTokenDuration  = 24 * time.Hour                         // Tokens valid for 24 hours
 )
 
 func getEnv(key, fallback string) string {
@@ -48,19 +53,38 @@ func main() {
 	defer store.Close()
 	slog.Info("Storage initialized", "database", dbPath)
 
+	// Initialize authentication components
+	jwtManager := auth.NewJWTManager(jwtSecret, jwtTokenDuration)
+	passwordAuth := auth.NewPasswordAuthenticator(store)
+
+	// Create auth middleware
+	authMiddleware := middleware.RequireAuth(jwtManager)
+
 	mux := http.NewServeMux()
 
-	// Health check endpoint
+	// Health check endpoint (no auth required)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
 	})
 
-	// Register Connect services
-	splitPath, splitHandler := protoconnect.NewSplitServiceHandler(service.NewSplitService(store))
+	// Register AuthService (no auth required - handles login/register)
+	authPath, authHandler := protoconnect.NewAuthServiceHandler(
+		service.NewAuthService(passwordAuth, jwtManager, logger),
+	)
+	mux.Handle(authPath, authHandler)
+
+	// Register protected services with auth middleware
+	splitPath, splitHandler := protoconnect.NewSplitServiceHandler(
+		service.NewSplitService(store),
+		connect.WithInterceptors(authMiddleware),
+	)
 	mux.Handle(splitPath, splitHandler)
 
-	groupPath, groupHandler := protoconnect.NewGroupServiceHandler(service.NewGroupService(store))
+	groupPath, groupHandler := protoconnect.NewGroupServiceHandler(
+		service.NewGroupService(store),
+		connect.WithInterceptors(authMiddleware),
+	)
 	mux.Handle(groupPath, groupHandler)
 
 	// Serve static files from frontend/static
@@ -139,7 +163,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Connect-Protocol-Version, Connect-Timeout-Ms")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Connect-Protocol-Version, Connect-Timeout-Ms, Authorization")
 		w.Header().Set("Access-Control-Expose-Headers", "Connect-Protocol-Version, Connect-Timeout-Ms")
 
 		if r.Method == "OPTIONS" {

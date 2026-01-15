@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package splitwiser.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/mmynk/splitwiser/pkg/proto;proto";
+
+// AuthService handles user authentication and registration
+service AuthService {
+  // Register a new user account
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+
+  // Login with email and credentials
+  rpc Login(LoginRequest) returns (LoginResponse);
+
+  // Logout (invalidate session)
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+
+  // Get current logged-in user info
+  rpc GetCurrentUser(GetCurrentUserRequest) returns (GetCurrentUserResponse);
+}
+
+// User represents a registered user
+message User {
+  string id = 1;                                    // UUID
+  string email = 2;                                 // Email address (unique)
+  string display_name = 3;                          // Name shown in UI
+  google.protobuf.Timestamp created_at = 4;        // Account creation time
+}
+
+// Register a new user
+message RegisterRequest {
+  string email = 1;         // User's email (must be unique)
+  string password = 2;      // Plain password (will be hashed server-side)
+  string display_name = 3;  // Display name for UI
+}
+
+message RegisterResponse {
+  User user = 1;      // Created user
+  string token = 2;   // JWT token for authenticated requests
+}
+
+// Login with existing credentials
+message LoginRequest {
+  string email = 1;     // User's email
+  string password = 2;  // User's password
+}
+
+message LoginResponse {
+  User user = 1;      // Authenticated user info
+  string token = 2;   // JWT token for authenticated requests
+}
+
+// Logout (client-side token invalidation mostly)
+message LogoutRequest {
+  // Empty for now - token will be in header
+}
+
+message LogoutResponse {
+  // Empty - success indicated by HTTP 200
+}
+
+// Get current user from JWT token
+message GetCurrentUserRequest {
+  // Empty - user identified by JWT token in header
+}
+
+message GetCurrentUserResponse {
+  User user = 1;  // Current authenticated user
+}

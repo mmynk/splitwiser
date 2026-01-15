@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Groups - Splitwiser</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="container">
+    <header>
+      <h1>Groups</h1>
+      <p>Create and manage reusable participant lists.</p>
+      <p><a href="/">&larr; Back to Bill Splitter</a></p>
+    </header>
+
+    <!-- Create Group Form -->
+    <section id="create-section">
+      <h2>Create New Group</h2>
+      <form id="create-form">
+        <label>
+          Group Name
+          <input type="text" id="group-name" placeholder="e.g., Roommates, Work Lunch" required>
+        </label>
+
+        <label>Members</label>
+        <p class="hint">Press Enter to add a new member</p>
+        <div id="members-list"></div>
+        <button type="button" id="add-member" class="secondary outline">+ Add Member</button>
+
+        <div class="actions">
+          <button type="submit" id="create-btn">Create Group</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Groups List -->
+    <section id="groups-section">
+      <h2>Your Groups</h2>
+      <div id="groups-list">
+        <p class="loading">Loading groups...</p>
+      </div>
+    </section>
+
+    <!-- Edit Group Modal/Section -->
+    <section id="edit-section" class="hidden">
+      <h2>Edit Group</h2>
+      <form id="edit-form">
+        <input type="hidden" id="edit-group-id">
+        <label>
+          Group Name
+          <input type="text" id="edit-group-name" required>
+        </label>
+
+        <label>Members</label>
+        <div id="edit-members-list"></div>
+        <button type="button" id="edit-add-member" class="secondary outline">+ Add Member</button>
+
+        <div class="actions">
+          <button type="submit" id="save-btn">Save Changes</button>
+          <button type="button" id="cancel-edit" class="secondary">Cancel</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Error Display -->
+    <div id="error" class="hidden"></div>
+  </main>
+
+  <script src="groups.js"></script>
+</body>
+</html>

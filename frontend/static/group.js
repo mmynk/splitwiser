@@ -1,6 +1,12 @@
 // Splitwiser - Group Detail Logic
 
+import { requireAuth, displayUserInfo, authenticatedFetch, getCurrentUser } from './auth-utils.js';
+
+// Require authentication
+requireAuth();
+
 const API_BASE = 'http://localhost:8080';
+let currentUser = null;
 
 const groupId = new URLSearchParams(window.location.search).get('id');
 const errorEl = document.getElementById('error');

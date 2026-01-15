@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Splitwiser</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .auth-container {
+      max-width: 500px;
+      margin: 2rem auto;
+    }
+    .tab-buttons {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .tab-button {
+      flex: 1;
+      cursor: pointer;
+      padding: 0.75rem;
+      border: 2px solid var(--pico-primary);
+      background: transparent;
+      color: var(--pico-primary);
+      border-radius: 0.5rem;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .tab-button.active {
+      background: var(--pico-primary);
+      color: white;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .error-message {
+      color: var(--pico-del-color);
+      background: var(--pico-del-background-color);
+      padding: 0.75rem;
+      border-radius: 0.5rem;
+      margin-bottom: 1rem;
+      display: none;
+    }
+    .error-message.show {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <main class="container auth-container">
+    <header style="text-align: center; margin-bottom: 2rem;">
+      <h1>Splitwiser</h1>
+      <p>Split bills fairly with friends</p>
+    </header>
+
+    <!-- Tab Buttons -->
+    <div class="tab-buttons">
+      <button type="button" class="tab-button active" data-tab="login">Login</button>
+      <button type="button" class="tab-button" data-tab="register">Register</button>
+    </div>
+
+    <!-- Error Message -->
+    <div id="error-message" class="error-message"></div>
+
+    <!-- Login Form -->
+    <div id="login-tab" class="tab-content active">
+      <form id="login-form">
+        <h2>Welcome Back</h2>
+        <label>
+          Email
+          <input type="email" id="login-email" name="email" required autocomplete="email" placeholder="your@email.com">
+        </label>
+        <label>
+          Password
+          <input type="password" id="login-password" name="password" required autocomplete="current-password" placeholder="Enter your password">
+        </label>
+        <button type="submit" id="login-submit">Login</button>
+      </form>
+    </div>
+
+    <!-- Register Form -->
+    <div id="register-tab" class="tab-content">
+      <form id="register-form">
+        <h2>Create Account</h2>
+        <label>
+          Display Name
+          <input type="text" id="register-name" name="name" required placeholder="Your Name" autocomplete="name">
+          <small>This is how you'll appear to other users</small>
+        </label>
+        <label>
+          Email
+          <input type="email" id="register-email" name="email" required autocomplete="email" placeholder="your@email.com">
+        </label>
+        <label>
+          Password
+          <input type="password" id="register-password" name="password" required autocomplete="new-password" placeholder="At least 8 characters">
+          <small>Must be at least 8 characters long</small>
+        </label>
+        <button type="submit" id="register-submit">Create Account</button>
+      </form>
+    </div>
+  </main>
+
+  <script type="module" src="auth.js"></script>
+</body>
+</html>

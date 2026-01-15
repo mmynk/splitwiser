@@ -32,7 +32,7 @@ message CalculateSplitRequest {
   repeated Item items = 1;
   double total = 2;        // Total bill amount including tax
   double subtotal = 3;     // Subtotal before tax
-  repeated string participants = 4;
+  repeated string participant_ids = 4;  // User IDs of all participants
 }
 
 // Response with calculated split
@@ -48,9 +48,9 @@ message CreateBillRequest {
   double total = 2;
   double subtotal = 3;
   repeated Item items = 4;
-  repeated string participants = 5;
-  optional string payer_id = 6;  // Participant who paid this bill
-  optional string group_id = 7;  // Links bill to a group
+  repeated string participant_ids = 5;  // User IDs of all participants
+  optional string payer_id = 6;         // User ID of participant who paid this bill
+  optional string group_id = 7;         // Links bill to a group
 }
 
 message CreateBillResponse {
@@ -68,8 +68,8 @@ message GetBillResponse {
   double total = 3;
   double subtotal = 4;
   repeated Item items = 5;
-  repeated string participants = 6;
-  string payer_id = 7;  // Non-optional - always has a payer
+  repeated string participant_ids = 6;  // User IDs of all participants
+  string payer_id = 7;                  // User ID of payer (always has a payer)
   optional string group_id = 8;
   int64 created_at = 9;
   CalculateSplitResponse split = 10;
@@ -82,9 +82,9 @@ message UpdateBillRequest {
   double total = 3;
   double subtotal = 4;
   repeated Item items = 5;
-  repeated string participants = 6;
-  optional string payer_id = 7;  // Participant who paid this bill
-  optional string group_id = 8;  // Links bill to a group
+  repeated string participant_ids = 6;  // User IDs of all participants
+  optional string payer_id = 7;         // User ID of participant who paid this bill
+  optional string group_id = 8;         // Links bill to a group
 }
 
 message UpdateBillResponse {
@@ -102,7 +102,7 @@ message BillSummary {
   string bill_id = 1;
   string title = 2;
   double total = 3;
-  string payer_id = 4;  // Non-optional - always has a payer
+  string payer_id = 4;  // User ID of payer (always has a payer)
   int64 created_at = 5;
   int32 participant_count = 6;
 }

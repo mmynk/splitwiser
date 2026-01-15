@@ -1,5 +1,10 @@
 // Splitwiser - Main Application Logic
 
+import { requireAuth, displayUserInfo, authenticatedFetch, getCurrentUser } from './auth-utils.js';
+
+// Require authentication
+requireAuth();
+
 const API_BASE = 'http://localhost:8080';
 
 // State
@@ -8,6 +13,7 @@ let items = [];
 let groups = [];
 let selectedGroupId = null;
 let selectedPayerId = '';
+let currentUser = null;
 
 // DOM Elements
 const form = document.getElementById('bill-form');
@@ -31,6 +37,12 @@ const payerSelect = document.getElementById('payer-select');
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+  // Get current user
+  currentUser = getCurrentUser();
+
+  // Display user info in header
+  displayUserInfo();
+
   addParticipant('');
   addParticipant('');
   updateTaxDisplay();

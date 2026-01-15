@@ -7,6 +7,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/mmynk/splitwiser/internal/calculator"
+	"github.com/mmynk/splitwiser/internal/middleware"
 	"github.com/mmynk/splitwiser/internal/models"
 	"github.com/mmynk/splitwiser/internal/storage"
 	pb "github.com/mmynk/splitwiser/pkg/proto"
@@ -24,17 +25,40 @@ func NewGroupService(store storage.Store) *GroupService {
 	return &GroupService{store: store}
 }
 
+// isMember checks if the user is in the members list.
+func isMember(userID string, members []string) bool {
+	for _, m := range members {
+		if m == userID {
+			return true
+		}
+	}
+	return false
+}
+
 // CreateGroup creates a new group.
 func (s *GroupService) CreateGroup(ctx context.Context, req *connect.Request[pb.CreateGroupRequest]) (*connect.Response[pb.CreateGroupResponse], error) {
+	// Get authenticated user ID from context
+	userID := middleware.GetUserID(ctx)
+	if userID == "" {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("authentication required"))
+	}
+
 	slog.Info("CreateGroup request received",
+		"user_id", userID,
 		"name", req.Msg.Name,
-		"members_count", len(req.Msg.Members),
+		"members_count", len(req.Msg.MemberIds),
 	)
+
+	// Add creator to members if not already present
+	members := req.Msg.MemberIds
+	if !isMember(userID, members) {
+		members = append([]string{userID}, members...)
+	}
 
 	// Create group model
 	group := &models.Group{
 		Name:    req.Msg.Name,
-		Members: req.Msg.Members,
+		Members: members,
 	}
 
 	// Save to storage (generates ID and CreatedAt)
@@ -49,7 +73,7 @@ func (s *GroupService) CreateGroup(ctx context.Context, req *connect.Request[pb.
 		Group: &pb.Group{
 			Id:        group.ID,
 			Name:      group.Name,
-			Members:   group.Members,
+			MemberIds: group.Members,
 			CreatedAt: group.CreatedAt,
 		},
 	}), nil
@@ -57,7 +81,13 @@ func (s *GroupService) CreateGroup(ctx context.Context, req *connect.Request[pb.
 
 // GetGroup retrieves a group by ID.
 func (s *GroupService) GetGroup(ctx context.Context, req *connect.Request[pb.GetGroupRequest]) (*connect.Response[pb.GetGroupResponse], error) {
-	slog.Info("GetGroup request received", "group_id", req.Msg.GroupId)
+	// Get authenticated user ID from context
+	userID := middleware.GetUserID(ctx)
+	if userID == "" {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("authentication required"))
+	}
+
+	slog.Info("GetGroup request received", "user_id", userID, "group_id", req.Msg.GroupId)
 
 	group, err := s.store.GetGroup(ctx, req.Msg.GroupId)
 	if err != nil {
@@ -71,7 +101,7 @@ func (s *GroupService) GetGroup(ctx context.Context, req *connect.Request[pb.Get
 		Group: &pb.Group{
 			Id:        group.ID,
 			Name:      group.Name,
-			Members:   group.Members,
+			MemberIds: group.Members,
 			CreatedAt: group.CreatedAt,
 		},
 	}), nil
@@ -93,7 +123,7 @@ func (s *GroupService) ListGroups(ctx context.Context, req *connect.Request[pb.L
 		protoGroups[i] = &pb.Group{
 			Id:        group.ID,
 			Name:      group.Name,
-			Members:   group.Members,
+			MemberIds: group.Members,
 			CreatedAt: group.CreatedAt,
 		}
 	}
@@ -110,14 +140,14 @@ func (s *GroupService) UpdateGroup(ctx context.Context, req *connect.Request[pb.
 	slog.Info("UpdateGroup request received",
 		"group_id", req.Msg.GroupId,
 		"name", req.Msg.Name,
-		"members_count", len(req.Msg.Members),
+		"members_count", len(req.Msg.MemberIds),
 	)
 
 	// Create group model
 	group := &models.Group{
 		ID:      req.Msg.GroupId,
 		Name:    req.Msg.Name,
-		Members: req.Msg.Members,
+		Members: req.Msg.MemberIds,
 	}
 
 	// Update in storage
@@ -139,7 +169,7 @@ func (s *GroupService) UpdateGroup(ctx context.Context, req *connect.Request[pb.
 		Group: &pb.Group{
 			Id:        updatedGroup.ID,
 			Name:      updatedGroup.Name,
-			Members:   updatedGroup.Members,
+			MemberIds: updatedGroup.Members,
 			CreatedAt: updatedGroup.CreatedAt,
 		},
 	}), nil
@@ -221,7 +251,7 @@ func (s *GroupService) GetGroupBalances(ctx context.Context, req *connect.Reques
 	pbBalances := make([]*pb.MemberBalance, len(memberBalances))
 	for i, bal := range memberBalances {
 		pbBalances[i] = &pb.MemberBalance{
-			MemberName:  bal.MemberName,
+			DisplayName: bal.MemberName,
 			NetBalance:  bal.NetBalance,
 			TotalPaid:   bal.TotalPaid,
 			TotalOwed:   bal.TotalOwed,
@@ -231,9 +261,9 @@ func (s *GroupService) GetGroupBalances(ctx context.Context, req *connect.Reques
 	pbDebts := make([]*pb.DebtEdge, len(debtEdges))
 	for i, debt := range debtEdges {
 		pbDebts[i] = &pb.DebtEdge{
-			From:   debt.From,
-			To:     debt.To,
-			Amount: debt.Amount,
+			FromUserId: debt.From,
+			ToUserId:   debt.To,
+			Amount:     debt.Amount,
 		}
 	}
 

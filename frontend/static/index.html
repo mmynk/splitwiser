@@ -10,7 +10,12 @@
 <body>
   <main class="container">
     <header>
-      <h1>Splitwiser</h1>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div>
+          <h1>Splitwiser</h1>
+        </div>
+        <div id="user-info"></div>
+      </div>
       <p>Split bills fairly with item-level assignments and proportional tax distribution.</p>
       <p><a href="/groups.html">Manage Groups &rarr;</a></p>
     </header>
@@ -86,6 +91,6 @@
     <div id="error" class="hidden"></div>
   </main>
 
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

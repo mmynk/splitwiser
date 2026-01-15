@@ -29,14 +29,15 @@ service GroupService {
 message Group {
   string id = 1;
   string name = 2;
-  repeated string members = 3;  // Member names (future: user IDs)
+  repeated string member_ids = 3;  // User IDs of group members
   int64 created_at = 4;
+  string creator_id = 5;           // User ID of group creator
 }
 
 // Request to create a group
 message CreateGroupRequest {
   string name = 1;
-  repeated string members = 2;
+  repeated string member_ids = 2;  // User IDs of members (excluding creator, who is added automatically)
 }
 
 message CreateGroupResponse {
@@ -63,7 +64,7 @@ message ListGroupsResponse {
 message UpdateGroupRequest {
   string group_id = 1;
   string name = 2;
-  repeated string members = 3;
+  repeated string member_ids = 3;  // User IDs of all group members
 }
 
 message UpdateGroupResponse {
@@ -84,17 +85,20 @@ message GetGroupBalancesRequest {
 
 // Balance information for one group member
 message MemberBalance {
-  string member_name = 1;
-  double net_balance = 2;  // Positive = owed money, Negative = owes money
-  double total_paid = 3;   // Total amount paid across all bills
-  double total_owed = 4;   // Total amount this person owes
+  string user_id = 1;      // User ID of the member
+  string display_name = 2; // Display name for UI
+  double net_balance = 3;  // Positive = owed money, Negative = owes money
+  double total_paid = 4;   // Total amount paid across all bills
+  double total_owed = 5;   // Total amount this person owes
 }
 
 // Represents a debt from one person to another
 message DebtEdge {
-  string from = 1;  // Person who owes
-  string to = 2;    // Person who is owed
+  string from_user_id = 1;   // User ID of person who owes
+  string to_user_id = 2;     // User ID of person who is owed
   double amount = 3;
+  string from_name = 4;      // Display name of person who owes
+  string to_name = 5;        // Display name of person who is owed
 }
 
 // Response with group balance information

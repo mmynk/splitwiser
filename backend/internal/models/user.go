@@ -1,32 +1,43 @@
 package models
 
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
 // User represents a registered user account.
-//
-// NOTE: This model is for FUTURE use when authentication is added.
-// The MVP does not use user accounts - participants are identified by name strings only.
-//
-// Future features:
-//   - User login/registration
-//   - Bill history per user
-//   - User can belong to recurring groups
-//   - Payment tracking between users
 type User struct {
 	// ID is the unique identifier for the user (UUID format).
 	ID string
-
-	// Name is the display name of the user.
-	Name string
 
 	// Email is the user's email address (unique).
 	// Used for login and notifications.
 	Email string
 
+	// DisplayName is the display name shown in the UI.
+	DisplayName string
+
+	// PasswordHash is the bcrypt hash of the user's password.
+	// Nullable to support other auth methods (passkeys, OAuth, etc.)
+	PasswordHash string
+
 	// CreatedAt is the Unix timestamp when the user account was created.
 	CreatedAt int64
 
-	// Future fields to consider:
-	// - PasswordHash string (for auth)
-	// - Phone string (for SMS notifications)
-	// - Avatar string (profile picture URL)
-	// - Preferences map[string]string (user settings)
+	// UpdatedAt is the Unix timestamp when the user account was last updated.
+	UpdatedAt int64
+}
+
+// NewUser creates a new User with a generated UUID and timestamps.
+func NewUser(email, displayName, passwordHash string) *User {
+	now := time.Now().Unix()
+	return &User{
+		ID:           uuid.New().String(),
+		Email:        email,
+		DisplayName:  displayName,
+		PasswordHash: passwordHash,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
 }
