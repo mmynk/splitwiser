@@ -69,6 +69,21 @@ CREATE TABLE IF NOT EXISTS participants (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS settlements (
+    id TEXT PRIMARY KEY,
+    group_id TEXT NOT NULL,
+    from_user_id TEXT NOT NULL,
+    to_user_id TEXT NOT NULL,
+    amount REAL NOT NULL,
+    created_at INTEGER NOT NULL,
+    created_by TEXT NOT NULL,
+    note TEXT,
+    FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE,
+    FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_items_bill_id ON items(bill_id);
 CREATE INDEX IF NOT EXISTS idx_item_assignments_item_id ON item_assignments(item_id);
@@ -80,6 +95,7 @@ CREATE INDEX IF NOT EXISTS idx_group_members_user_id ON group_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_bills_group_id ON bills(group_id);
 CREATE INDEX IF NOT EXISTS idx_bills_creator_id ON bills(creator_id);
 CREATE INDEX IF NOT EXISTS idx_groups_creator_id ON groups(creator_id);
+CREATE INDEX IF NOT EXISTS idx_settlements_group_id ON settlements(group_id);
 `
 
 // runMigrations executes the schema setup.

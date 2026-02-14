@@ -586,8 +586,8 @@ func TestGetGroupBalances_BillsWithoutPayer(t *testing.T) {
 
 	// Create a group
 	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
-		Name:    "Test Group",
-		Members: []string{"Alice", "Bob"},
+		Name:      "Test Group",
+		MemberIds: []string{"Alice", "Bob"},
 	}))
 	if err != nil {
 		t.Fatalf("CreateGroup failed: %v", err)
@@ -596,11 +596,11 @@ func TestGetGroupBalances_BillsWithoutPayer(t *testing.T) {
 
 	// Create a bill without payer
 	_, err = splitClient.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
-		Title:        "Dinner",
-		Total:        100,
-		Subtotal:     100,
-		Participants: []string{"Alice", "Bob"},
-		GroupId:      &groupId,
+		Title:         "Dinner",
+		Total:         100,
+		Subtotal:      100,
+		ParticipantIds: []string{"Alice", "Bob"},
+		GroupId:       &groupId,
 		// No PayerId
 	}))
 	if err != nil {
@@ -618,5 +618,301 @@ func TestGetGroupBalances_BillsWithoutPayer(t *testing.T) {
 	// Should return empty since bill has no payer
 	if len(balResp.Msg.MemberBalances) != 0 {
 		t.Errorf("expected 0 balances (no payer), got %d", len(balResp.Msg.MemberBalances))
+	}
+}
+
+// Settlement Tests
+
+func TestRecordSettlement(t *testing.T) {
+	groupClient, _, cleanup := setupGroupTestServer(t)
+	defer cleanup()
+
+	// Create a group
+	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
+		Name:      "Settlement Test Group",
+		MemberIds: []string{"Alice", "Bob"},
+	}))
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+	groupId := groupResp.Msg.Group.Id
+
+	// Record a settlement: Bob pays Alice $30
+	settlementResp, err := groupClient.RecordSettlement(context.Background(), connect.NewRequest(&pb.RecordSettlementRequest{
+		GroupId:    groupId,
+		FromUserId: "Bob",
+		ToUserId:   "Alice",
+		Amount:     30,
+		Note:       "Venmo payment",
+	}))
+	if err != nil {
+		t.Fatalf("RecordSettlement failed: %v", err)
+	}
+
+	if settlementResp.Msg.Settlement == nil {
+		t.Fatal("expected settlement in response")
+	}
+
+	if settlementResp.Msg.Settlement.Id == "" {
+		t.Error("expected non-empty settlement ID")
+	}
+
+	if settlementResp.Msg.Settlement.GroupId != groupId {
+		t.Errorf("group_id: expected %s, got %s", groupId, settlementResp.Msg.Settlement.GroupId)
+	}
+
+	if settlementResp.Msg.Settlement.FromUserId != "Bob" {
+		t.Errorf("from_user_id: expected 'Bob', got '%s'", settlementResp.Msg.Settlement.FromUserId)
+	}
+
+	if settlementResp.Msg.Settlement.ToUserId != "Alice" {
+		t.Errorf("to_user_id: expected 'Alice', got '%s'", settlementResp.Msg.Settlement.ToUserId)
+	}
+
+	if settlementResp.Msg.Settlement.Amount != 30 {
+		t.Errorf("amount: expected 30, got %f", settlementResp.Msg.Settlement.Amount)
+	}
+
+	if settlementResp.Msg.Settlement.Note != "Venmo payment" {
+		t.Errorf("note: expected 'Venmo payment', got '%s'", settlementResp.Msg.Settlement.Note)
+	}
+
+	if settlementResp.Msg.Settlement.CreatedAt == 0 {
+		t.Error("expected non-zero CreatedAt")
+	}
+}
+
+func TestRecordSettlement_Validation(t *testing.T) {
+	groupClient, _, cleanup := setupGroupTestServer(t)
+	defer cleanup()
+
+	// Create a group
+	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
+		Name:      "Validation Test Group",
+		MemberIds: []string{"Alice", "Bob"},
+	}))
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+	groupId := groupResp.Msg.Group.Id
+
+	// Test: amount must be positive
+	_, err = groupClient.RecordSettlement(context.Background(), connect.NewRequest(&pb.RecordSettlementRequest{
+		GroupId:    groupId,
+		FromUserId: "Bob",
+		ToUserId:   "Alice",
+		Amount:     0,
+	}))
+	if err == nil {
+		t.Error("expected error for zero amount")
+	}
+
+	// Test: from and to must be different
+	_, err = groupClient.RecordSettlement(context.Background(), connect.NewRequest(&pb.RecordSettlementRequest{
+		GroupId:    groupId,
+		FromUserId: "Alice",
+		ToUserId:   "Alice",
+		Amount:     10,
+	}))
+	if err == nil {
+		t.Error("expected error when from_user_id == to_user_id")
+	}
+
+	// Test: users must be group members
+	_, err = groupClient.RecordSettlement(context.Background(), connect.NewRequest(&pb.RecordSettlementRequest{
+		GroupId:    groupId,
+		FromUserId: "Charlie",
+		ToUserId:   "Alice",
+		Amount:     10,
+	}))
+	if err == nil {
+		t.Error("expected error when from_user is not a group member")
+	}
+}
+
+func TestListSettlements(t *testing.T) {
+	groupClient, _, cleanup := setupGroupTestServer(t)
+	defer cleanup()
+
+	// Create a group
+	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
+		Name:      "List Settlements Group",
+		MemberIds: []string{"Alice", "Bob", "Charlie"},
+	}))
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+	groupId := groupResp.Msg.Group.Id
+
+	// Record multiple settlements
+	_, err = groupClient.RecordSettlement(context.Background(), connect.NewRequest(&pb.RecordSettlementRequest{
+		GroupId:    groupId,
+		FromUserId: "Bob",
+		ToUserId:   "Alice",
+		Amount:     25,
+	}))
+	if err != nil {
+		t.Fatalf("RecordSettlement 1 failed: %v", err)
+	}
+
+	_, err = groupClient.RecordSettlement(context.Background(), connect.NewRequest(&pb.RecordSettlementRequest{
+		GroupId:    groupId,
+		FromUserId: "Charlie",
+		ToUserId:   "Alice",
+		Amount:     15,
+	}))
+	if err != nil {
+		t.Fatalf("RecordSettlement 2 failed: %v", err)
+	}
+
+	// List settlements
+	listResp, err := groupClient.ListSettlements(context.Background(), connect.NewRequest(&pb.ListSettlementsRequest{
+		GroupId: groupId,
+	}))
+	if err != nil {
+		t.Fatalf("ListSettlements failed: %v", err)
+	}
+
+	if len(listResp.Msg.Settlements) != 2 {
+		t.Errorf("expected 2 settlements, got %d", len(listResp.Msg.Settlements))
+	}
+}
+
+func TestDeleteSettlement(t *testing.T) {
+	groupClient, _, cleanup := setupGroupTestServer(t)
+	defer cleanup()
+
+	// Create a group
+	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
+		Name:      "Delete Settlement Group",
+		MemberIds: []string{"Alice", "Bob"},
+	}))
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+	groupId := groupResp.Msg.Group.Id
+
+	// Record a settlement
+	settlementResp, err := groupClient.RecordSettlement(context.Background(), connect.NewRequest(&pb.RecordSettlementRequest{
+		GroupId:    groupId,
+		FromUserId: "Bob",
+		ToUserId:   "Alice",
+		Amount:     50,
+	}))
+	if err != nil {
+		t.Fatalf("RecordSettlement failed: %v", err)
+	}
+
+	settlementId := settlementResp.Msg.Settlement.Id
+
+	// Delete the settlement
+	_, err = groupClient.DeleteSettlement(context.Background(), connect.NewRequest(&pb.DeleteSettlementRequest{
+		SettlementId: settlementId,
+	}))
+	if err != nil {
+		t.Fatalf("DeleteSettlement failed: %v", err)
+	}
+
+	// Verify it's deleted
+	listResp, err := groupClient.ListSettlements(context.Background(), connect.NewRequest(&pb.ListSettlementsRequest{
+		GroupId: groupId,
+	}))
+	if err != nil {
+		t.Fatalf("ListSettlements failed: %v", err)
+	}
+
+	if len(listResp.Msg.Settlements) != 0 {
+		t.Errorf("expected 0 settlements after delete, got %d", len(listResp.Msg.Settlements))
+	}
+}
+
+func TestGetGroupBalances_WithSettlements(t *testing.T) {
+	groupClient, splitClient, cleanup := setupGroupTestServer(t)
+	defer cleanup()
+
+	// Create a group
+	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
+		Name:      "Balances With Settlements Group",
+		MemberIds: []string{"Alice", "Bob"},
+	}))
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+	groupId := groupResp.Msg.Group.Id
+
+	// Create a bill where Alice paid $100, split equally
+	alicePayer := "Alice"
+	_, err = splitClient.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:          "Dinner",
+		Total:          100,
+		Subtotal:       100,
+		ParticipantIds: []string{"Alice", "Bob"},
+		GroupId:        &groupId,
+		PayerId:        &alicePayer,
+	}))
+	if err != nil {
+		t.Fatalf("CreateBill failed: %v", err)
+	}
+
+	// Before settlement: Bob owes Alice $50
+	balResp, err := groupClient.GetGroupBalances(context.Background(), connect.NewRequest(&pb.GetGroupBalancesRequest{
+		GroupId: groupId,
+	}))
+	if err != nil {
+		t.Fatalf("GetGroupBalances failed: %v", err)
+	}
+
+	// Find Bob's balance
+	var bobBalanceBefore float64
+	for _, bal := range balResp.Msg.MemberBalances {
+		if bal.DisplayName == "Bob" {
+			bobBalanceBefore = bal.NetBalance
+		}
+	}
+	if bobBalanceBefore != -50 {
+		t.Errorf("Bob's balance before settlement: expected -50, got %f", bobBalanceBefore)
+	}
+
+	// Record settlement: Bob pays Alice $30
+	_, err = groupClient.RecordSettlement(context.Background(), connect.NewRequest(&pb.RecordSettlementRequest{
+		GroupId:    groupId,
+		FromUserId: "Bob",
+		ToUserId:   "Alice",
+		Amount:     30,
+	}))
+	if err != nil {
+		t.Fatalf("RecordSettlement failed: %v", err)
+	}
+
+	// After settlement: Bob owes Alice $20 (50 - 30)
+	balResp, err = groupClient.GetGroupBalances(context.Background(), connect.NewRequest(&pb.GetGroupBalancesRequest{
+		GroupId: groupId,
+	}))
+	if err != nil {
+		t.Fatalf("GetGroupBalances failed: %v", err)
+	}
+
+	// Find Bob's balance after settlement
+	var bobBalanceAfter float64
+	for _, bal := range balResp.Msg.MemberBalances {
+		if bal.DisplayName == "Bob" {
+			bobBalanceAfter = bal.NetBalance
+		}
+	}
+
+	// Bob's net balance should now be -20 (he still owes $20)
+	// Before: TotalPaid=0, TotalOwed=50, Net=-50
+	// After settlement: TotalPaid=30, TotalOwed=50, Net=-20
+	if bobBalanceAfter != -20 {
+		t.Errorf("Bob's balance after settlement: expected -20, got %f", bobBalanceAfter)
+	}
+
+	// Verify debt matrix shows $20 remaining
+	if len(balResp.Msg.DebtMatrix) != 1 {
+		t.Fatalf("expected 1 debt edge, got %d", len(balResp.Msg.DebtMatrix))
+	}
+	debt := balResp.Msg.DebtMatrix[0]
+	if debt.FromUserId != "Bob" || debt.ToUserId != "Alice" || debt.Amount != 20 {
+		t.Errorf("debt: expected Bob→Alice $20, got %s→%s $%f", debt.FromUserId, debt.ToUserId, debt.Amount)
 	}
 }

@@ -23,11 +23,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await loadGroup();
   await loadBalances();
+  await loadSettlements();
   await loadBills();
 
   // Set up "New Bill" link to pre-select this group
   document.getElementById('new-bill-link').href = `/?group=${groupId}`;
   document.getElementById('create-first-bill').href = `/?group=${groupId}`;
+
+  // Set up settlement button and form
+  document.getElementById('record-settlement-btn').addEventListener('click', openSettlementDialog);
+  document.getElementById('settlement-form').addEventListener('submit', handleSettlementSubmit);
 });
 
 // View toggle
@@ -207,3 +212,162 @@ function escapeHtml(text) {
   div.textContent = text;
   return div.innerHTML;
 }
+
+// Settlement functions
+async function loadSettlements() {
+  try {
+    const response = await fetch(`${API_BASE}/splitwiser.v1.GroupService/ListSettlements`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupId })
+    });
+
+    if (!response.ok) throw new Error('Failed to load settlements');
+
+    const data = await response.json();
+    const settlements = data.settlements || [];
+
+    const table = document.getElementById('settlements-table');
+    const noSettlementsMsg = document.getElementById('no-settlements-message');
+
+    if (settlements.length === 0) {
+      table.classList.add('hidden');
+      noSettlementsMsg.classList.remove('hidden');
+      return;
+    }
+
+    table.classList.remove('hidden');
+    noSettlementsMsg.classList.add('hidden');
+
+    const tbody = document.getElementById('settlements-table-body');
+    tbody.innerHTML = settlements
+      .map(settlement => {
+        const date = new Date(settlement.createdAt * 1000).toLocaleDateString();
+        return `
+          <tr>
+            <td>${escapeHtml(settlement.fromName || settlement.fromUserId)}</td>
+            <td>${escapeHtml(settlement.toName || settlement.toUserId)}</td>
+            <td>$${settlement.amount.toFixed(2)}</td>
+            <td>${settlement.note ? escapeHtml(settlement.note) : '<em>-</em>'}</td>
+            <td>${date}</td>
+            <td>
+              <button type="button" class="secondary outline" style="font-size: 0.85em; padding: 0.25em 0.75em;" onclick="deleteSettlement('${settlement.id}')">Delete</button>
+            </td>
+          </tr>
+        `;
+      })
+      .join('');
+  } catch (err) {
+    showError('Failed to load settlements: ' + err.message);
+  }
+}
+
+function openSettlementDialog() {
+  if (!currentGroup || !currentGroup.memberIds) {
+    showError('Group data not loaded');
+    return;
+  }
+
+  const fromSelect = document.getElementById('from-user');
+  const toSelect = document.getElementById('to-user');
+
+  // Clear and populate dropdowns with group members
+  fromSelect.innerHTML = '<option value="">Select payer...</option>';
+  toSelect.innerHTML = '<option value="">Select recipient...</option>';
+
+  for (const memberId of currentGroup.memberIds) {
+    fromSelect.innerHTML += `<option value="${escapeHtml(memberId)}">${escapeHtml(memberId)}</option>`;
+    toSelect.innerHTML += `<option value="${escapeHtml(memberId)}">${escapeHtml(memberId)}</option>`;
+  }
+
+  // Clear form
+  document.getElementById('settlement-amount').value = '';
+  document.getElementById('settlement-note').value = '';
+
+  document.getElementById('settlement-dialog').showModal();
+}
+
+function closeSettlementDialog() {
+  document.getElementById('settlement-dialog').close();
+}
+
+async function handleSettlementSubmit(event) {
+  event.preventDefault();
+
+  const fromUserId = document.getElementById('from-user').value;
+  const toUserId = document.getElementById('to-user').value;
+  const amount = parseFloat(document.getElementById('settlement-amount').value);
+  const note = document.getElementById('settlement-note').value;
+
+  if (!fromUserId || !toUserId) {
+    showError('Please select both payer and recipient');
+    return;
+  }
+
+  if (fromUserId === toUserId) {
+    showError('Payer and recipient must be different');
+    return;
+  }
+
+  if (isNaN(amount) || amount <= 0) {
+    showError('Please enter a valid amount');
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/splitwiser.v1.GroupService/RecordSettlement`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        groupId,
+        fromUserId,
+        toUserId,
+        amount,
+        note
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to record settlement');
+    }
+
+    closeSettlementDialog();
+
+    // Refresh balances and settlements
+    await loadBalances();
+    await loadSettlements();
+  } catch (err) {
+    showError('Failed to record settlement: ' + err.message);
+  }
+}
+
+async function deleteSettlement(settlementId) {
+  if (!confirm('Delete this settlement? This cannot be undone.')) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/splitwiser.v1.GroupService/DeleteSettlement`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ settlementId })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to delete settlement');
+    }
+
+    // Refresh balances and settlements
+    await loadBalances();
+    await loadSettlements();
+  } catch (err) {
+    showError('Failed to delete settlement: ' + err.message);
+  }
+}
+
+// Make functions available globally for onclick handlers
+window.deleteBill = deleteBill;
+window.deleteSettlement = deleteSettlement;
+window.closeSettlementDialog = closeSettlementDialog;

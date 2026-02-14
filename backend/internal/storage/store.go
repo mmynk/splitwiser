@@ -50,6 +50,22 @@ type Store interface {
 	// Bills associated with the group will have their group_id set to NULL.
 	DeleteGroup(ctx context.Context, groupID string) error
 
+	// CreateSettlement persists a new settlement.
+	// The settlement.ID field will be populated by the store.
+	CreateSettlement(ctx context.Context, settlement *models.Settlement) error
+
+	// GetSettlement retrieves a settlement by its ID.
+	// Returns nil and an error if the settlement is not found.
+	GetSettlement(ctx context.Context, settlementID string) (*models.Settlement, error)
+
+	// ListSettlementsByGroup retrieves all settlements for a group.
+	// Returns an empty slice if the group has no settlements.
+	ListSettlementsByGroup(ctx context.Context, groupID string) ([]*models.Settlement, error)
+
+	// DeleteSettlement removes a settlement by its ID.
+	// Returns an error if the settlement is not found.
+	DeleteSettlement(ctx context.Context, settlementID string) error
+
 	// Close releases any resources held by the store.
 	Close() error
 }

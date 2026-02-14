@@ -240,8 +240,25 @@ func (s *GroupService) GetGroupBalances(ctx context.Context, req *connect.Reques
 		})
 	}
 
+	// Fetch settlements for this group
+	settlementsList, err := s.store.ListSettlementsByGroup(ctx, groupID)
+	if err != nil {
+		slog.Error("GetGroupBalances failed - could not list settlements", "group_id", groupID, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// Convert settlements to calculator format
+	calcSettlements := make([]calculator.SettlementForBalance, len(settlementsList))
+	for i, settlement := range settlementsList {
+		calcSettlements[i] = calculator.SettlementForBalance{
+			FromUserID: settlement.FromUserID,
+			ToUserID:   settlement.ToUserID,
+			Amount:     settlement.Amount,
+		}
+	}
+
 	// Calculate balances
-	memberBalances, debtEdges, err := calculator.CalculateGroupBalances(bills)
+	memberBalances, debtEdges, err := calculator.CalculateGroupBalances(bills, calcSettlements)
 	if err != nil {
 		slog.Error("GetGroupBalances failed - calculation error", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -278,4 +295,202 @@ func (s *GroupService) GetGroupBalances(ctx context.Context, req *connect.Reques
 		MemberBalances: pbBalances,
 		DebtMatrix:     pbDebts,
 	}), nil
+}
+
+// RecordSettlement records a payment between group members.
+func (s *GroupService) RecordSettlement(ctx context.Context, req *connect.Request[pb.RecordSettlementRequest]) (*connect.Response[pb.RecordSettlementResponse], error) {
+	// Get authenticated user ID from context
+	userID := middleware.GetUserID(ctx)
+	if userID == "" {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("authentication required"))
+	}
+
+	groupID := req.Msg.GetGroupId()
+	fromUserID := req.Msg.GetFromUserId()
+	toUserID := req.Msg.GetToUserId()
+	amount := req.Msg.GetAmount()
+	note := req.Msg.GetNote()
+
+	slog.Info("RecordSettlement request received",
+		"user_id", userID,
+		"group_id", groupID,
+		"from_user_id", fromUserID,
+		"to_user_id", toUserID,
+		"amount", amount,
+	)
+
+	// Validation
+	if groupID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("group_id required"))
+	}
+	if fromUserID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("from_user_id required"))
+	}
+	if toUserID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("to_user_id required"))
+	}
+	if amount <= 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("amount must be positive"))
+	}
+	if fromUserID == toUserID {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("from_user_id and to_user_id must be different"))
+	}
+
+	// Verify group exists and user is a member
+	group, err := s.store.GetGroup(ctx, groupID)
+	if err != nil {
+		slog.Error("RecordSettlement failed - group not found", "group_id", groupID, "error", err)
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("group not found"))
+	}
+
+	if !isMember(userID, group.Members) {
+		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("not a member of this group"))
+	}
+
+	// Verify from_user and to_user are members
+	if !isMember(fromUserID, group.Members) {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("from_user is not a member of this group"))
+	}
+	if !isMember(toUserID, group.Members) {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("to_user is not a member of this group"))
+	}
+
+	// Create settlement
+	settlement := &models.Settlement{
+		GroupID:    groupID,
+		FromUserID: fromUserID,
+		ToUserID:   toUserID,
+		Amount:     amount,
+		CreatedBy:  userID,
+		Note:       note,
+	}
+
+	if err := s.store.CreateSettlement(ctx, settlement); err != nil {
+		slog.Error("RecordSettlement failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	slog.Info("Settlement recorded", "settlement_id", settlement.ID)
+
+	// Get display names for response
+	fromName := fromUserID
+	toName := toUserID
+
+	return connect.NewResponse(&pb.RecordSettlementResponse{
+		Settlement: &pb.Settlement{
+			Id:         settlement.ID,
+			GroupId:    settlement.GroupID,
+			FromUserId: settlement.FromUserID,
+			ToUserId:   settlement.ToUserID,
+			Amount:     settlement.Amount,
+			CreatedAt:  settlement.CreatedAt,
+			CreatedBy:  settlement.CreatedBy,
+			Note:       settlement.Note,
+			FromName:   fromName,
+			ToName:     toName,
+		},
+	}), nil
+}
+
+// ListSettlements lists all settlements for a group.
+func (s *GroupService) ListSettlements(ctx context.Context, req *connect.Request[pb.ListSettlementsRequest]) (*connect.Response[pb.ListSettlementsResponse], error) {
+	// Get authenticated user ID from context
+	userID := middleware.GetUserID(ctx)
+	if userID == "" {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("authentication required"))
+	}
+
+	groupID := req.Msg.GetGroupId()
+
+	slog.Info("ListSettlements request received", "user_id", userID, "group_id", groupID)
+
+	if groupID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("group_id required"))
+	}
+
+	// Verify group exists and user is a member
+	group, err := s.store.GetGroup(ctx, groupID)
+	if err != nil {
+		slog.Error("ListSettlements failed - group not found", "group_id", groupID, "error", err)
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("group not found"))
+	}
+
+	if !isMember(userID, group.Members) {
+		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("not a member of this group"))
+	}
+
+	// Get settlements
+	settlements, err := s.store.ListSettlementsByGroup(ctx, groupID)
+	if err != nil {
+		slog.Error("ListSettlements failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// Convert to proto
+	pbSettlements := make([]*pb.Settlement, len(settlements))
+	for i, settlement := range settlements {
+		pbSettlements[i] = &pb.Settlement{
+			Id:         settlement.ID,
+			GroupId:    settlement.GroupID,
+			FromUserId: settlement.FromUserID,
+			ToUserId:   settlement.ToUserID,
+			Amount:     settlement.Amount,
+			CreatedAt:  settlement.CreatedAt,
+			CreatedBy:  settlement.CreatedBy,
+			Note:       settlement.Note,
+			FromName:   settlement.FromUserID, // Use ID as fallback
+			ToName:     settlement.ToUserID,
+		}
+	}
+
+	slog.Info("ListSettlements successful", "group_id", groupID, "count", len(settlements))
+
+	return connect.NewResponse(&pb.ListSettlementsResponse{
+		Settlements: pbSettlements,
+	}), nil
+}
+
+// DeleteSettlement removes a settlement.
+func (s *GroupService) DeleteSettlement(ctx context.Context, req *connect.Request[pb.DeleteSettlementRequest]) (*connect.Response[pb.DeleteSettlementResponse], error) {
+	// Get authenticated user ID from context
+	userID := middleware.GetUserID(ctx)
+	if userID == "" {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("authentication required"))
+	}
+
+	settlementID := req.Msg.GetSettlementId()
+
+	slog.Info("DeleteSettlement request received", "user_id", userID, "settlement_id", settlementID)
+
+	if settlementID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("settlement_id required"))
+	}
+
+	// Get settlement to check group membership
+	settlement, err := s.store.GetSettlement(ctx, settlementID)
+	if err != nil {
+		slog.Error("DeleteSettlement failed - settlement not found", "settlement_id", settlementID, "error", err)
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("settlement not found"))
+	}
+
+	// Verify user is a member of the group
+	group, err := s.store.GetGroup(ctx, settlement.GroupID)
+	if err != nil {
+		slog.Error("DeleteSettlement failed - group not found", "group_id", settlement.GroupID, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("group not found"))
+	}
+
+	if !isMember(userID, group.Members) {
+		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("not a member of this group"))
+	}
+
+	// Delete settlement
+	if err := s.store.DeleteSettlement(ctx, settlementID); err != nil {
+		slog.Error("DeleteSettlement failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	slog.Info("Settlement deleted", "settlement_id", settlementID)
+
+	return connect.NewResponse(&pb.DeleteSettlementResponse{}), nil
 }

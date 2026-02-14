@@ -622,3 +622,269 @@ func TestBillWithGroup(t *testing.T) {
 		}
 	})
 }
+
+func TestSettlementStorage(t *testing.T) {
+	// Create temp directory for test database
+	tempDir, err := os.MkdirTemp("", "splitwiser-settlement-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	dbPath := filepath.Join(tempDir, "test.db")
+	store, err := New(dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// Create users and group first (needed for foreign keys)
+	aliceUser := &models.User{
+		ID:           "alice-id",
+		Email:        "alice@test.com",
+		DisplayName:  "Alice",
+		PasswordHash: "hash",
+		CreatedAt:    1000,
+		UpdatedAt:    1000,
+	}
+	bobUser := &models.User{
+		ID:           "bob-id",
+		Email:        "bob@test.com",
+		DisplayName:  "Bob",
+		PasswordHash: "hash",
+		CreatedAt:    1000,
+		UpdatedAt:    1000,
+	}
+
+	err = store.CreateUser(ctx, aliceUser)
+	if err != nil {
+		t.Fatalf("CreateUser (Alice) failed: %v", err)
+	}
+	err = store.CreateUser(ctx, bobUser)
+	if err != nil {
+		t.Fatalf("CreateUser (Bob) failed: %v", err)
+	}
+
+	// Create a group with these users
+	group := &models.Group{
+		Name:    "Settlement Test Group",
+		Members: []string{aliceUser.ID, bobUser.ID},
+	}
+	err = store.CreateGroup(ctx, group)
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+
+	t.Run("CreateSettlement generates ID and timestamp", func(t *testing.T) {
+		settlement := &models.Settlement{
+			GroupID:    group.ID,
+			FromUserID: bobUser.ID,
+			ToUserID:   aliceUser.ID,
+			Amount:     50.0,
+			CreatedBy:  bobUser.ID,
+			Note:       "Venmo payment",
+		}
+
+		err := store.CreateSettlement(ctx, settlement)
+		if err != nil {
+			t.Fatalf("CreateSettlement failed: %v", err)
+		}
+
+		if settlement.ID == "" {
+			t.Error("Expected settlement ID to be generated")
+		}
+		if settlement.CreatedAt == 0 {
+			t.Error("Expected CreatedAt to be set")
+		}
+
+		t.Logf("Created settlement: ID=%s", settlement.ID)
+	})
+
+	t.Run("GetSettlement retrieves complete settlement", func(t *testing.T) {
+		original := &models.Settlement{
+			GroupID:    group.ID,
+			FromUserID: aliceUser.ID,
+			ToUserID:   bobUser.ID,
+			Amount:     25.0,
+			CreatedBy:  aliceUser.ID,
+			Note:       "Cash payment",
+		}
+
+		err := store.CreateSettlement(ctx, original)
+		if err != nil {
+			t.Fatalf("CreateSettlement failed: %v", err)
+		}
+
+		retrieved, err := store.GetSettlement(ctx, original.ID)
+		if err != nil {
+			t.Fatalf("GetSettlement failed: %v", err)
+		}
+
+		if retrieved.ID != original.ID {
+			t.Errorf("ID mismatch: got %s, want %s", retrieved.ID, original.ID)
+		}
+		if retrieved.GroupID != original.GroupID {
+			t.Errorf("GroupID mismatch: got %s, want %s", retrieved.GroupID, original.GroupID)
+		}
+		if retrieved.FromUserID != original.FromUserID {
+			t.Errorf("FromUserID mismatch: got %s, want %s", retrieved.FromUserID, original.FromUserID)
+		}
+		if retrieved.ToUserID != original.ToUserID {
+			t.Errorf("ToUserID mismatch: got %s, want %s", retrieved.ToUserID, original.ToUserID)
+		}
+		if retrieved.Amount != original.Amount {
+			t.Errorf("Amount mismatch: got %f, want %f", retrieved.Amount, original.Amount)
+		}
+		if retrieved.Note != original.Note {
+			t.Errorf("Note mismatch: got %s, want %s", retrieved.Note, original.Note)
+		}
+	})
+
+	t.Run("GetSettlement returns error for nonexistent settlement", func(t *testing.T) {
+		_, err := store.GetSettlement(ctx, "nonexistent-id")
+		if err == nil {
+			t.Error("Expected error for nonexistent settlement, got nil")
+		}
+	})
+
+	t.Run("ListSettlementsByGroup returns settlements for group", func(t *testing.T) {
+		// Create another group for isolation
+		charlieUser := &models.User{
+			ID:           "charlie-id",
+			Email:        "charlie@test.com",
+			DisplayName:  "Charlie",
+			PasswordHash: "hash",
+			CreatedAt:    1000,
+			UpdatedAt:    1000,
+		}
+		err = store.CreateUser(ctx, charlieUser)
+		if err != nil {
+			t.Fatalf("CreateUser (Charlie) failed: %v", err)
+		}
+
+		group2 := &models.Group{
+			Name:    "Another Group",
+			Members: []string{charlieUser.ID, aliceUser.ID},
+		}
+		err = store.CreateGroup(ctx, group2)
+		if err != nil {
+			t.Fatalf("CreateGroup failed: %v", err)
+		}
+
+		// Create settlements in the new group
+		store.CreateSettlement(ctx, &models.Settlement{
+			GroupID:    group2.ID,
+			FromUserID: charlieUser.ID,
+			ToUserID:   aliceUser.ID,
+			Amount:     10.0,
+			CreatedBy:  charlieUser.ID,
+		})
+		store.CreateSettlement(ctx, &models.Settlement{
+			GroupID:    group2.ID,
+			FromUserID: charlieUser.ID,
+			ToUserID:   aliceUser.ID,
+			Amount:     20.0,
+			CreatedBy:  charlieUser.ID,
+		})
+
+		settlements, err := store.ListSettlementsByGroup(ctx, group2.ID)
+		if err != nil {
+			t.Fatalf("ListSettlementsByGroup failed: %v", err)
+		}
+
+		if len(settlements) != 2 {
+			t.Errorf("Expected 2 settlements, got %d", len(settlements))
+		}
+	})
+
+	t.Run("ListSettlementsByGroup returns empty for group with no settlements", func(t *testing.T) {
+		emptyGroup := &models.Group{
+			Name:    "Empty Group",
+			Members: []string{aliceUser.ID},
+		}
+		err = store.CreateGroup(ctx, emptyGroup)
+		if err != nil {
+			t.Fatalf("CreateGroup failed: %v", err)
+		}
+
+		settlements, err := store.ListSettlementsByGroup(ctx, emptyGroup.ID)
+		if err != nil {
+			t.Fatalf("ListSettlementsByGroup failed: %v", err)
+		}
+
+		if len(settlements) != 0 {
+			t.Errorf("Expected 0 settlements, got %d", len(settlements))
+		}
+	})
+
+	t.Run("DeleteSettlement removes settlement", func(t *testing.T) {
+		settlement := &models.Settlement{
+			GroupID:    group.ID,
+			FromUserID: bobUser.ID,
+			ToUserID:   aliceUser.ID,
+			Amount:     15.0,
+			CreatedBy:  bobUser.ID,
+		}
+
+		err := store.CreateSettlement(ctx, settlement)
+		if err != nil {
+			t.Fatalf("CreateSettlement failed: %v", err)
+		}
+
+		err = store.DeleteSettlement(ctx, settlement.ID)
+		if err != nil {
+			t.Fatalf("DeleteSettlement failed: %v", err)
+		}
+
+		_, err = store.GetSettlement(ctx, settlement.ID)
+		if err == nil {
+			t.Error("Expected error getting deleted settlement, got nil")
+		}
+	})
+
+	t.Run("DeleteSettlement returns error for nonexistent settlement", func(t *testing.T) {
+		err := store.DeleteSettlement(ctx, "nonexistent-id")
+		if err == nil {
+			t.Error("Expected error for nonexistent settlement, got nil")
+		}
+	})
+
+	t.Run("Settlements cascade delete when group is deleted", func(t *testing.T) {
+		// Create a group
+		cascadeGroup := &models.Group{
+			Name:    "Cascade Test Group",
+			Members: []string{aliceUser.ID, bobUser.ID},
+		}
+		err = store.CreateGroup(ctx, cascadeGroup)
+		if err != nil {
+			t.Fatalf("CreateGroup failed: %v", err)
+		}
+
+		// Create a settlement
+		settlement := &models.Settlement{
+			GroupID:    cascadeGroup.ID,
+			FromUserID: bobUser.ID,
+			ToUserID:   aliceUser.ID,
+			Amount:     100.0,
+			CreatedBy:  bobUser.ID,
+		}
+		err = store.CreateSettlement(ctx, settlement)
+		if err != nil {
+			t.Fatalf("CreateSettlement failed: %v", err)
+		}
+
+		// Delete the group
+		err = store.DeleteGroup(ctx, cascadeGroup.ID)
+		if err != nil {
+			t.Fatalf("DeleteGroup failed: %v", err)
+		}
+
+		// Settlement should also be deleted
+		_, err = store.GetSettlement(ctx, settlement.ID)
+		if err == nil {
+			t.Error("Expected error getting settlement after group deletion, got nil")
+		}
+	})
+}

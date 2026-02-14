@@ -60,6 +60,66 @@
       </div>
     </section>
 
+    <section id="settlements-section">
+      <h2>Settlements</h2>
+      <button type="button" id="record-settlement-btn" class="outline">+ Record Settlement</button>
+
+      <div id="no-settlements-message" class="hidden" style="margin-top: 1rem;">
+        <p><em>No settlements recorded yet.</em></p>
+      </div>
+
+      <table role="grid" id="settlements-table" class="hidden">
+        <thead>
+          <tr>
+            <th>From</th>
+            <th>To</th>
+            <th>Amount</th>
+            <th>Note</th>
+            <th>Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="settlements-table-body">
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Settlement Dialog -->
+    <dialog id="settlement-dialog">
+      <article>
+        <header>
+          <button aria-label="Close" rel="prev" onclick="closeSettlementDialog()"></button>
+          <h3>Record Settlement</h3>
+        </header>
+        <form id="settlement-form">
+          <label for="from-user">
+            Who paid?
+            <select id="from-user" name="from-user" required>
+              <option value="">Select payer...</option>
+            </select>
+          </label>
+          <label for="to-user">
+            Who received?
+            <select id="to-user" name="to-user" required>
+              <option value="">Select recipient...</option>
+            </select>
+          </label>
+          <label for="settlement-amount">
+            Amount
+            <input type="number" id="settlement-amount" name="amount" step="0.01" min="0.01" required placeholder="0.00">
+          </label>
+          <label for="settlement-note">
+            Note (optional)
+            <input type="text" id="settlement-note" name="note" placeholder="e.g., Venmo payment">
+          </label>
+          <footer>
+            <button type="button" class="secondary" onclick="closeSettlementDialog()">Cancel</button>
+            <button type="submit">Record Settlement</button>
+          </footer>
+        </form>
+      </article>
+    </dialog>
+
     <section id="bills-section">
       <h2>Bills</h2>
       <table role="grid">

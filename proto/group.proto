@@ -23,6 +23,15 @@ service GroupService {
 
   // Get balances for a group
   rpc GetGroupBalances(GetGroupBalancesRequest) returns (GetGroupBalancesResponse);
+
+  // Record a settlement payment between group members
+  rpc RecordSettlement(RecordSettlementRequest) returns (RecordSettlementResponse);
+
+  // List all settlements for a group
+  rpc ListSettlements(ListSettlementsRequest) returns (ListSettlementsResponse);
+
+  // Delete a settlement
+  rpc DeleteSettlement(DeleteSettlementRequest) returns (DeleteSettlementResponse);
 }
 
 // Group represents a reusable participant list
@@ -106,3 +115,43 @@ message GetGroupBalancesResponse {
   repeated MemberBalance member_balances = 1;
   repeated DebtEdge debt_matrix = 2;  // Detailed who-owes-whom
 }
+
+// Settlement represents a payment between group members
+message Settlement {
+  string id = 1;
+  string group_id = 2;
+  string from_user_id = 3;    // Who paid (debtor settling up)
+  string to_user_id = 4;      // Who received (creditor being paid)
+  double amount = 5;
+  int64 created_at = 6;
+  string created_by = 7;      // Who recorded this
+  string note = 8;            // Optional description
+  string from_name = 9;       // Display name
+  string to_name = 10;        // Display name
+}
+
+message RecordSettlementRequest {
+  string group_id = 1;
+  string from_user_id = 2;
+  string to_user_id = 3;
+  double amount = 4;
+  string note = 5;
+}
+
+message RecordSettlementResponse {
+  Settlement settlement = 1;
+}
+
+message ListSettlementsRequest {
+  string group_id = 1;
+}
+
+message ListSettlementsResponse {
+  repeated Settlement settlements = 1;
+}
+
+message DeleteSettlementRequest {
+  string settlement_id = 1;
+}
+
+message DeleteSettlementResponse {}

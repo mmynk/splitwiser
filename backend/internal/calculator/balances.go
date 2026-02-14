@@ -26,15 +26,23 @@ type DebtEdge struct {
 	Amount float64
 }
 
-// CalculateGroupBalances computes balances across multiple bills.
+// SettlementForBalance represents a settlement with the minimal information needed for balance calculations.
+type SettlementForBalance struct {
+	FromUserID string  // Who paid (debtor settling up)
+	ToUserID   string  // Who received (creditor being paid)
+	Amount     float64
+}
+
+// CalculateGroupBalances computes balances across multiple bills and settlements.
 // It aggregates who paid what and who owes what, returning both individual
 // member balances and a detailed debt matrix.
 //
 // Algorithm:
 // - For each bill: payer contributed +total, each participant owes their split
+// - For each settlement: payer's balance improves, receiver's balance decreases
 // - Aggregate: net_balance = total_paid - total_owed
-// - Debt matrix: track who owes whom across all bills (no simplification)
-func CalculateGroupBalances(bills []BillForBalance) ([]MemberBalance, []DebtEdge, error) {
+// - Debt matrix: simplified using greedy matching
+func CalculateGroupBalances(bills []BillForBalance, settlements []SettlementForBalance) ([]MemberBalance, []DebtEdge, error) {
 	// Track balances per member
 	balances := make(map[string]*MemberBalance)
 
@@ -77,6 +85,22 @@ func CalculateGroupBalances(bills []BillForBalance) ([]MemberBalance, []DebtEdge
 				debts[participant][bill.PayerID] += personSplit.Total
 			}
 		}
+	}
+
+	// Apply settlements to balances
+	for _, s := range settlements {
+		// Initialize from user's balance if needed
+		if _, exists := balances[s.FromUserID]; !exists {
+			balances[s.FromUserID] = &MemberBalance{MemberName: s.FromUserID}
+		}
+		// Initialize to user's balance if needed
+		if _, exists := balances[s.ToUserID]; !exists {
+			balances[s.ToUserID] = &MemberBalance{MemberName: s.ToUserID}
+		}
+		// Payer's balance improves (they effectively "paid" to settle debt)
+		balances[s.FromUserID].TotalPaid += s.Amount
+		// Receiver's balance decreases (they received payment)
+		balances[s.ToUserID].TotalOwed += s.Amount
 	}
 
 	// Compute net balances

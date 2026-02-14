@@ -37,14 +37,31 @@ Reusable participant groups for common splitting scenarios.
 - Title auto-generation: "Items - Participants" format with graceful fallbacks
 - Modular proto organization for better maintainability
 
-## Priority 2: Settlements
-Calculate optimal payments to settle balances.
+## Priority 2: Settlements - ✅ COMPLETE
+Record payments between group members to clear debts.
 
-**Features:**
-- Track who paid vs who owes across bills
-- Debt simplification algorithm (minimize number of transactions)
-- "Settle up" suggestions (e.g., "Alice pays Bob $15")
-- Mark debts as settled
+**Completed Features:**
+- ✅ Settlement model and database table with cascade delete on group
+- ✅ RecordSettlement API with validation (positive amount, different users, both members)
+- ✅ ListSettlements API returns all settlements for a group
+- ✅ DeleteSettlement API with group membership check
+- ✅ GetGroupBalances now includes settlements in balance calculations
+- ✅ Frontend: Settlements section on group page with table view
+- ✅ Frontend: "Record Settlement" dialog with from/to dropdowns, amount, note
+- ✅ Frontend: Delete settlement with confirmation
+- ✅ Balances automatically update when settlements are recorded/deleted
+
+**Technical Implementation:**
+- Settlement fields: ID, GroupID, FromUserID, ToUserID, Amount, CreatedAt, CreatedBy, Note
+- Balance calculation: settlements adjust TotalPaid (payer) and TotalOwed (receiver)
+- Debt simplification algorithm automatically computes minimal transactions from adjusted balances
+- No confirmation flow (MVP simplicity - trust the recorder)
+- Any group member can record/delete settlements (no ownership restrictions)
+
+**How it works:**
+1. Alice pays $100 bill split with Bob → Bob owes Alice $50
+2. Bob records settlement to Alice for $30 → Bob now owes Alice $20
+3. Balances and debt matrix update automatically
 
 ## Future Ideas
 
