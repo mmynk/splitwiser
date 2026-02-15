@@ -18,17 +18,14 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS groups (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    creator_id TEXT NOT NULL,
-    created_at INTEGER NOT NULL,
-    FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE
+    created_at INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS group_members (
     group_id TEXT NOT NULL,
-    user_id TEXT NOT NULL,
-    PRIMARY KEY (group_id, user_id),
-    FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    name TEXT NOT NULL,
+    PRIMARY KEY (group_id, name),
+    FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS bills (
@@ -37,12 +34,9 @@ CREATE TABLE IF NOT EXISTS bills (
     total REAL NOT NULL,
     subtotal REAL NOT NULL,
     created_at INTEGER NOT NULL,
-    creator_id TEXT NOT NULL,
     group_id TEXT,
-    payer_id TEXT NOT NULL,
-    FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE SET NULL,
-    FOREIGN KEY (payer_id) REFERENCES users(id) ON DELETE RESTRICT
+    payer_id TEXT,
+    FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS items (
@@ -55,18 +49,16 @@ CREATE TABLE IF NOT EXISTS items (
 
 CREATE TABLE IF NOT EXISTS item_assignments (
     item_id TEXT NOT NULL,
-    user_id TEXT NOT NULL,
-    PRIMARY KEY (item_id, user_id),
-    FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    participant TEXT NOT NULL,
+    PRIMARY KEY (item_id, participant),
+    FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS participants (
     bill_id TEXT NOT NULL,
-    user_id TEXT NOT NULL,
-    PRIMARY KEY (bill_id, user_id),
-    FOREIGN KEY (bill_id) REFERENCES bills(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    name TEXT NOT NULL,
+    PRIMARY KEY (bill_id, name),
+    FOREIGN KEY (bill_id) REFERENCES bills(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS settlements (
@@ -78,23 +70,14 @@ CREATE TABLE IF NOT EXISTS settlements (
     created_at INTEGER NOT NULL,
     created_by TEXT NOT NULL,
     note TEXT,
-    FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE,
-    FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+    FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_items_bill_id ON items(bill_id);
 CREATE INDEX IF NOT EXISTS idx_item_assignments_item_id ON item_assignments(item_id);
-CREATE INDEX IF NOT EXISTS idx_item_assignments_user_id ON item_assignments(user_id);
 CREATE INDEX IF NOT EXISTS idx_participants_bill_id ON participants(bill_id);
-CREATE INDEX IF NOT EXISTS idx_participants_user_id ON participants(user_id);
 CREATE INDEX IF NOT EXISTS idx_group_members_group_id ON group_members(group_id);
-CREATE INDEX IF NOT EXISTS idx_group_members_user_id ON group_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_bills_group_id ON bills(group_id);
-CREATE INDEX IF NOT EXISTS idx_bills_creator_id ON bills(creator_id);
-CREATE INDEX IF NOT EXISTS idx_groups_creator_id ON groups(creator_id);
 CREATE INDEX IF NOT EXISTS idx_settlements_group_id ON settlements(group_id);
 `
 

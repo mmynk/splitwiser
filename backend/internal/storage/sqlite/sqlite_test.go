@@ -465,6 +465,76 @@ func TestGroupStorage(t *testing.T) {
 	})
 }
 
+func TestAddGroupMembers(t *testing.T) {
+	// Create temp directory for test database
+	tempDir, err := os.MkdirTemp("", "splitwiser-addmembers-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	dbPath := filepath.Join(tempDir, "test.db")
+	store, err := New(dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// Create a group
+	group := &models.Group{
+		Name:    "Test Group",
+		Members: []string{"Alice", "Bob"},
+	}
+	err = store.CreateGroup(ctx, group)
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+
+	t.Run("adds new members to group", func(t *testing.T) {
+		err := store.AddGroupMembers(ctx, group.ID, []string{"Charlie", "Diana"})
+		if err != nil {
+			t.Fatalf("AddGroupMembers failed: %v", err)
+		}
+
+		// Verify members
+		retrieved, err := store.GetGroup(ctx, group.ID)
+		if err != nil {
+			t.Fatalf("GetGroup failed: %v", err)
+		}
+
+		if len(retrieved.Members) != 4 {
+			t.Errorf("Expected 4 members, got %d: %v", len(retrieved.Members), retrieved.Members)
+		}
+	})
+
+	t.Run("idempotent - no duplicates", func(t *testing.T) {
+		// Try adding members that already exist
+		err := store.AddGroupMembers(ctx, group.ID, []string{"Alice", "Charlie", "Eve"})
+		if err != nil {
+			t.Fatalf("AddGroupMembers failed: %v", err)
+		}
+
+		// Verify no duplicates - should have Alice, Bob, Charlie, Diana, Eve = 5
+		retrieved, err := store.GetGroup(ctx, group.ID)
+		if err != nil {
+			t.Fatalf("GetGroup failed: %v", err)
+		}
+
+		if len(retrieved.Members) != 5 {
+			t.Errorf("Expected 5 members (no duplicates), got %d: %v", len(retrieved.Members), retrieved.Members)
+		}
+	})
+
+	t.Run("empty member list is no-op", func(t *testing.T) {
+		err := store.AddGroupMembers(ctx, group.ID, []string{})
+		if err != nil {
+			t.Fatalf("AddGroupMembers with empty list failed: %v", err)
+		}
+	})
+}
+
 func TestBillWithGroup(t *testing.T) {
 	// Create temp directory for test database
 	tempDir, err := os.MkdirTemp("", "splitwiser-bill-group-test-*")

@@ -46,6 +46,10 @@ type Store interface {
 	// Returns an error if the group is not found.
 	UpdateGroup(ctx context.Context, group *models.Group) error
 
+	// AddGroupMembers adds members to a group idempotently.
+	// Members that already exist in the group are silently ignored.
+	AddGroupMembers(ctx context.Context, groupID string, memberIDs []string) error
+
 	// DeleteGroup removes a group by its ID.
 	// Bills associated with the group will have their group_id set to NULL.
 	DeleteGroup(ctx context.Context, groupID string) error

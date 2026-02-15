@@ -48,6 +48,51 @@ func isParticipant(userID string, participants []string) bool {
 	return false
 }
 
+// findNewParticipants returns participants that are not already in existingMembers.
+func findNewParticipants(participants, existingMembers []string) []string {
+	memberSet := make(map[string]bool, len(existingMembers))
+	for _, m := range existingMembers {
+		memberSet[m] = true
+	}
+	var newOnes []string
+	for _, p := range participants {
+		if !memberSet[p] {
+			newOnes = append(newOnes, p)
+		}
+	}
+	return newOnes
+}
+
+// autoAddParticipantsToGroup adds any bill participants (and payer) not already in the group.
+func (s *SplitService) autoAddParticipantsToGroup(ctx context.Context, groupID string, participants []string, payerID string) {
+	if groupID == "" {
+		return
+	}
+	group, err := s.store.GetGroup(ctx, groupID)
+	if err != nil {
+		slog.Warn("autoAddParticipantsToGroup: failed to get group", "group_id", groupID, "error", err)
+		return
+	}
+
+	// Collect all people to potentially add (participants + payer)
+	allPeople := make([]string, 0, len(participants)+1)
+	allPeople = append(allPeople, participants...)
+	if payerID != "" && !isParticipant(payerID, participants) {
+		allPeople = append(allPeople, payerID)
+	}
+
+	newMembers := findNewParticipants(allPeople, group.Members)
+	if len(newMembers) == 0 {
+		return
+	}
+
+	if err := s.store.AddGroupMembers(ctx, groupID, newMembers); err != nil {
+		slog.Error("autoAddParticipantsToGroup: failed to add members", "group_id", groupID, "error", err)
+		return
+	}
+	slog.Info("Auto-added participants to group", "group_id", groupID, "new_members", newMembers)
+}
+
 // CalculateSplit handles bill split calculation
 func (s *SplitService) CalculateSplit(ctx context.Context, req *connect.Request[pb.CalculateSplitRequest]) (*connect.Response[pb.CalculateSplitResponse], error) {
 	slog.Info("CalculateSplit request received",
@@ -173,6 +218,9 @@ func (s *SplitService) CreateBill(ctx context.Context, req *connect.Request[pb.C
 		slog.Error("CreateBill failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
+
+	// Auto-add bill participants to group
+	s.autoAddParticipantsToGroup(ctx, bill.GroupID, bill.Participants, bill.PayerID)
 
 	slog.Info("Bill created", "bill_id", bill.ID)
 
@@ -383,6 +431,9 @@ func (s *SplitService) UpdateBill(ctx context.Context, req *connect.Request[pb.U
 		slog.Error("UpdateBill failed", "error", err)
 		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
+
+	// Auto-add bill participants to group
+	s.autoAddParticipantsToGroup(ctx, bill.GroupID, bill.Participants, bill.PayerID)
 
 	slog.Info("Bill updated", "bill_id", bill.ID)
 

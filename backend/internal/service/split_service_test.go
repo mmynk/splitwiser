@@ -8,10 +8,21 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
+	"github.com/mmynk/splitwiser/internal/middleware"
 	"github.com/mmynk/splitwiser/internal/storage/sqlite"
 	pb "github.com/mmynk/splitwiser/pkg/proto"
 	"github.com/mmynk/splitwiser/pkg/proto/protoconnect"
 )
+
+// testAuthInterceptor returns a Connect interceptor that sets a test user ID in the context.
+func testAuthInterceptor() connect.UnaryInterceptorFunc {
+	return func(next connect.UnaryFunc) connect.UnaryFunc {
+		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+			ctx = context.WithValue(ctx, middleware.UserIDKey, "Alice")
+			return next(ctx, req)
+		}
+	}
+}
 
 // setupTestServer creates a test server with an in-memory SQLite database
 func setupTestServer(t *testing.T) (protoconnect.SplitServiceClient, func()) {
@@ -36,12 +47,13 @@ func setupTestServerWithGroupService(t *testing.T) (protoconnect.SplitServiceCli
 		t.Fatalf("failed to create store: %v", err)
 	}
 
-	// Create services and handlers
+	// Create services and handlers with test auth interceptor
+	authInterceptor := connect.WithInterceptors(testAuthInterceptor())
 	splitSvc := NewSplitService(store)
-	splitPath, splitHandler := protoconnect.NewSplitServiceHandler(splitSvc)
+	splitPath, splitHandler := protoconnect.NewSplitServiceHandler(splitSvc, authInterceptor)
 
 	groupSvc := NewGroupService(store)
-	groupPath, groupHandler := protoconnect.NewGroupServiceHandler(groupSvc)
+	groupPath, groupHandler := protoconnect.NewGroupServiceHandler(groupSvc, authInterceptor)
 
 	mux := http.NewServeMux()
 	mux.Handle(splitPath, splitHandler)
@@ -76,7 +88,7 @@ func TestCalculateSplit_EqualSplit(t *testing.T) {
 		Items:        []*pb.Item{},
 		Total:        100,
 		Subtotal:     100,
-		Participants: []string{"Alice", "Bob"},
+		ParticipantIds: []string{"Alice", "Bob"},
 	}))
 
 	if err != nil {
@@ -105,12 +117,12 @@ func TestCalculateSplit_WithItems(t *testing.T) {
 
 	resp, err := client.CalculateSplit(context.Background(), connect.NewRequest(&pb.CalculateSplitRequest{
 		Items: []*pb.Item{
-			{Description: "Pizza", Amount: 20, Participants: []string{"Alice"}},
-			{Description: "Salad", Amount: 10, Participants: []string{"Bob"}},
+			{Description: "Pizza", Amount: 20, ParticipantIds: []string{"Alice"}},
+			{Description: "Salad", Amount: 10, ParticipantIds: []string{"Bob"}},
 		},
 		Total:        33, // $3 tax
 		Subtotal:     30,
-		Participants: []string{"Alice", "Bob"},
+		ParticipantIds: []string{"Alice", "Bob"},
 	}))
 
 	if err != nil {
@@ -174,11 +186,11 @@ func TestCalculateSplit_SharedItem(t *testing.T) {
 
 	resp, err := client.CalculateSplit(context.Background(), connect.NewRequest(&pb.CalculateSplitRequest{
 		Items: []*pb.Item{
-			{Description: "Shared Pizza", Amount: 30, Participants: []string{"Alice", "Bob", "Charlie"}},
+			{Description: "Shared Pizza", Amount: 30, ParticipantIds: []string{"Alice", "Bob", "Charlie"}},
 		},
 		Total:        33,
 		Subtotal:     30,
-		Participants: []string{"Alice", "Bob", "Charlie"},
+		ParticipantIds: []string{"Alice", "Bob", "Charlie"},
 	}))
 
 	if err != nil {
@@ -202,12 +214,12 @@ func TestCreateBill_And_GetBill(t *testing.T) {
 	createResp, err := client.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
 		Title: "Dinner",
 		Items: []*pb.Item{
-			{Description: "Burger", Amount: 15, Participants: []string{"Alice"}},
-			{Description: "Fries", Amount: 5, Participants: []string{"Alice", "Bob"}},
+			{Description: "Burger", Amount: 15, ParticipantIds: []string{"Alice"}},
+			{Description: "Fries", Amount: 5, ParticipantIds: []string{"Alice", "Bob"}},
 		},
 		Total:        22,
 		Subtotal:     20,
-		Participants: []string{"Alice", "Bob"},
+		ParticipantIds: []string{"Alice", "Bob"},
 	}))
 
 	if err != nil {
@@ -243,8 +255,8 @@ func TestCreateBill_And_GetBill(t *testing.T) {
 		t.Errorf("items: expected 2, got %d", len(getResp.Msg.Items))
 	}
 
-	if len(getResp.Msg.Participants) != 2 {
-		t.Errorf("participants: expected 2, got %d", len(getResp.Msg.Participants))
+	if len(getResp.Msg.ParticipantIds) != 2 {
+		t.Errorf("participants: expected 2, got %d", len(getResp.Msg.ParticipantIds))
 	}
 
 	if getResp.Msg.Split == nil {
@@ -282,7 +294,7 @@ func TestCalculateSplit_NoParticipants(t *testing.T) {
 		Items:        []*pb.Item{},
 		Total:        100,
 		Subtotal:     100,
-		Participants: []string{},
+		ParticipantIds: []string{},
 	}))
 
 	if err == nil {
@@ -298,11 +310,11 @@ func TestUpdateBill(t *testing.T) {
 	createResp, err := client.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
 		Title: "Original Dinner",
 		Items: []*pb.Item{
-			{Description: "Pizza", Amount: 20, Participants: []string{"Alice", "Bob"}},
+			{Description: "Pizza", Amount: 20, ParticipantIds: []string{"Alice", "Bob"}},
 		},
 		Total:        33,
 		Subtotal:     30,
-		Participants: []string{"Alice", "Bob"},
+		ParticipantIds: []string{"Alice", "Bob"},
 	}))
 
 	if err != nil {
@@ -316,12 +328,12 @@ func TestUpdateBill(t *testing.T) {
 		BillId: billId,
 		Title:  "Updated Dinner",
 		Items: []*pb.Item{
-			{Description: "Pizza", Amount: 20, Participants: []string{"Alice", "Bob"}},
-			{Description: "Beer", Amount: 15, Participants: []string{"Bob"}},
+			{Description: "Pizza", Amount: 20, ParticipantIds: []string{"Alice", "Bob"}},
+			{Description: "Beer", Amount: 15, ParticipantIds: []string{"Bob"}},
 		},
 		Total:        44,
 		Subtotal:     35,
-		Participants: []string{"Alice", "Bob"},
+		ParticipantIds: []string{"Alice", "Bob"},
 	}))
 
 	if err != nil {
@@ -387,7 +399,7 @@ func TestUpdateBill_NotFound(t *testing.T) {
 		Title:        "Test",
 		Total:        10,
 		Subtotal:     10,
-		Participants: []string{"Alice"},
+		ParticipantIds: []string{"Alice"},
 	}))
 
 	if err == nil {
@@ -411,7 +423,7 @@ func TestListBillsByGroup(t *testing.T) {
 	// First, create a group
 	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name:    "Test Group",
-		Members: []string{"Alice", "Bob"},
+		MemberIds: []string{"Alice", "Bob"},
 	}))
 	if err != nil {
 		t.Fatalf("CreateGroup failed: %v", err)
@@ -424,7 +436,7 @@ func TestListBillsByGroup(t *testing.T) {
 		Items:        []*pb.Item{{Description: "Pizza", Amount: 30}},
 		Total:        33,
 		Subtotal:     30,
-		Participants: []string{"Alice", "Bob"},
+		ParticipantIds: []string{"Alice", "Bob"},
 		GroupId:      &groupID,
 	}))
 	if err != nil {
@@ -437,7 +449,7 @@ func TestListBillsByGroup(t *testing.T) {
 		Items:        []*pb.Item{{Description: "Burgers", Amount: 20}},
 		Total:        22,
 		Subtotal:     20,
-		Participants: []string{"Alice", "Bob"},
+		ParticipantIds: []string{"Alice", "Bob"},
 		GroupId:      &groupID,
 	}))
 	if err != nil {
@@ -450,7 +462,7 @@ func TestListBillsByGroup(t *testing.T) {
 		Items:        []*pb.Item{{Description: "Coffee", Amount: 5}},
 		Total:        5,
 		Subtotal:     5,
-		Participants: []string{"Charlie"},
+		ParticipantIds: []string{"Alice"},
 	}))
 	if err != nil {
 		t.Fatalf("CreateBill 3 failed: %v", err)
@@ -504,12 +516,21 @@ func TestListBillsByGroup(t *testing.T) {
 }
 
 func TestListBillsByGroup_EmptyGroup(t *testing.T) {
-	splitClient, _, cleanup := setupTestServerWithGroupService(t)
+	splitClient, groupClient, cleanup := setupTestServerWithGroupService(t)
 	defer cleanup()
+
+	// Create an actual empty group
+	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
+		Name:      "Empty Group",
+		MemberIds: []string{"Alice"},
+	}))
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
 
 	// List bills for a group with no bills
 	listResp, err := splitClient.ListBillsByGroup(context.Background(), connect.NewRequest(&pb.ListBillsByGroupRequest{
-		GroupId: "empty-group-id",
+		GroupId: groupResp.Msg.Group.Id,
 	}))
 	if err != nil {
 		t.Fatalf("ListBillsByGroup failed: %v", err)
@@ -529,11 +550,11 @@ func TestCreateBill_AutoGenerateTitle_WithItems(t *testing.T) {
 	resp, err := client.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
 		Title: "", // Empty title
 		Items: []*pb.Item{
-			{Description: "Pizza", Amount: 20, Participants: []string{"Alice", "Bob"}},
+			{Description: "Pizza", Amount: 20, ParticipantIds: []string{"Alice", "Bob"}},
 		},
 		Total:        33,
 		Subtotal:     30,
-		Participants: []string{"Alice", "Bob"},
+		ParticipantIds: []string{"Alice", "Bob"},
 	}))
 
 	if err != nil {
@@ -564,13 +585,13 @@ func TestCreateBill_AutoGenerateTitle_MultipleItems(t *testing.T) {
 	resp, err := client.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
 		Title: "", // Empty title
 		Items: []*pb.Item{
-			{Description: "Pizza", Amount: 20, Participants: []string{"Alice", "Bob"}},
-			{Description: "Beer", Amount: 15, Participants: []string{"Bob"}},
-			{Description: "Salad", Amount: 10, Participants: []string{"Alice"}},
+			{Description: "Pizza", Amount: 20, ParticipantIds: []string{"Alice", "Bob"}},
+			{Description: "Beer", Amount: 15, ParticipantIds: []string{"Bob"}},
+			{Description: "Salad", Amount: 10, ParticipantIds: []string{"Alice"}},
 		},
 		Total:        50,
 		Subtotal:     45,
-		Participants: []string{"Alice", "Bob"},
+		ParticipantIds: []string{"Alice", "Bob"},
 	}))
 
 	if err != nil {
@@ -603,7 +624,7 @@ func TestCreateBill_AutoGenerateTitle_NoItems(t *testing.T) {
 		Items:        []*pb.Item{},
 		Total:        100,
 		Subtotal:     100,
-		Participants: []string{"Alice", "Bob", "Charlie"},
+		ParticipantIds: []string{"Alice", "Bob", "Charlie"},
 	}))
 
 	if err != nil {
@@ -636,7 +657,7 @@ func TestCreateBill_WithPayer(t *testing.T) {
 		Items:        []*pb.Item{{Description: "Pizza", Amount: 30}},
 		Total:        33,
 		Subtotal:     30,
-		Participants: []string{"Alice", "Bob"},
+		ParticipantIds: []string{"Alice", "Bob"},
 		PayerId:      &payerID,
 	}))
 
@@ -669,7 +690,7 @@ func TestCreateBill_InvalidPayer(t *testing.T) {
 		Items:        []*pb.Item{{Description: "Pizza", Amount: 30}},
 		Total:        33,
 		Subtotal:     30,
-		Participants: []string{"Alice", "Bob"},
+		ParticipantIds: []string{"Alice", "Bob"},
 		PayerId:      &invalidPayer,
 	}))
 
@@ -698,7 +719,7 @@ func TestUpdateBill_ChangePayer(t *testing.T) {
 		Items:        []*pb.Item{{Description: "Pizza", Amount: 30}},
 		Total:        33,
 		Subtotal:     30,
-		Participants: []string{"Alice", "Bob"},
+		ParticipantIds: []string{"Alice", "Bob"},
 		PayerId:      &alicePayer,
 	}))
 
@@ -714,7 +735,7 @@ func TestUpdateBill_ChangePayer(t *testing.T) {
 		Items:        []*pb.Item{{Description: "Pizza", Amount: 30}},
 		Total:        33,
 		Subtotal:     30,
-		Participants: []string{"Alice", "Bob"},
+		ParticipantIds: []string{"Alice", "Bob"},
 		PayerId:      &bobPayer,
 	}))
 
@@ -743,10 +764,10 @@ func TestDeleteBill(t *testing.T) {
 	// Create a bill
 	createResp, err := client.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
 		Title:        "Dinner",
-		Items:        []*pb.Item{{Description: "Pizza", Amount: 20, Participants: []string{"Alice", "Bob"}}},
+		Items:        []*pb.Item{{Description: "Pizza", Amount: 20, ParticipantIds: []string{"Alice", "Bob"}}},
 		Total:        33,
 		Subtotal:     30,
-		Participants: []string{"Alice", "Bob"},
+		ParticipantIds: []string{"Alice", "Bob"},
 	}))
 	if err != nil {
 		t.Fatalf("CreateBill failed: %v", err)
@@ -790,5 +811,114 @@ func TestDeleteBill_NotFound(t *testing.T) {
 
 	if connectErr.Code() != connect.CodeNotFound {
 		t.Errorf("Expected CodeNotFound, got %v", connectErr.Code())
+	}
+}
+
+func TestCreateBill_AutoAddsParticipantsToGroup(t *testing.T) {
+	splitClient, groupClient, cleanup := setupTestServerWithGroupService(t)
+	defer cleanup()
+
+	// Create a group with 2 members
+	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
+		Name:      "Auto-Add Test Group",
+		MemberIds: []string{"Alice", "Bob"},
+	}))
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+	groupID := groupResp.Msg.Group.Id
+
+	// Create a bill with a new participant "Charlie" not in the group
+	_, err = splitClient.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:          "Dinner",
+		Items:          []*pb.Item{{Description: "Pizza", Amount: 30, ParticipantIds: []string{"Alice", "Bob", "Charlie"}}},
+		Total:          33,
+		Subtotal:       30,
+		ParticipantIds: []string{"Alice", "Bob", "Charlie"},
+		GroupId:        &groupID,
+	}))
+	if err != nil {
+		t.Fatalf("CreateBill failed: %v", err)
+	}
+
+	// Verify Charlie was auto-added to the group
+	getResp, err := groupClient.GetGroup(context.Background(), connect.NewRequest(&pb.GetGroupRequest{
+		GroupId: groupID,
+	}))
+	if err != nil {
+		t.Fatalf("GetGroup failed: %v", err)
+	}
+
+	members := getResp.Msg.Group.MemberIds
+	if len(members) != 3 {
+		t.Fatalf("Expected 3 members after auto-add, got %d: %v", len(members), members)
+	}
+
+	// Verify Charlie is in the members list
+	found := false
+	for _, m := range members {
+		if m == "Charlie" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Charlie not found in group members: %v", members)
+	}
+}
+
+func TestCreateBill_AutoAddsPayerToGroup(t *testing.T) {
+	splitClient, groupClient, cleanup := setupTestServerWithGroupService(t)
+	defer cleanup()
+
+	// Create a group with 2 members
+	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
+		Name:      "Payer Auto-Add Test",
+		MemberIds: []string{"Alice", "Bob"},
+	}))
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+	groupID := groupResp.Msg.Group.Id
+
+	// Create a bill where Alice pays but Charlie is also a participant (and payer is Alice, already in group)
+	// The real test: payer "Diana" who is NOT a participant and NOT a group member
+	// Actually, payer must be a participant per validation - so test that a new participant who is also the payer gets added
+	payerID := "Charlie"
+	_, err = splitClient.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:          "Dinner",
+		Items:          []*pb.Item{},
+		Total:          100,
+		Subtotal:       100,
+		ParticipantIds: []string{"Alice", "Bob", "Charlie"},
+		GroupId:        &groupID,
+		PayerId:        &payerID,
+	}))
+	if err != nil {
+		t.Fatalf("CreateBill failed: %v", err)
+	}
+
+	// Verify Charlie (the payer and participant) was auto-added to the group
+	getResp, err := groupClient.GetGroup(context.Background(), connect.NewRequest(&pb.GetGroupRequest{
+		GroupId: groupID,
+	}))
+	if err != nil {
+		t.Fatalf("GetGroup failed: %v", err)
+	}
+
+	members := getResp.Msg.Group.MemberIds
+	if len(members) != 3 {
+		t.Fatalf("Expected 3 members after auto-add, got %d: %v", len(members), members)
+	}
+
+	found := false
+	for _, m := range members {
+		if m == "Charlie" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Charlie (payer) not found in group members: %v", members)
 	}
 }

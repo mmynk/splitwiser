@@ -685,6 +685,35 @@ func (s *SQLiteStore) UpdateGroup(ctx context.Context, group *models.Group) erro
 	return nil
 }
 
+// AddGroupMembers adds members to a group idempotently using INSERT OR IGNORE.
+func (s *SQLiteStore) AddGroupMembers(ctx context.Context, groupID string, memberIDs []string) error {
+	if len(memberIDs) == 0 {
+		return nil
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	for _, name := range memberIDs {
+		_, err = tx.ExecContext(ctx,
+			"INSERT OR IGNORE INTO group_members (group_id, name) VALUES (?, ?)",
+			groupID, name,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to add group member: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
 // DeleteGroup removes a group by ID.
 // Bills associated with the group will have their group_id set to NULL (via ON DELETE SET NULL).
 func (s *SQLiteStore) DeleteGroup(ctx context.Context, groupID string) error {

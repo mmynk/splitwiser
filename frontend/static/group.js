@@ -50,11 +50,11 @@ async function loadGroup() {
     if (!response.ok) throw new Error('Failed to load group');
 
     const data = await response.json();
-    currentGroup = data;
+    currentGroup = data.group || data;
 
-    document.getElementById('group-name').textContent = data.name;
+    document.getElementById('group-name').textContent = currentGroup.name;
     document.getElementById('group-members').textContent =
-      `Members: ${(data.members || []).join(', ')}`;
+      `Members: ${(currentGroup.memberIds || []).join(', ')}`;
   } catch (err) {
     showError('Failed to load group: ' + err.message);
   }
@@ -89,16 +89,19 @@ function renderBalances() {
   const grid = document.querySelector('#total-balances .balance-grid');
   grid.innerHTML = balances.memberBalances
     .map(bal => {
-      const netClass = bal.netBalance > 0 ? 'positive' : bal.netBalance < 0 ? 'negative' : 'neutral';
-      const sign = bal.netBalance > 0 ? '+' : '';
+      const netBalance = bal.netBalance || 0;
+      const totalPaid = bal.totalPaid || 0;
+      const totalOwed = bal.totalOwed || 0;
+      const netClass = netBalance > 0 ? 'positive' : netBalance < 0 ? 'negative' : 'neutral';
+      const sign = netBalance > 0 ? '+' : '';
 
       return `
         <article class="balance-card ${netClass}">
-          <h3>${escapeHtml(bal.memberName)}</h3>
-          <div class="balance-amount">${sign}$${Math.abs(bal.netBalance).toFixed(2)}</div>
+          <h3>${escapeHtml(bal.displayName || bal.userId || 'Unknown')}</h3>
+          <div class="balance-amount">${sign}$${Math.abs(netBalance).toFixed(2)}</div>
           <div class="balance-details">
-            <small>Paid: $${bal.totalPaid.toFixed(2)}<br>
-            Owes: $${bal.totalOwed.toFixed(2)}</small>
+            <small>Paid: $${totalPaid.toFixed(2)}<br>
+            Owes: $${totalOwed.toFixed(2)}</small>
           </div>
         </article>
       `;
@@ -115,9 +118,9 @@ function renderBalances() {
     tbody.innerHTML = balances.debtMatrix
       .map(debt => `
         <tr>
-          <td>${escapeHtml(debt.from)}</td>
-          <td>${escapeHtml(debt.to)}</td>
-          <td>$${debt.amount.toFixed(2)}</td>
+          <td>${escapeHtml(debt.fromName || debt.fromUserId || '')}</td>
+          <td>${escapeHtml(debt.toName || debt.toUserId || '')}</td>
+          <td>$${(debt.amount || 0).toFixed(2)}</td>
         </tr>
       `)
       .join('');
