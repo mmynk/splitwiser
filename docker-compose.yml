@@ -5,4 +5,8 @@ services:
       - "8080:8080"
     volumes:
       - ./backend/data:/app/data
+    environment:
+      - DB_PATH=/app/data/bills.db
+      # - JWT_SECRET=change-me
+      # - CORS_ORIGIN=https://your-domain.com
     restart: unless-stopped

@@ -1,11 +1,13 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,9 +23,7 @@ import (
 )
 
 const (
-	port              = 8080
-	jwtSecret         = "your-secret-key-change-in-production" // TODO: Move to env var
-	jwtTokenDuration  = 24 * time.Hour                         // Tokens valid for 24 hours
+	jwtTokenDuration = 24 * time.Hour // Tokens valid for 24 hours
 )
 
 func getEnv(key, fallback string) string {
@@ -40,7 +40,27 @@ func main() {
 	}))
 	slog.SetDefault(logger)
 
-	// Get paths from env or use defaults
+	// Read configuration from environment
+	jwtSecret := getEnv("JWT_SECRET", "dev-secret-do-not-use-in-production")
+	if jwtSecret == "dev-secret-do-not-use-in-production" {
+		slog.Warn("JWT_SECRET not set - using insecure default. Set JWT_SECRET for production.")
+	}
+
+	portStr := getEnv("PORT", "8080")
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		slog.Error("Invalid PORT value", "port", portStr, "error", err)
+		os.Exit(1)
+	}
+
+	corsOrigin := getEnv("CORS_ORIGIN", "*")
+	if corsOrigin == "*" {
+		slog.Warn("CORS_ORIGIN is set to wildcard '*'. Set CORS_ORIGIN to your domain for production.")
+	}
+
+	tlsCertFile := getEnv("TLS_CERT_FILE", "")
+	tlsKeyFile := getEnv("TLS_KEY_FILE", "")
+
 	dbPath := getEnv("DB_PATH", "./data/bills.db")
 	staticPath := getEnv("STATIC_PATH", "../frontend/static")
 
@@ -123,16 +143,36 @@ func main() {
 	})
 
 	// Add logging and CORS middleware
-	loggedHandler := loggingMiddleware(corsMiddleware(mux))
-
-	// Wrap with h2c for HTTP/2 without TLS (required for Connect)
-	h2cHandler := h2c.NewHandler(loggedHandler, &http2.Server{})
+	loggedHandler := loggingMiddleware(corsMiddleware(mux, corsOrigin))
 
 	addr := fmt.Sprintf(":%d", port)
-	slog.Info("Connect server starting", "address", addr, "url", fmt.Sprintf("http://localhost%s", addr))
-	if err := http.ListenAndServe(addr, h2cHandler); err != nil {
-		slog.Error("Server failed", "error", err)
+
+	// TLS mode: both cert and key must be set (or neither)
+	if tlsCertFile != "" && tlsKeyFile != "" {
+		// TLS negotiates HTTP/2 natively via ALPN — no h2c wrapper needed
+		server := &http.Server{
+			Addr:    addr,
+			Handler: loggedHandler,
+			TLSConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			},
+		}
+		slog.Info("Connect server starting with TLS", "address", addr, "url", fmt.Sprintf("https://localhost%s", addr))
+		if err := server.ListenAndServeTLS(tlsCertFile, tlsKeyFile); err != nil {
+			slog.Error("Server failed", "error", err)
+			os.Exit(1)
+		}
+	} else if tlsCertFile != "" || tlsKeyFile != "" {
+		slog.Error("Both TLS_CERT_FILE and TLS_KEY_FILE must be set (or neither)")
 		os.Exit(1)
+	} else {
+		// No TLS — use h2c for HTTP/2 without TLS (local dev)
+		h2cHandler := h2c.NewHandler(loggedHandler, &http2.Server{})
+		slog.Info("Connect server starting", "address", addr, "url", fmt.Sprintf("http://localhost%s", addr))
+		if err := http.ListenAndServe(addr, h2cHandler); err != nil {
+			slog.Error("Server failed", "error", err)
+			os.Exit(1)
+		}
 	}
 }
 
@@ -159,9 +199,9 @@ func loggingMiddleware(next http.Handler) http.Handler {
 }
 
 // corsMiddleware adds CORS headers for browser access
-func corsMiddleware(next http.Handler) http.Handler {
+func corsMiddleware(next http.Handler, allowOrigin string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Origin", allowOrigin)
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Connect-Protocol-Version, Connect-Timeout-Ms, Authorization")
 		w.Header().Set("Access-Control-Expose-Headers", "Connect-Protocol-Version, Connect-Timeout-Ms")

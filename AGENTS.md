@@ -27,6 +27,8 @@ This file provides guidance to AI coding assistants when working with code in th
 
 Feel free to tear down and recreate as needed. Clean code over legacy support.
 
+**Commits:** After completing a plan (or any cohesive set of changes), create a commit. Don't make tiny incremental commits for each file, but do commit after each logical unit of work is done and verified. This keeps the history clean and makes it easy to revert if needed.
+
 ## Project Overview
 
 Splitwiser is a free and open source alternative to Splitwise. It improves upon Splitwise with granular item-level splitting and automatic tax/fee distribution.

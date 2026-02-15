@@ -46,6 +46,13 @@ USER splitwiser
 ENV DB_PATH=/app/data/bills.db
 ENV STATIC_PATH=/app/frontend/static
 
+# Production configuration (uncomment/override):
+# ENV JWT_SECRET=change-me-to-a-strong-random-string
+# ENV CORS_ORIGIN=https://your-domain.com
+# ENV TLS_CERT_FILE=/app/certs/cert.pem
+# ENV TLS_KEY_FILE=/app/certs/key.pem
+# ENV PORT=8080
+
 EXPOSE 8080
 
 # Volume for SQLite database
