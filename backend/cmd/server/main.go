@@ -19,6 +19,7 @@ import (
 	"github.com/mmynk/splitwiser/internal/middleware"
 	"github.com/mmynk/splitwiser/internal/service"
 	"github.com/mmynk/splitwiser/internal/storage/sqlite"
+	"github.com/mmynk/splitwiser/pkg/logging"
 	"github.com/mmynk/splitwiser/pkg/proto/protoconnect"
 )
 
@@ -34,11 +35,9 @@ func getEnv(key, fallback string) string {
 }
 
 func main() {
-	// Setup structured logging
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}))
-	slog.SetDefault(logger)
+	// Setup colored structured logging (level from LOG_LEVEL env, default INFO)
+	logging.Setup()
+	logger := slog.Default()
 
 	// Read configuration from environment
 	jwtSecret := getEnv("JWT_SECRET", "dev-secret-do-not-use-in-production")
