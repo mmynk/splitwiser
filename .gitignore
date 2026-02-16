@@ -1,6 +1,7 @@
 # Backend (Go)
 backend/bin/
 backend/data/
+backend/server/
 *.exe
 *.exe~
 *.dll
@@ -39,6 +40,7 @@ Thumbs.db
 
 # Scratch/session files
 scratch/
+.worktrees/
 
 # AI
 .claude
