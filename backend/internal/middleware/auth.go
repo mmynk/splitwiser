@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 
 	"connectrpc.com/connect"
@@ -38,15 +39,19 @@ func GetEmail(ctx context.Context) string {
 func RequireAuth(jwtManager *auth.JWTManager) connect.UnaryInterceptorFunc {
 	return func(next connect.UnaryFunc) connect.UnaryFunc {
 		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+			procedure := req.Spec().Procedure
+
 			// Extract Authorization header
 			authHeader := req.Header().Get("Authorization")
 			if authHeader == "" {
+				slog.Warn("auth: missing token", "procedure", procedure)
 				return nil, connect.NewError(connect.CodeUnauthenticated, auth.ErrMissingToken)
 			}
 
 			// Parse Bearer token
 			parts := strings.Split(authHeader, " ")
 			if len(parts) != 2 || parts[0] != "Bearer" {
+				slog.Warn("auth: invalid token format", "procedure", procedure)
 				return nil, connect.NewError(connect.CodeUnauthenticated, auth.ErrInvalidToken)
 			}
 			tokenString := parts[1]
@@ -54,6 +59,7 @@ func RequireAuth(jwtManager *auth.JWTManager) connect.UnaryInterceptorFunc {
 			// Validate token
 			claims, err := jwtManager.Validate(tokenString)
 			if err != nil {
+				slog.Warn("auth: token validation failed", "procedure", procedure, "error", err)
 				return nil, connect.NewError(connect.CodeUnauthenticated, err)
 			}
 

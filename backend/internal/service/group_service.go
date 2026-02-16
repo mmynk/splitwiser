@@ -43,12 +43,6 @@ func (s *GroupService) CreateGroup(ctx context.Context, req *connect.Request[pb.
 		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("authentication required"))
 	}
 
-	slog.Info("CreateGroup request received",
-		"user_id", userID,
-		"name", req.Msg.Name,
-		"members_count", len(req.Msg.MemberIds),
-	)
-
 	// Add creator to members if not already present
 	members := req.Msg.MemberIds
 	if !isMember(userID, members) {
@@ -66,8 +60,6 @@ func (s *GroupService) CreateGroup(ctx context.Context, req *connect.Request[pb.
 		slog.Error("CreateGroup failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-
-	slog.Info("Group created", "group_id", group.ID)
 
 	return connect.NewResponse(&pb.CreateGroupResponse{
 		Group: &pb.Group{
@@ -87,15 +79,11 @@ func (s *GroupService) GetGroup(ctx context.Context, req *connect.Request[pb.Get
 		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("authentication required"))
 	}
 
-	slog.Info("GetGroup request received", "user_id", userID, "group_id", req.Msg.GroupId)
-
 	group, err := s.store.GetGroup(ctx, req.Msg.GroupId)
 	if err != nil {
 		slog.Error("GetGroup failed", "group_id", req.Msg.GroupId, "error", err)
 		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
-
-	slog.Info("GetGroup successful", "group_id", group.ID, "name", group.Name)
 
 	return connect.NewResponse(&pb.GetGroupResponse{
 		Group: &pb.Group{
@@ -109,8 +97,6 @@ func (s *GroupService) GetGroup(ctx context.Context, req *connect.Request[pb.Get
 
 // ListGroups retrieves all groups.
 func (s *GroupService) ListGroups(ctx context.Context, req *connect.Request[pb.ListGroupsRequest]) (*connect.Response[pb.ListGroupsResponse], error) {
-	slog.Info("ListGroups request received")
-
 	groups, err := s.store.ListGroups(ctx)
 	if err != nil {
 		slog.Error("ListGroups failed", "error", err)
@@ -128,8 +114,6 @@ func (s *GroupService) ListGroups(ctx context.Context, req *connect.Request[pb.L
 		}
 	}
 
-	slog.Info("ListGroups successful", "count", len(groups))
-
 	return connect.NewResponse(&pb.ListGroupsResponse{
 		Groups: protoGroups,
 	}), nil
@@ -137,12 +121,6 @@ func (s *GroupService) ListGroups(ctx context.Context, req *connect.Request[pb.L
 
 // UpdateGroup updates an existing group.
 func (s *GroupService) UpdateGroup(ctx context.Context, req *connect.Request[pb.UpdateGroupRequest]) (*connect.Response[pb.UpdateGroupResponse], error) {
-	slog.Info("UpdateGroup request received",
-		"group_id", req.Msg.GroupId,
-		"name", req.Msg.Name,
-		"members_count", len(req.Msg.MemberIds),
-	)
-
 	// Create group model
 	group := &models.Group{
 		ID:      req.Msg.GroupId,
@@ -163,8 +141,6 @@ func (s *GroupService) UpdateGroup(ctx context.Context, req *connect.Request[pb.
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	slog.Info("Group updated", "group_id", group.ID)
-
 	return connect.NewResponse(&pb.UpdateGroupResponse{
 		Group: &pb.Group{
 			Id:        updatedGroup.ID,
@@ -177,14 +153,10 @@ func (s *GroupService) UpdateGroup(ctx context.Context, req *connect.Request[pb.
 
 // DeleteGroup removes a group by ID.
 func (s *GroupService) DeleteGroup(ctx context.Context, req *connect.Request[pb.DeleteGroupRequest]) (*connect.Response[pb.DeleteGroupResponse], error) {
-	slog.Info("DeleteGroup request received", "group_id", req.Msg.GroupId)
-
 	if err := s.store.DeleteGroup(ctx, req.Msg.GroupId); err != nil {
 		slog.Error("DeleteGroup failed", "error", err)
 		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
-
-	slog.Info("Group deleted", "group_id", req.Msg.GroupId)
 
 	return connect.NewResponse(&pb.DeleteGroupResponse{}), nil
 }
@@ -192,8 +164,6 @@ func (s *GroupService) DeleteGroup(ctx context.Context, req *connect.Request[pb.
 // GetGroupBalances calculates balances across all bills in a group.
 func (s *GroupService) GetGroupBalances(ctx context.Context, req *connect.Request[pb.GetGroupBalancesRequest]) (*connect.Response[pb.GetGroupBalancesResponse], error) {
 	groupID := req.Msg.GetGroupId()
-	slog.Info("GetGroupBalances request received", "group_id", groupID)
-
 	if groupID == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("group_id required"))
 	}
@@ -284,13 +254,6 @@ func (s *GroupService) GetGroupBalances(ctx context.Context, req *connect.Reques
 		}
 	}
 
-	slog.Info("GetGroupBalances successful",
-		"group_id", groupID,
-		"bills_count", len(bills),
-		"members_count", len(memberBalances),
-		"debts_count", len(debtEdges),
-	)
-
 	return connect.NewResponse(&pb.GetGroupBalancesResponse{
 		MemberBalances: pbBalances,
 		DebtMatrix:     pbDebts,
@@ -310,14 +273,6 @@ func (s *GroupService) RecordSettlement(ctx context.Context, req *connect.Reques
 	toUserID := req.Msg.GetToUserId()
 	amount := req.Msg.GetAmount()
 	note := req.Msg.GetNote()
-
-	slog.Info("RecordSettlement request received",
-		"user_id", userID,
-		"group_id", groupID,
-		"from_user_id", fromUserID,
-		"to_user_id", toUserID,
-		"amount", amount,
-	)
 
 	// Validation
 	if groupID == "" {
@@ -370,8 +325,6 @@ func (s *GroupService) RecordSettlement(ctx context.Context, req *connect.Reques
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	slog.Info("Settlement recorded", "settlement_id", settlement.ID)
-
 	// Get display names for response
 	fromName := fromUserID
 	toName := toUserID
@@ -401,8 +354,6 @@ func (s *GroupService) ListSettlements(ctx context.Context, req *connect.Request
 	}
 
 	groupID := req.Msg.GetGroupId()
-
-	slog.Info("ListSettlements request received", "user_id", userID, "group_id", groupID)
 
 	if groupID == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("group_id required"))
@@ -443,8 +394,6 @@ func (s *GroupService) ListSettlements(ctx context.Context, req *connect.Request
 		}
 	}
 
-	slog.Info("ListSettlements successful", "group_id", groupID, "count", len(settlements))
-
 	return connect.NewResponse(&pb.ListSettlementsResponse{
 		Settlements: pbSettlements,
 	}), nil
@@ -459,8 +408,6 @@ func (s *GroupService) DeleteSettlement(ctx context.Context, req *connect.Reques
 	}
 
 	settlementID := req.Msg.GetSettlementId()
-
-	slog.Info("DeleteSettlement request received", "user_id", userID, "settlement_id", settlementID)
 
 	if settlementID == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("settlement_id required"))
@@ -489,8 +436,6 @@ func (s *GroupService) DeleteSettlement(ctx context.Context, req *connect.Reques
 		slog.Error("DeleteSettlement failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-
-	slog.Info("Settlement deleted", "settlement_id", settlementID)
 
 	return connect.NewResponse(&pb.DeleteSettlementResponse{}), nil
 }

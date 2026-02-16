@@ -30,8 +30,6 @@ func NewAuthService(authenticator auth.Authenticator, jwtManager *auth.JWTManage
 
 // Register creates a new user account.
 func (s *AuthService) Register(ctx context.Context, req *connect.Request[proto.RegisterRequest]) (*connect.Response[proto.RegisterResponse], error) {
-	s.logger.Info("Register request", "email", req.Msg.Email)
-
 	// Validate input
 	if req.Msg.Email == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, auth.ErrInvalidCredentials)
@@ -71,14 +69,11 @@ func (s *AuthService) Register(ctx context.Context, req *connect.Request[proto.R
 		Token: token,
 	}
 
-	s.logger.Info("User registered successfully", "user_id", user.ID, "email", user.Email)
 	return connect.NewResponse(response), nil
 }
 
 // Login authenticates a user and returns a JWT token.
 func (s *AuthService) Login(ctx context.Context, req *connect.Request[proto.LoginRequest]) (*connect.Response[proto.LoginResponse], error) {
-	s.logger.Info("Login request", "email", req.Msg.Email)
-
 	// Validate input
 	if req.Msg.Email == "" || req.Msg.Password == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, auth.ErrInvalidCredentials)
@@ -109,7 +104,6 @@ func (s *AuthService) Login(ctx context.Context, req *connect.Request[proto.Logi
 		Token: token,
 	}
 
-	s.logger.Info("User logged in successfully", "user_id", user.ID, "email", user.Email)
 	return connect.NewResponse(response), nil
 }
 
@@ -117,7 +111,6 @@ func (s *AuthService) Login(ctx context.Context, req *connect.Request[proto.Logi
 func (s *AuthService) Logout(ctx context.Context, req *connect.Request[proto.LogoutRequest]) (*connect.Response[proto.LogoutResponse], error) {
 	// With stateless JWTs, logout is handled client-side by discarding the token.
 	// For stateful sessions or token blacklisting, implement here.
-	s.logger.Info("Logout request")
 	return connect.NewResponse(&proto.LogoutResponse{}), nil
 }
 
@@ -133,8 +126,6 @@ func (s *AuthService) GetCurrentUser(ctx context.Context, req *connect.Request[p
 	// Note: We need to add GetUserByID to the authenticator or access storage directly
 	// For now, we can just return the basic info from the JWT claims
 	email := middleware.GetEmail(ctx)
-
-	s.logger.Info("GetCurrentUser request", "user_id", userID)
 
 	// TODO: Fetch full user details from storage
 	// For now, return what we have from JWT claims

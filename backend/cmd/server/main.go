@@ -79,6 +79,9 @@ func main() {
 	// Create auth middleware
 	authMiddleware := middleware.RequireAuth(jwtManager)
 
+	// Create logging interceptor (runs before auth to capture all errors)
+	loggingInterceptor := middleware.LoggingInterceptor()
+
 	mux := http.NewServeMux()
 
 	// Health check endpoint (no auth required)
@@ -87,22 +90,23 @@ func main() {
 		w.Write([]byte("ok"))
 	})
 
-	// Register AuthService (no auth required - handles login/register)
+	// Register AuthService (logging only, no auth required)
 	authPath, authHandler := protoconnect.NewAuthServiceHandler(
 		service.NewAuthService(passwordAuth, jwtManager, logger),
+		connect.WithInterceptors(loggingInterceptor),
 	)
 	mux.Handle(authPath, authHandler)
 
-	// Register protected services with auth middleware
+	// Register protected services with logging + auth middleware
 	splitPath, splitHandler := protoconnect.NewSplitServiceHandler(
 		service.NewSplitService(store),
-		connect.WithInterceptors(authMiddleware),
+		connect.WithInterceptors(loggingInterceptor, authMiddleware),
 	)
 	mux.Handle(splitPath, splitHandler)
 
 	groupPath, groupHandler := protoconnect.NewGroupServiceHandler(
 		service.NewGroupService(store),
-		connect.WithInterceptors(authMiddleware),
+		connect.WithInterceptors(loggingInterceptor, authMiddleware),
 	)
 	mux.Handle(groupPath, groupHandler)
 
@@ -141,8 +145,8 @@ func main() {
 		http.ServeFile(w, r, filePath)
 	})
 
-	// Add logging and CORS middleware
-	loggedHandler := loggingMiddleware(corsMiddleware(mux, corsOrigin))
+	// Add CORS middleware
+	handler := corsMiddleware(mux, corsOrigin)
 
 	addr := fmt.Sprintf(":%d", port)
 
@@ -151,7 +155,7 @@ func main() {
 		// TLS negotiates HTTP/2 natively via ALPN — no h2c wrapper needed
 		server := &http.Server{
 			Addr:    addr,
-			Handler: loggedHandler,
+			Handler: handler,
 			TLSConfig: &tls.Config{
 				MinVersion: tls.VersionTLS12,
 			},
@@ -166,35 +170,13 @@ func main() {
 		os.Exit(1)
 	} else {
 		// No TLS — use h2c for HTTP/2 without TLS (local dev)
-		h2cHandler := h2c.NewHandler(loggedHandler, &http2.Server{})
+		h2cHandler := h2c.NewHandler(handler, &http2.Server{})
 		slog.Info("Connect server starting", "address", addr, "url", fmt.Sprintf("http://localhost%s", addr))
 		if err := http.ListenAndServe(addr, h2cHandler); err != nil {
 			slog.Error("Server failed", "error", err)
 			os.Exit(1)
 		}
 	}
-}
-
-// loggingMiddleware logs all incoming requests
-func loggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-
-		slog.Info("Request received",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"remote_addr", r.RemoteAddr,
-			"user_agent", r.UserAgent(),
-		)
-
-		next.ServeHTTP(w, r)
-
-		slog.Info("Request completed",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"duration_ms", time.Since(start).Milliseconds(),
-		)
-	})
 }
 
 // corsMiddleware adds CORS headers for browser access

@@ -95,14 +95,6 @@ func (s *SplitService) autoAddParticipantsToGroup(ctx context.Context, groupID s
 
 // CalculateSplit handles bill split calculation
 func (s *SplitService) CalculateSplit(ctx context.Context, req *connect.Request[pb.CalculateSplitRequest]) (*connect.Response[pb.CalculateSplitResponse], error) {
-	slog.Info("CalculateSplit request received",
-		"total", req.Msg.Total,
-		"subtotal", req.Msg.Subtotal,
-		"tax", req.Msg.Total-req.Msg.Subtotal,
-		"participants", req.Msg.ParticipantIds,
-		"items_count", len(req.Msg.Items),
-	)
-
 	// Convert proto items to calculator items
 	items := make([]calculator.Item, len(req.Msg.Items))
 	for i, item := range req.Msg.Items {
@@ -124,8 +116,6 @@ func (s *SplitService) CalculateSplit(ctx context.Context, req *connect.Request[
 		slog.Error("CalculateSplit failed", "error", err)
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
-
-	slog.Info("Split calculation successful", "splits_count", len(splits))
 
 	// Convert splits to proto format
 	protoSplits := make(map[string]*pb.PersonSplit)
@@ -173,15 +163,6 @@ func (s *SplitService) CreateBill(ctx context.Context, req *connect.Request[pb.C
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("you must be a participant to create this bill"))
 	}
 
-	slog.Info("CreateBill request received",
-		"user_id", userID,
-		"title", req.Msg.Title,
-		"total", req.Msg.Total,
-		"subtotal", req.Msg.Subtotal,
-		"participants", req.Msg.ParticipantIds,
-		"items_count", len(req.Msg.Items),
-	)
-
 	// Convert proto items to models
 	items := make([]models.Item, len(req.Msg.Items))
 	for i, item := range req.Msg.Items {
@@ -221,8 +202,6 @@ func (s *SplitService) CreateBill(ctx context.Context, req *connect.Request[pb.C
 
 	// Auto-add bill participants to group
 	s.autoAddParticipantsToGroup(ctx, bill.GroupID, bill.Participants, bill.PayerID)
-
-	slog.Info("Bill created", "bill_id", bill.ID)
 
 	// Calculate splits
 	calcItems := make([]calculator.Item, len(req.Msg.Items))
@@ -276,8 +255,6 @@ func (s *SplitService) GetBill(ctx context.Context, req *connect.Request[pb.GetB
 	if userID == "" {
 		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("authentication required"))
 	}
-
-	slog.Info("GetBill request received", "user_id", userID, "bill_id", req.Msg.BillId)
 
 	// Retrieve from storage
 	bill, err := s.store.GetBill(ctx, req.Msg.BillId)
@@ -336,8 +313,6 @@ func (s *SplitService) GetBill(ctx context.Context, req *connect.Request[pb.GetB
 		}
 	}
 
-	slog.Info("GetBill successful", "bill_id", bill.ID, "title", bill.Title)
-
 	resp := &pb.GetBillResponse{
 		BillId:         bill.ID,
 		Title:          bill.Title,
@@ -384,16 +359,6 @@ func (s *SplitService) UpdateBill(ctx context.Context, req *connect.Request[pb.U
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("you must be a participant to update this bill"))
 	}
 
-	slog.Info("UpdateBill request received",
-		"user_id", userID,
-		"bill_id", req.Msg.BillId,
-		"title", req.Msg.Title,
-		"total", req.Msg.Total,
-		"subtotal", req.Msg.Subtotal,
-		"participants", req.Msg.ParticipantIds,
-		"items_count", len(req.Msg.Items),
-	)
-
 	// Convert proto items to models
 	items := make([]models.Item, len(req.Msg.Items))
 	for i, item := range req.Msg.Items {
@@ -434,8 +399,6 @@ func (s *SplitService) UpdateBill(ctx context.Context, req *connect.Request[pb.U
 
 	// Auto-add bill participants to group
 	s.autoAddParticipantsToGroup(ctx, bill.GroupID, bill.Participants, bill.PayerID)
-
-	slog.Info("Bill updated", "bill_id", bill.ID)
 
 	// Calculate splits
 	calcItems := make([]calculator.Item, len(req.Msg.Items))
@@ -506,14 +469,10 @@ func (s *SplitService) DeleteBill(ctx context.Context, req *connect.Request[pb.D
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("you must be a participant to delete this bill"))
 	}
 
-	slog.Info("DeleteBill request received", "user_id", userID, "bill_id", req.Msg.BillId)
-
 	if err := s.store.DeleteBill(ctx, req.Msg.BillId); err != nil {
 		slog.Error("DeleteBill failed", "error", err)
 		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
-
-	slog.Info("Bill deleted", "bill_id", req.Msg.BillId)
 
 	return connect.NewResponse(&pb.DeleteBillResponse{}), nil
 }
@@ -538,8 +497,6 @@ func (s *SplitService) ListBillsByGroup(ctx context.Context, req *connect.Reques
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("you must be a member of this group"))
 	}
 
-	slog.Info("ListBillsByGroup request received", "user_id", userID, "group_id", req.Msg.GroupId)
-
 	// Retrieve bills from storage
 	bills, err := s.store.ListBillsByGroup(ctx, req.Msg.GroupId)
 	if err != nil {
@@ -559,8 +516,6 @@ func (s *SplitService) ListBillsByGroup(ctx context.Context, req *connect.Reques
 			ParticipantCount: int32(len(bill.Participants)),
 		}
 	}
-
-	slog.Info("ListBillsByGroup successful", "group_id", req.Msg.GroupId, "count", len(bills))
 
 	return connect.NewResponse(&pb.ListBillsByGroupResponse{
 		Bills: summaries,
