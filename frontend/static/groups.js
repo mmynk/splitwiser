@@ -5,7 +5,6 @@ import { requireAuth, displayUserInfo, authenticatedFetch, getCurrentUser } from
 // Require authentication
 requireAuth();
 
-const API_BASE = 'http://localhost:8080';
 let currentUser = null;
 
 // State
@@ -182,9 +181,8 @@ async function loadGroups() {
   hideError();
 
   try {
-    const response = await fetch(`${API_BASE}/splitwiser.v1.GroupService/ListGroups`, {
+    const response = await authenticatedFetch('/splitwiser.v1.GroupService/ListGroups', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({})
     });
 
@@ -222,9 +220,8 @@ async function createGroup() {
     createBtn.setAttribute('aria-busy', 'true');
     createBtn.disabled = true;
 
-    const response = await fetch(`${API_BASE}/splitwiser.v1.GroupService/CreateGroup`, {
+    const response = await authenticatedFetch('/splitwiser.v1.GroupService/CreateGroup', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name,
         members: validMembers
@@ -293,9 +290,8 @@ async function saveGroup() {
     saveBtn.setAttribute('aria-busy', 'true');
     saveBtn.disabled = true;
 
-    const response = await fetch(`${API_BASE}/splitwiser.v1.GroupService/UpdateGroup`, {
+    const response = await authenticatedFetch('/splitwiser.v1.GroupService/UpdateGroup', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         groupId,
         name,
@@ -327,9 +323,8 @@ async function deleteGroup(groupId, groupName) {
   hideError();
 
   try {
-    const response = await fetch(`${API_BASE}/splitwiser.v1.GroupService/DeleteGroup`, {
+    const response = await authenticatedFetch('/splitwiser.v1.GroupService/DeleteGroup', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ groupId })
     });
 
@@ -402,9 +397,8 @@ async function toggleBills(groupId) {
 
 // Load bills for a specific group
 async function loadBillsForGroup(groupId) {
-  const response = await fetch(`${API_BASE}/splitwiser.v1.SplitService/ListBillsByGroup`, {
+  const response = await authenticatedFetch('/splitwiser.v1.SplitService/ListBillsByGroup', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ groupId })
   });
 

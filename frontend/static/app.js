@@ -5,8 +5,6 @@ import { requireAuth, displayUserInfo, authenticatedFetch, getCurrentUser } from
 // Require authentication
 requireAuth();
 
-const API_BASE = 'http://localhost:8080';
-
 // State
 let participants = [];
 let items = [];
@@ -79,9 +77,8 @@ function updateTaxDisplay() {
 // Groups
 async function loadGroups() {
   try {
-    const response = await fetch(`${API_BASE}/splitwiser.v1.GroupService/ListGroups`, {
+    const response = await authenticatedFetch('/splitwiser.v1.GroupService/ListGroups', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({})
     });
 
@@ -430,9 +427,8 @@ async function calculateSplit() {
     calculateBtn.setAttribute('aria-busy', 'true');
     calculateBtn.disabled = true;
 
-    const response = await fetch(`${API_BASE}/splitwiser.v1.SplitService/CalculateSplit`, {
+    const response = await authenticatedFetch('/splitwiser.v1.SplitService/CalculateSplit', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request)
     });
 
@@ -493,9 +489,8 @@ async function saveBill() {
     saveBtn.setAttribute('aria-busy', 'true');
     saveBtn.disabled = true;
 
-    const response = await fetch(`${API_BASE}/splitwiser.v1.SplitService/CreateBill`, {
+    const response = await authenticatedFetch('/splitwiser.v1.SplitService/CreateBill', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request)
     });
 

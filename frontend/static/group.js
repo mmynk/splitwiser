@@ -5,7 +5,6 @@ import { requireAuth, displayUserInfo, authenticatedFetch, getCurrentUser } from
 // Require authentication
 requireAuth();
 
-const API_BASE = 'http://localhost:8080';
 let currentUser = null;
 
 const groupId = new URLSearchParams(window.location.search).get('id');
@@ -41,9 +40,8 @@ document.getElementById('detailed-view-btn').addEventListener('click', showDetai
 
 async function loadGroup() {
   try {
-    const response = await fetch(`${API_BASE}/splitwiser.v1.GroupService/GetGroup`, {
+    const response = await authenticatedFetch('/splitwiser.v1.GroupService/GetGroup', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ groupId })
     });
 
@@ -62,9 +60,8 @@ async function loadGroup() {
 
 async function loadBalances() {
   try {
-    const response = await fetch(`${API_BASE}/splitwiser.v1.GroupService/GetGroupBalances`, {
+    const response = await authenticatedFetch('/splitwiser.v1.GroupService/GetGroupBalances', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ groupId })
     });
 
@@ -129,9 +126,8 @@ function renderBalances() {
 
 async function loadBills() {
   try {
-    const response = await fetch(`${API_BASE}/splitwiser.v1.SplitService/ListBillsByGroup`, {
+    const response = await authenticatedFetch('/splitwiser.v1.SplitService/ListBillsByGroup', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ groupId })
     });
 
@@ -168,9 +164,8 @@ async function deleteBill(billId, billTitle) {
   }
 
   try {
-    const response = await fetch(`${API_BASE}/splitwiser.v1.SplitService/DeleteBill`, {
+    const response = await authenticatedFetch('/splitwiser.v1.SplitService/DeleteBill', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ billId })
     });
 
@@ -219,9 +214,8 @@ function escapeHtml(text) {
 // Settlement functions
 async function loadSettlements() {
   try {
-    const response = await fetch(`${API_BASE}/splitwiser.v1.GroupService/ListSettlements`, {
+    const response = await authenticatedFetch('/splitwiser.v1.GroupService/ListSettlements', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ groupId })
     });
 
@@ -318,9 +312,8 @@ async function handleSettlementSubmit(event) {
   }
 
   try {
-    const response = await fetch(`${API_BASE}/splitwiser.v1.GroupService/RecordSettlement`, {
+    const response = await authenticatedFetch('/splitwiser.v1.GroupService/RecordSettlement', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         groupId,
         fromUserId,
@@ -351,9 +344,8 @@ async function deleteSettlement(settlementId) {
   }
 
   try {
-    const response = await fetch(`${API_BASE}/splitwiser.v1.GroupService/DeleteSettlement`, {
+    const response = await authenticatedFetch('/splitwiser.v1.GroupService/DeleteSettlement', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ settlementId })
     });
 

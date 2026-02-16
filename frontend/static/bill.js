@@ -5,7 +5,6 @@ import { requireAuth, displayUserInfo, authenticatedFetch, getCurrentUser } from
 // Require authentication
 requireAuth();
 
-const API_BASE = 'http://localhost:8080';
 let currentUser = null;
 
 // State
@@ -125,9 +124,8 @@ function getBillId() {
 // Load bill from API
 async function loadBill(billId) {
   try {
-    const response = await fetch(`${API_BASE}/splitwiser.v1.SplitService/GetBill`, {
+    const response = await authenticatedFetch('/splitwiser.v1.SplitService/GetBill', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ billId })
     });
 
@@ -302,9 +300,8 @@ async function saveChanges() {
     saveEditBtn.setAttribute('aria-busy', 'true');
     saveEditBtn.disabled = true;
 
-    const response = await fetch(`${API_BASE}/splitwiser.v1.SplitService/UpdateBill`, {
+    const response = await authenticatedFetch('/splitwiser.v1.SplitService/UpdateBill', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request)
     });
 
@@ -352,9 +349,8 @@ async function deleteBill() {
   deleteBtn.disabled = true;
 
   try {
-    const response = await fetch(`${API_BASE}/splitwiser.v1.SplitService/DeleteBill`, {
+    const response = await authenticatedFetch('/splitwiser.v1.SplitService/DeleteBill', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ billId })
     });
 
