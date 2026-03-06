@@ -45,6 +45,20 @@ createForm.addEventListener('submit', async (e) => {
 
 editAddMemberBtn.addEventListener('click', () => addEditMember(''));
 cancelEditBtn.addEventListener('click', cancelEdit);
+
+// Delegated listener for dynamically rendered group buttons
+groupsList.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const action = btn.dataset.action;
+  if (action === 'delete-group') {
+    deleteGroup(btn.dataset.groupId, btn.dataset.groupName);
+  } else if (action === 'edit-group') {
+    startEdit(JSON.parse(btn.dataset.group));
+  } else if (action === 'toggle-bills') {
+    toggleBills(btn.dataset.groupId, btn);
+  }
+});
 editForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   await saveGroup();
@@ -355,22 +369,21 @@ function renderGroups() {
       <div id="bills-${group.id}" class="group-bills" style="margin-top: var(--spacing-md);">
         <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
           <strong>Bills:</strong>
-          <button type="button" class="secondary outline" style="font-size: 0.9em; padding: 0.25em 0.5em;" onclick="toggleBills('${group.id}')">Show Bills</button>
+          <button type="button" class="secondary outline" style="font-size: 0.9em; padding: 0.25em 0.5em;" data-action="toggle-bills" data-group-id="${group.id}">Show Bills</button>
         </div>
         <div id="bills-list-${group.id}" style="display: none; margin-top: var(--spacing-sm);"></div>
       </div>
       <div style="margin-top: var(--spacing-md); display: flex; gap: var(--spacing-sm); flex-wrap: wrap;">
-        <button type="button" class="secondary outline" onclick="startEdit(${JSON.stringify(group).replace(/"/g, '&quot;')})" style="flex: 1;">Edit</button>
-        <button type="button" class="remove-btn" onclick="deleteGroup('${group.id}', '${escapeHtml(group.name)}')" style="flex: 1;">Delete</button>
+        <button type="button" class="secondary outline" data-action="edit-group" data-group='${escapeAttr(JSON.stringify(group))}' style="flex: 1;">Edit</button>
+        <button type="button" class="remove-btn" data-action="delete-group" data-group-id="${group.id}" data-group-name="${escapeHtml(group.name)}" style="flex: 1;">Delete</button>
       </div>
     </div>
   `).join('');
 }
 
 // Toggle bills display for a group
-async function toggleBills(groupId) {
+async function toggleBills(groupId, button) {
   const billsList = document.getElementById(`bills-list-${groupId}`);
-  const button = event.target;
 
   if (billsList.style.display === 'none') {
     // Load and show bills
@@ -469,4 +482,8 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+function escapeAttr(text) {
+  return text.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
 }
