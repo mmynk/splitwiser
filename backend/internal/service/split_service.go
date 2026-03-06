@@ -477,6 +477,52 @@ func (s *SplitService) DeleteBill(ctx context.Context, req *connect.Request[pb.D
 	return connect.NewResponse(&pb.DeleteBillResponse{}), nil
 }
 
+// ListMyBills retrieves all bills where the authenticated user is a participant.
+func (s *SplitService) ListMyBills(ctx context.Context, req *connect.Request[pb.ListMyBillsRequest]) (*connect.Response[pb.ListMyBillsResponse], error) {
+	userID := middleware.GetUserID(ctx)
+	if userID == "" {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("authentication required"))
+	}
+
+	bills, err := s.store.ListBillsByParticipant(ctx, userID)
+	if err != nil {
+		slog.Error("ListMyBills failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// Collect unique group IDs to fetch names
+	groupIDs := make(map[string]struct{})
+	for _, bill := range bills {
+		if bill.GroupID != "" {
+			groupIDs[bill.GroupID] = struct{}{}
+		}
+	}
+	groupNames := make(map[string]string, len(groupIDs))
+	for gid := range groupIDs {
+		if group, err := s.store.GetGroup(ctx, gid); err == nil && group != nil {
+			groupNames[gid] = group.Name
+		}
+	}
+
+	summaries := make([]*pb.BillSummary, len(bills))
+	for i, bill := range bills {
+		s := &pb.BillSummary{
+			BillId:           bill.ID,
+			Title:            bill.Title,
+			Total:            bill.Total,
+			PayerId:          bill.PayerID,
+			CreatedAt:        bill.CreatedAt,
+			ParticipantCount: int32(len(bill.Participants)),
+		}
+		if name, ok := groupNames[bill.GroupID]; ok {
+			s.GroupName = &name
+		}
+		summaries[i] = s
+	}
+
+	return connect.NewResponse(&pb.ListMyBillsResponse{Bills: summaries}), nil
+}
+
 // ListBillsByGroup retrieves all bills associated with a group.
 func (s *SplitService) ListBillsByGroup(ctx context.Context, req *connect.Request[pb.ListBillsByGroupRequest]) (*connect.Response[pb.ListBillsByGroupResponse], error) {
 	// Get authenticated user ID from context

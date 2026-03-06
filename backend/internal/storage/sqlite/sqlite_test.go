@@ -693,6 +693,107 @@ func TestBillWithGroup(t *testing.T) {
 	})
 }
 
+func TestListBillsByParticipant(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "splitwiser-listbills-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	store, err := New(filepath.Join(tempDir, "test.db"))
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// Bill with Alice and Bob
+	bill1 := &models.Bill{
+		Title:        "Dinner",
+		Total:        22.0,
+		Subtotal:     20.0,
+		Participants: []string{"Alice", "Bob"},
+	}
+	if err := store.CreateBill(ctx, bill1); err != nil {
+		t.Fatalf("CreateBill 1 failed: %v", err)
+	}
+
+	// Bill with only Bob (Alice should NOT see this)
+	bill2 := &models.Bill{
+		Title:        "Bob Only",
+		Total:        10.0,
+		Subtotal:     10.0,
+		Participants: []string{"Bob"},
+	}
+	if err := store.CreateBill(ctx, bill2); err != nil {
+		t.Fatalf("CreateBill 2 failed: %v", err)
+	}
+
+	// Another bill with Alice
+	bill3 := &models.Bill{
+		Title:        "Alice Solo",
+		Total:        5.0,
+		Subtotal:     5.0,
+		Participants: []string{"Alice"},
+	}
+	if err := store.CreateBill(ctx, bill3); err != nil {
+		t.Fatalf("CreateBill 3 failed: %v", err)
+	}
+
+	t.Run("returns only bills for participant", func(t *testing.T) {
+		bills, err := store.ListBillsByParticipant(ctx, "Alice")
+		if err != nil {
+			t.Fatalf("ListBillsByParticipant failed: %v", err)
+		}
+
+		if len(bills) != 2 {
+			t.Fatalf("expected 2 bills for Alice, got %d", len(bills))
+		}
+
+		billIDs := map[string]bool{bill1.ID: false, bill3.ID: false}
+		for _, b := range bills {
+			if _, ok := billIDs[b.ID]; ok {
+				billIDs[b.ID] = true
+			}
+		}
+		for id, found := range billIDs {
+			if !found {
+				t.Errorf("expected bill %s in Alice's bills", id)
+			}
+		}
+
+		// bob-only bill should not appear
+		for _, b := range bills {
+			if b.ID == bill2.ID {
+				t.Error("Bob-only bill should not appear in Alice's bills")
+			}
+		}
+	})
+
+	t.Run("returns empty slice for nonexistent participant", func(t *testing.T) {
+		bills, err := store.ListBillsByParticipant(ctx, "Nobody")
+		if err != nil {
+			t.Fatalf("ListBillsByParticipant failed: %v", err)
+		}
+		if len(bills) != 0 {
+			t.Errorf("expected 0 bills for nonexistent participant, got %d", len(bills))
+		}
+	})
+
+	t.Run("participants are populated on returned bills", func(t *testing.T) {
+		bills, err := store.ListBillsByParticipant(ctx, "Alice")
+		if err != nil {
+			t.Fatalf("ListBillsByParticipant failed: %v", err)
+		}
+		for _, b := range bills {
+			if len(b.Participants) == 0 {
+				t.Errorf("bill %s has no participants", b.ID)
+			}
+		}
+	})
+}
+
 func TestSettlementStorage(t *testing.T) {
 	// Create temp directory for test database
 	tempDir, err := os.MkdirTemp("", "splitwiser-settlement-test-*")

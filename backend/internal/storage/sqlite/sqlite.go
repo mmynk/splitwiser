@@ -455,6 +455,66 @@ func (s *SQLiteStore) ListBillsByGroup(ctx context.Context, groupID string) ([]*
 	return bills, nil
 }
 
+// ListBillsByParticipant retrieves all bills where the given user is a participant.
+func (s *SQLiteStore) ListBillsByParticipant(ctx context.Context, participantID string) ([]*models.Bill, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT b.id, b.title, b.total, b.subtotal, b.payer_id, b.group_id, b.created_at
+		FROM bills b
+		INNER JOIN participants p ON b.id = p.bill_id
+		WHERE p.name = ?
+		ORDER BY b.created_at DESC`,
+		participantID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list bills by participant: %w", err)
+	}
+	defer rows.Close()
+
+	var bills []*models.Bill
+	for rows.Next() {
+		bill := &models.Bill{}
+		var payerID sql.NullString
+		var groupID sql.NullString
+		if err := rows.Scan(&bill.ID, &bill.Title, &bill.Total, &bill.Subtotal, &payerID, &groupID, &bill.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan bill: %w", err)
+		}
+		if payerID.Valid {
+			bill.PayerID = payerID.String
+		}
+		if groupID.Valid {
+			bill.GroupID = groupID.String
+		}
+
+		// Get participant count
+		participantRows, err := s.db.QueryContext(ctx,
+			"SELECT name FROM participants WHERE bill_id = ? ORDER BY name",
+			bill.ID,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get participants: %w", err)
+		}
+		for participantRows.Next() {
+			var name string
+			if err := participantRows.Scan(&name); err != nil {
+				participantRows.Close()
+				return nil, fmt.Errorf("failed to scan participant: %w", err)
+			}
+			bill.Participants = append(bill.Participants, name)
+		}
+		participantRows.Close()
+		if err := participantRows.Err(); err != nil {
+			return nil, fmt.Errorf("failed to iterate participants: %w", err)
+		}
+
+		bills = append(bills, bill)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate bills: %w", err)
+	}
+
+	return bills, nil
+}
+
 // generateTitle creates an auto-generated title using hybrid "Items - Participants" format.
 func generateTitle(items []models.Item, participants []string) string {
 	// Strategy: "Items - Participants"

@@ -922,3 +922,99 @@ func TestCreateBill_AutoAddsPayerToGroup(t *testing.T) {
 		t.Errorf("Charlie (payer) not found in group members: %v", members)
 	}
 }
+
+func TestListMyBills(t *testing.T) {
+	splitClient, groupClient, cleanup := setupTestServerWithGroupService(t)
+	defer cleanup()
+
+	// Create a group
+	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
+		Name:      "My Bills Test Group",
+		MemberIds: []string{"Alice", "Bob"},
+	}))
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+	groupID := groupResp.Msg.Group.Id
+
+	// Create a bill in the group (Alice is participant = auth user)
+	bill1Resp, err := splitClient.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:          "Group Dinner",
+		Items:          []*pb.Item{{Description: "Pizza", Amount: 20, ParticipantIds: []string{"Alice", "Bob"}}},
+		Total:          22,
+		Subtotal:       20,
+		ParticipantIds: []string{"Alice", "Bob"},
+		GroupId:        &groupID,
+	}))
+	if err != nil {
+		t.Fatalf("CreateBill 1 failed: %v", err)
+	}
+
+	// Create a standalone bill (no group)
+	bill2Resp, err := splitClient.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:          "Solo Coffee",
+		Items:          []*pb.Item{{Description: "Coffee", Amount: 5, ParticipantIds: []string{"Alice"}}},
+		Total:          5,
+		Subtotal:       5,
+		ParticipantIds: []string{"Alice"},
+	}))
+	if err != nil {
+		t.Fatalf("CreateBill 2 failed: %v", err)
+	}
+
+	// Create a bill Alice is NOT in (should not appear)
+	_, err = splitClient.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:          "Bob Only Bill",
+		Items:          []*pb.Item{{Description: "Beer", Amount: 10, ParticipantIds: []string{"Bob"}}},
+		Total:          10,
+		Subtotal:       10,
+		ParticipantIds: []string{"Bob", "Alice"}, // Alice must be participant (auth check)
+	}))
+	if err != nil {
+		t.Fatalf("CreateBill 3 failed: %v", err)
+	}
+
+	// Call ListMyBills
+	listResp, err := splitClient.ListMyBills(context.Background(), connect.NewRequest(&pb.ListMyBillsRequest{}))
+	if err != nil {
+		t.Fatalf("ListMyBills failed: %v", err)
+	}
+
+	// Alice should see at least 3 bills (all created above include Alice)
+	if len(listResp.Msg.Bills) < 3 {
+		t.Fatalf("expected at least 3 bills, got %d", len(listResp.Msg.Bills))
+	}
+
+	// Find the group bill and verify it has group_name set
+	var foundGroupBill, foundSoloBill bool
+	for _, summary := range listResp.Msg.Bills {
+		if summary.BillId == bill1Resp.Msg.BillId {
+			foundGroupBill = true
+			if summary.GroupName == nil || *summary.GroupName == "" {
+				t.Error("expected group bill to have group_name set")
+			} else if *summary.GroupName != "My Bills Test Group" {
+				t.Errorf("expected group_name 'My Bills Test Group', got '%s'", *summary.GroupName)
+			}
+		}
+		if summary.BillId == bill2Resp.Msg.BillId {
+			foundSoloBill = true
+			if summary.GroupName != nil {
+				t.Errorf("expected standalone bill to have no group_name, got '%s'", *summary.GroupName)
+			}
+		}
+		// Verify basic fields
+		if summary.Title == "" {
+			t.Error("expected non-empty title")
+		}
+		if summary.CreatedAt == 0 {
+			t.Error("expected non-zero created_at")
+		}
+	}
+
+	if !foundGroupBill {
+		t.Errorf("group bill %s not found in ListMyBills", bill1Resp.Msg.BillId)
+	}
+	if !foundSoloBill {
+		t.Errorf("standalone bill %s not found in ListMyBills", bill2Resp.Msg.BillId)
+	}
+}

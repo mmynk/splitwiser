@@ -20,7 +20,16 @@
       <p><a href="/groups.html">Manage Groups &rarr;</a></p>
     </header>
 
-    <form id="bill-form">
+    <!-- My Bills -->
+    <section id="my-bills-section">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>My Bills</h2>
+        <button type="button" id="new-bill-btn" class="outline">+ New Bill</button>
+      </div>
+      <div id="my-bills-list"><em>Loading...</em></div>
+    </section>
+
+    <form id="bill-form" class="hidden">
       <!-- Bill Details -->
       <section>
         <h2>Bill Details</h2>

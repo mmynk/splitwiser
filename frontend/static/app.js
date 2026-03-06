@@ -14,6 +14,9 @@ let selectedPayerId = '';
 let currentUser = null;
 
 // DOM Elements
+const myBillsSection = document.getElementById('my-bills-section');
+const myBillsList = document.getElementById('my-bills-list');
+const newBillBtn = document.getElementById('new-bill-btn');
 const form = document.getElementById('bill-form');
 const billTitleInput = document.getElementById('bill-title');
 const totalInput = document.getElementById('total');
@@ -45,6 +48,13 @@ document.addEventListener('DOMContentLoaded', () => {
   addParticipant('');
   updateTaxDisplay();
   loadGroups();
+  loadMyBills();
+});
+
+newBillBtn.addEventListener('click', () => {
+  myBillsSection.classList.add('hidden');
+  form.classList.remove('hidden');
+  form.scrollIntoView({ behavior: 'smooth' });
 });
 
 // Event Listeners
@@ -96,6 +106,65 @@ async function loadGroups() {
     }
   } catch (err) {
     console.error('Failed to load groups:', err);
+  }
+}
+
+async function loadMyBills() {
+  try {
+    const response = await authenticatedFetch('/splitwiser.v1.SplitService/ListMyBills', {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+
+    if (!response.ok) {
+      myBillsList.innerHTML = '<em>Failed to load bills.</em>';
+      return;
+    }
+
+    const data = await response.json();
+    const bills = data.bills || [];
+
+    if (bills.length === 0) {
+      myBillsList.innerHTML = '<p>No bills yet. <a href="#" id="create-first-bill">Create your first bill</a>.</p>';
+      document.getElementById('create-first-bill')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        myBillsSection.classList.add('hidden');
+        form.classList.remove('hidden');
+        form.scrollIntoView({ behavior: 'smooth' });
+      });
+      return;
+    }
+
+    myBillsList.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Bill</th>
+            <th>Group</th>
+            <th>Total</th>
+            <th>Participants</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${bills.map(bill => {
+            const date = bill.createdAt ? new Date(bill.createdAt * 1000).toLocaleDateString() : '';
+            return `
+              <tr>
+                <td><a href="/bill.html?id=${escapeHtml(bill.billId)}">${escapeHtml(bill.title || 'Untitled')}</a></td>
+                <td>${bill.groupName ? escapeHtml(bill.groupName) : '<em>—</em>'}</td>
+                <td>$${(bill.total || 0).toFixed(2)}</td>
+                <td>${bill.participantCount || 0}</td>
+                <td>${date}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (err) {
+    console.error('Failed to load my bills:', err);
+    myBillsList.innerHTML = '<em>Failed to load bills.</em>';
   }
 }
 

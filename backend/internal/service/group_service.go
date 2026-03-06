@@ -328,6 +328,14 @@ func (s *GroupService) RecordSettlement(ctx context.Context, req *connect.Reques
 	// Get display names for response
 	fromName := fromUserID
 	toName := toUserID
+	if users, err := s.store.GetUsersByIDs(ctx, []string{fromUserID, toUserID}); err == nil {
+		if u, ok := users[fromUserID]; ok {
+			fromName = u.DisplayName
+		}
+		if u, ok := users[toUserID]; ok {
+			toName = u.DisplayName
+		}
+	}
 
 	return connect.NewResponse(&pb.RecordSettlementResponse{
 		Settlement: &pb.Settlement{
@@ -377,6 +385,28 @@ func (s *GroupService) ListSettlements(ctx context.Context, req *connect.Request
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
+	// Collect all unique user IDs for name lookup
+	userIDSet := make(map[string]struct{})
+	for _, s := range settlements {
+		userIDSet[s.FromUserID] = struct{}{}
+		userIDSet[s.ToUserID] = struct{}{}
+	}
+	userIDs := make([]string, 0, len(userIDSet))
+	for id := range userIDSet {
+		userIDs = append(userIDs, id)
+	}
+	userMap, _ := s.store.GetUsersByIDs(ctx, userIDs)
+	if userMap == nil {
+		userMap = make(map[string]*models.User)
+	}
+
+	displayName := func(id string) string {
+		if u, ok := userMap[id]; ok {
+			return u.DisplayName
+		}
+		return id
+	}
+
 	// Convert to proto
 	pbSettlements := make([]*pb.Settlement, len(settlements))
 	for i, settlement := range settlements {
@@ -389,8 +419,8 @@ func (s *GroupService) ListSettlements(ctx context.Context, req *connect.Request
 			CreatedAt:  settlement.CreatedAt,
 			CreatedBy:  settlement.CreatedBy,
 			Note:       settlement.Note,
-			FromName:   settlement.FromUserID, // Use ID as fallback
-			ToName:     settlement.ToUserID,
+			FromName:   displayName(settlement.FromUserID),
+			ToName:     displayName(settlement.ToUserID),
 		}
 	}
 

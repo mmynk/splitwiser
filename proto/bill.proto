@@ -25,6 +25,9 @@ service SplitService {
 
   // Delete a bill
   rpc DeleteBill(DeleteBillRequest) returns (DeleteBillResponse);
+
+  // List bills the authenticated user participates in
+  rpc ListMyBills(ListMyBillsRequest) returns (ListMyBillsResponse);
 }
 
 // Request to calculate a split
@@ -105,9 +108,17 @@ message BillSummary {
   string payer_id = 4;  // User ID of payer (always has a payer)
   int64 created_at = 5;
   int32 participant_count = 6;
+  optional string group_name = 7;  // Name of the group (if bill belongs to a group)
 }
 
 message ListBillsByGroupResponse {
+  repeated BillSummary bills = 1;
+}
+
+// Request to list bills the authenticated user participates in
+message ListMyBillsRequest {}
+
+message ListMyBillsResponse {
   repeated BillSummary bills = 1;
 }
 

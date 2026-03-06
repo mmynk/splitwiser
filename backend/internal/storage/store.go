@@ -31,6 +31,10 @@ type Store interface {
 	// Returns an empty slice if the group has no bills.
 	ListBillsByGroup(ctx context.Context, groupID string) ([]*models.Bill, error)
 
+	// ListBillsByParticipant retrieves all bills where the given user is a participant.
+	// Returns an empty slice if the user has no bills.
+	ListBillsByParticipant(ctx context.Context, participantID string) ([]*models.Bill, error)
+
 	// CreateGroup persists a new group.
 	// The group.ID field will be populated by the store.
 	CreateGroup(ctx context.Context, group *models.Group) error
@@ -69,6 +73,9 @@ type Store interface {
 	// DeleteSettlement removes a settlement by its ID.
 	// Returns an error if the settlement is not found.
 	DeleteSettlement(ctx context.Context, settlementID string) error
+
+	// GetUsersByIDs retrieves multiple users by their IDs. Missing IDs are omitted.
+	GetUsersByIDs(ctx context.Context, ids []string) (map[string]*models.User, error)
 
 	// Close releases any resources held by the store.
 	Close() error
