@@ -73,6 +73,11 @@ func (a *PasswordAuthenticator) Register(ctx context.Context, email, displayName
 	return user, nil
 }
 
+// GetUserByID retrieves a user by their ID.
+func (a *PasswordAuthenticator) GetUserByID(ctx context.Context, id string) (*models.User, error) {
+	return a.storage.GetUserByID(ctx, id)
+}
+
 // Authenticate verifies the email and password, returning the user if valid.
 func (a *PasswordAuthenticator) Authenticate(ctx context.Context, email, credential string) (*models.User, error) {
 	// Get user by email

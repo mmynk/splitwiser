@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -122,18 +123,18 @@ func (s *AuthService) GetCurrentUser(ctx context.Context, req *connect.Request[p
 		return nil, connect.NewError(connect.CodeUnauthenticated, auth.ErrMissingToken)
 	}
 
-	// Fetch user from storage
-	// Note: We need to add GetUserByID to the authenticator or access storage directly
-	// For now, we can just return the basic info from the JWT claims
-	email := middleware.GetEmail(ctx)
+	// Fetch full user details from storage
+	user, err := s.authenticator.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("user not found"))
+	}
 
-	// TODO: Fetch full user details from storage
-	// For now, return what we have from JWT claims
 	response := &proto.GetCurrentUserResponse{
 		User: &proto.User{
-			Id:    userID,
-			Email: email,
-			// DisplayName and CreatedAt would need to be fetched from DB
+			Id:          user.ID,
+			Email:       user.Email,
+			DisplayName: user.DisplayName,
+			CreatedAt:   timestamppb.New(time.Unix(user.CreatedAt, 0)),
 		},
 	}
 

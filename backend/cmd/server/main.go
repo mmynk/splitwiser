@@ -90,10 +90,12 @@ func main() {
 		w.Write([]byte("ok"))
 	})
 
-	// Register AuthService (logging only, no auth required)
+	// Register AuthService with optional auth so GetCurrentUser can read the JWT,
+	// while Register/Login/Logout remain accessible without a token.
+	optionalAuth := middleware.OptionalAuth(jwtManager)
 	authPath, authHandler := protoconnect.NewAuthServiceHandler(
 		service.NewAuthService(passwordAuth, jwtManager, logger),
-		connect.WithInterceptors(loggingInterceptor),
+		connect.WithInterceptors(loggingInterceptor, optionalAuth),
 	)
 	mux.Handle(authPath, authHandler)
 

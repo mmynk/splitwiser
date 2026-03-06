@@ -23,4 +23,7 @@ type Authenticator interface {
 	// For passwords: check length, complexity, etc.
 	// For other methods: validate format, etc.
 	ValidateCredential(credential string) error
+
+	// GetUserByID retrieves a user by their ID.
+	GetUserByID(ctx context.Context, id string) (*models.User, error)
 }
