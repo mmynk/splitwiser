@@ -95,9 +95,14 @@ func (s *GroupService) GetGroup(ctx context.Context, req *connect.Request[pb.Get
 	}), nil
 }
 
-// ListGroups retrieves all groups.
+// ListGroups retrieves all groups the authenticated user belongs to.
 func (s *GroupService) ListGroups(ctx context.Context, req *connect.Request[pb.ListGroupsRequest]) (*connect.Response[pb.ListGroupsResponse], error) {
-	groups, err := s.store.ListGroups(ctx)
+	userID := middleware.GetUserID(ctx)
+	if userID == "" {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("authentication required"))
+	}
+
+	groups, err := s.store.ListGroupsByUser(ctx, userID)
 	if err != nil {
 		slog.Error("ListGroups failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)

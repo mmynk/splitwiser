@@ -640,11 +640,16 @@ func (s *SQLiteStore) GetGroup(ctx context.Context, groupID string) (*models.Gro
 	return group, nil
 }
 
-// ListGroups retrieves all groups with their members.
-func (s *SQLiteStore) ListGroups(ctx context.Context) ([]*models.Group, error) {
-	// Get all groups
+// ListGroupsByUser retrieves all groups the given user belongs to, with their members.
+func (s *SQLiteStore) ListGroupsByUser(ctx context.Context, userID string) ([]*models.Group, error) {
+	// Get groups where user is a member
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT id, name, created_at FROM groups ORDER BY created_at DESC",
+		`SELECT g.id, g.name, g.created_at
+		FROM groups g
+		JOIN group_members gm ON g.id = gm.group_id
+		WHERE gm.name = ?
+		ORDER BY g.created_at DESC`,
+		userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list groups: %w", err)

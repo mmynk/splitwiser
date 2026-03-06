@@ -365,24 +365,38 @@ func TestGroupStorage(t *testing.T) {
 		}
 	})
 
-	t.Run("ListGroups returns all groups", func(t *testing.T) {
-		// Create a few more groups
+	t.Run("ListGroupsByUser filters by user membership", func(t *testing.T) {
+		// Create groups with distinct membership
 		store.CreateGroup(ctx, &models.Group{Name: "Group A", Members: []string{"A1", "A2"}})
 		store.CreateGroup(ctx, &models.Group{Name: "Group B", Members: []string{"B1", "B2"}})
 
-		groups, err := store.ListGroups(ctx)
+		// A1 should see Group A
+		groupsA, err := store.ListGroupsByUser(ctx, "A1")
 		if err != nil {
-			t.Fatalf("ListGroups failed: %v", err)
+			t.Fatalf("ListGroupsByUser failed: %v", err)
 		}
-
-		if len(groups) < 2 {
-			t.Errorf("Expected at least 2 groups, got %d", len(groups))
+		if len(groupsA) < 1 {
+			t.Errorf("Expected at least 1 group for A1, got %d", len(groupsA))
 		}
-
-		// Verify groups have members populated
-		for _, g := range groups {
+		for _, g := range groupsA {
 			if len(g.Members) == 0 {
 				t.Errorf("Group %s has no members", g.Name)
+			}
+		}
+
+		// B1 should see Group B but not Group A
+		groupsB, err := store.ListGroupsByUser(ctx, "B1")
+		if err != nil {
+			t.Fatalf("ListGroupsByUser failed: %v", err)
+		}
+		if len(groupsB) < 1 {
+			t.Errorf("Expected at least 1 group for B1, got %d", len(groupsB))
+		}
+		for _, g := range groupsB {
+			for _, m := range g.Members {
+				if m == "A1" || m == "A2" {
+					t.Errorf("B1 should not see Group A (member %s found)", m)
+				}
 			}
 		}
 	})

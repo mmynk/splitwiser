@@ -43,8 +43,8 @@ type Store interface {
 	// Returns nil and an error if the group is not found.
 	GetGroup(ctx context.Context, groupID string) (*models.Group, error)
 
-	// ListGroups retrieves all groups.
-	ListGroups(ctx context.Context) ([]*models.Group, error)
+	// ListGroupsByUser retrieves all groups the given user belongs to.
+	ListGroupsByUser(ctx context.Context, userID string) ([]*models.Group, error)
 
 	// UpdateGroup updates an existing group.
 	// Returns an error if the group is not found.
