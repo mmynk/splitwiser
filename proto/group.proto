@@ -38,15 +38,14 @@ service GroupService {
 message Group {
   string id = 1;
   string name = 2;
-  repeated string member_ids = 3;  // User IDs of group members
+  repeated string members = 3;  // Display names of group members
   int64 created_at = 4;
-  string creator_id = 5;           // User ID of group creator
 }
 
 // Request to create a group
 message CreateGroupRequest {
   string name = 1;
-  repeated string member_ids = 2;  // User IDs of members (excluding creator, who is added automatically)
+  repeated string members = 2;  // Display names of members (creator added automatically)
 }
 
 message CreateGroupResponse {
@@ -73,7 +72,7 @@ message ListGroupsResponse {
 message UpdateGroupRequest {
   string group_id = 1;
   string name = 2;
-  repeated string member_ids = 3;  // User IDs of all group members
+  repeated string members = 3;  // Display names of all group members
 }
 
 message UpdateGroupResponse {

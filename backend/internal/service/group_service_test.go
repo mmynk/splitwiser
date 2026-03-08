@@ -69,7 +69,7 @@ func TestCreateGroup(t *testing.T) {
 
 	resp, err := client.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name:    "Roommates",
-		MemberIds: []string{"Alice", "Bob", "Charlie"},
+		Members: []string{"Alice", "Bob", "Charlie"},
 	}))
 
 	if err != nil {
@@ -88,8 +88,8 @@ func TestCreateGroup(t *testing.T) {
 		t.Errorf("name: expected 'Roommates', got '%s'", resp.Msg.Group.Name)
 	}
 
-	if len(resp.Msg.Group.MemberIds) != 3 {
-		t.Errorf("members: expected 3, got %d", len(resp.Msg.Group.MemberIds))
+	if len(resp.Msg.Group.Members) != 3 {
+		t.Errorf("members: expected 3, got %d", len(resp.Msg.Group.Members))
 	}
 
 	if resp.Msg.Group.CreatedAt == 0 {
@@ -104,7 +104,7 @@ func TestGetGroup(t *testing.T) {
 	// Create a group first
 	createResp, err := client.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name:      "Work Lunch",
-		MemberIds: []string{"Alice", "Diana"},
+		Members: []string{"Alice", "Diana"},
 	}))
 
 	if err != nil {
@@ -124,8 +124,8 @@ func TestGetGroup(t *testing.T) {
 		t.Errorf("name: expected 'Work Lunch', got '%s'", getResp.Msg.Group.Name)
 	}
 
-	if len(getResp.Msg.Group.MemberIds) != 2 {
-		t.Errorf("members: expected 2, got %d", len(getResp.Msg.Group.MemberIds))
+	if len(getResp.Msg.Group.Members) != 2 {
+		t.Errorf("members: expected 2, got %d", len(getResp.Msg.Group.Members))
 	}
 }
 
@@ -158,11 +158,11 @@ func TestListGroups(t *testing.T) {
 	// Create a few groups
 	client.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name:    "Group A",
-		MemberIds: []string{"A1", "A2"},
+		Members: []string{"A1", "A2"},
 	}))
 	client.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name:    "Group B",
-		MemberIds: []string{"B1", "B2"},
+		Members: []string{"B1", "B2"},
 	}))
 
 	// List groups
@@ -178,7 +178,7 @@ func TestListGroups(t *testing.T) {
 
 	// Verify groups have members
 	for _, g := range listResp.Msg.Groups {
-		if len(g.MemberIds) == 0 {
+		if len(g.Members) == 0 {
 			t.Errorf("group %s has no members", g.Name)
 		}
 	}
@@ -208,7 +208,7 @@ func TestUpdateGroup(t *testing.T) {
 	// Create a group first
 	createResp, err := client.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name:    "Original Name",
-		MemberIds: []string{"X", "Y"},
+		Members: []string{"X", "Y"},
 	}))
 
 	if err != nil {
@@ -221,7 +221,7 @@ func TestUpdateGroup(t *testing.T) {
 	updateResp, err := client.UpdateGroup(context.Background(), connect.NewRequest(&pb.UpdateGroupRequest{
 		GroupId: groupId,
 		Name:    "Updated Name",
-		MemberIds: []string{"X", "Y", "Z"},
+		Members: []string{"X", "Y", "Z"},
 	}))
 
 	if err != nil {
@@ -232,8 +232,8 @@ func TestUpdateGroup(t *testing.T) {
 		t.Errorf("name not updated: expected 'Updated Name', got '%s'", updateResp.Msg.Group.Name)
 	}
 
-	if len(updateResp.Msg.Group.MemberIds) != 3 {
-		t.Errorf("members not updated: expected 3, got %d", len(updateResp.Msg.Group.MemberIds))
+	if len(updateResp.Msg.Group.Members) != 3 {
+		t.Errorf("members not updated: expected 3, got %d", len(updateResp.Msg.Group.Members))
 	}
 
 	// Verify by getting the group
@@ -257,7 +257,7 @@ func TestUpdateGroup_NotFound(t *testing.T) {
 	_, err := client.UpdateGroup(context.Background(), connect.NewRequest(&pb.UpdateGroupRequest{
 		GroupId: "nonexistent-id",
 		Name:    "Test",
-		MemberIds: []string{"A"},
+		Members: []string{"A"},
 	}))
 
 	if err == nil {
@@ -281,7 +281,7 @@ func TestDeleteGroup(t *testing.T) {
 	// Create a group first
 	createResp, err := client.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name:    "To Be Deleted",
-		MemberIds: []string{"Delete", "Me"},
+		Members: []string{"Delete", "Me"},
 	}))
 
 	if err != nil {
@@ -338,7 +338,7 @@ func TestBillWithGroupId(t *testing.T) {
 	// Create a group
 	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name:    "Test Group",
-		MemberIds: []string{"Alice", "Bob"},
+		Members: []string{"Alice", "Bob"},
 	}))
 
 	if err != nil {
@@ -382,7 +382,7 @@ func TestGetGroupBalances_SingleBill(t *testing.T) {
 	// Create a group
 	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name:    "Test Group",
-		MemberIds: []string{"Alice", "Bob"},
+		Members: []string{"Alice", "Bob"},
 	}))
 	if err != nil {
 		t.Fatalf("CreateGroup failed: %v", err)
@@ -471,7 +471,7 @@ func TestGetGroupBalances_MultipleBills(t *testing.T) {
 	// Create a group with 3 members
 	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name:    "Test Group",
-		MemberIds: []string{"Alice", "Bob", "Charlie"},
+		Members: []string{"Alice", "Bob", "Charlie"},
 	}))
 	if err != nil {
 		t.Fatalf("CreateGroup failed: %v", err)
@@ -557,7 +557,7 @@ func TestGetGroupBalances_NoBills(t *testing.T) {
 	// Create a group with no bills
 	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name:    "Empty Group",
-		MemberIds: []string{"Alice", "Bob"},
+		Members: []string{"Alice", "Bob"},
 	}))
 	if err != nil {
 		t.Fatalf("CreateGroup failed: %v", err)
@@ -588,7 +588,7 @@ func TestGetGroupBalances_BillsWithoutPayer(t *testing.T) {
 	// Create a group
 	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name:      "Test Group",
-		MemberIds: []string{"Alice", "Bob"},
+		Members: []string{"Alice", "Bob"},
 	}))
 	if err != nil {
 		t.Fatalf("CreateGroup failed: %v", err)
@@ -631,7 +631,7 @@ func TestRecordSettlement(t *testing.T) {
 	// Create a group
 	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name:      "Settlement Test Group",
-		MemberIds: []string{"Alice", "Bob"},
+		Members: []string{"Alice", "Bob"},
 	}))
 	if err != nil {
 		t.Fatalf("CreateGroup failed: %v", err)
@@ -690,7 +690,7 @@ func TestRecordSettlement_Validation(t *testing.T) {
 	// Create a group
 	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name:      "Validation Test Group",
-		MemberIds: []string{"Alice", "Bob"},
+		Members: []string{"Alice", "Bob"},
 	}))
 	if err != nil {
 		t.Fatalf("CreateGroup failed: %v", err)
@@ -738,7 +738,7 @@ func TestListSettlements(t *testing.T) {
 	// Create a group
 	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name:      "List Settlements Group",
-		MemberIds: []string{"Alice", "Bob", "Charlie"},
+		Members: []string{"Alice", "Bob", "Charlie"},
 	}))
 	if err != nil {
 		t.Fatalf("CreateGroup failed: %v", err)
@@ -786,7 +786,7 @@ func TestDeleteSettlement(t *testing.T) {
 	// Create a group
 	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name:      "Delete Settlement Group",
-		MemberIds: []string{"Alice", "Bob"},
+		Members: []string{"Alice", "Bob"},
 	}))
 	if err != nil {
 		t.Fatalf("CreateGroup failed: %v", err)
@@ -834,7 +834,7 @@ func TestGetGroupBalances_WithSettlements(t *testing.T) {
 	// Create a group
 	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name:      "Balances With Settlements Group",
-		MemberIds: []string{"Alice", "Bob"},
+		Members: []string{"Alice", "Bob"},
 	}))
 	if err != nil {
 		t.Fatalf("CreateGroup failed: %v", err)

@@ -52,7 +52,7 @@ async function loadGroup() {
 
     document.getElementById('group-name').textContent = currentGroup.name;
     document.getElementById('group-members').textContent =
-      `Members: ${(currentGroup.memberIds || []).join(', ')}`;
+      `Members: ${(currentGroup.members || []).join(', ')}`;
   } catch (err) {
     showError('Failed to load group: ' + err.message);
   }
@@ -260,7 +260,7 @@ async function loadSettlements() {
 }
 
 function openSettlementDialog() {
-  if (!currentGroup || !currentGroup.memberIds) {
+  if (!currentGroup || !currentGroup.members) {
     showError('Group data not loaded');
     return;
   }
@@ -268,13 +268,13 @@ function openSettlementDialog() {
   const fromSelect = document.getElementById('from-user');
   const toSelect = document.getElementById('to-user');
 
-  // Clear and populate dropdowns with group members
+  // Clear and populate dropdowns with group members (display names)
   fromSelect.innerHTML = '<option value="">Select payer...</option>';
   toSelect.innerHTML = '<option value="">Select recipient...</option>';
 
-  for (const memberId of currentGroup.memberIds) {
-    fromSelect.innerHTML += `<option value="${escapeHtml(memberId)}">${escapeHtml(memberId)}</option>`;
-    toSelect.innerHTML += `<option value="${escapeHtml(memberId)}">${escapeHtml(memberId)}</option>`;
+  for (const member of currentGroup.members) {
+    fromSelect.innerHTML += `<option value="${escapeHtml(member)}">${escapeHtml(member)}</option>`;
+    toSelect.innerHTML += `<option value="${escapeHtml(member)}">${escapeHtml(member)}</option>`;
   }
 
   // Clear form

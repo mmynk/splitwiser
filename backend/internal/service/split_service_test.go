@@ -423,7 +423,7 @@ func TestListBillsByGroup(t *testing.T) {
 	// First, create a group
 	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name:    "Test Group",
-		MemberIds: []string{"Alice", "Bob"},
+		Members: []string{"Alice", "Bob"},
 	}))
 	if err != nil {
 		t.Fatalf("CreateGroup failed: %v", err)
@@ -522,7 +522,7 @@ func TestListBillsByGroup_EmptyGroup(t *testing.T) {
 	// Create an actual empty group
 	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name:      "Empty Group",
-		MemberIds: []string{"Alice"},
+		Members: []string{"Alice"},
 	}))
 	if err != nil {
 		t.Fatalf("CreateGroup failed: %v", err)
@@ -821,7 +821,7 @@ func TestCreateBill_AutoAddsParticipantsToGroup(t *testing.T) {
 	// Create a group with 2 members
 	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name:      "Auto-Add Test Group",
-		MemberIds: []string{"Alice", "Bob"},
+		Members: []string{"Alice", "Bob"},
 	}))
 	if err != nil {
 		t.Fatalf("CreateGroup failed: %v", err)
@@ -849,7 +849,7 @@ func TestCreateBill_AutoAddsParticipantsToGroup(t *testing.T) {
 		t.Fatalf("GetGroup failed: %v", err)
 	}
 
-	members := getResp.Msg.Group.MemberIds
+	members := getResp.Msg.Group.Members
 	if len(members) != 3 {
 		t.Fatalf("Expected 3 members after auto-add, got %d: %v", len(members), members)
 	}
@@ -874,7 +874,7 @@ func TestCreateBill_AutoAddsPayerToGroup(t *testing.T) {
 	// Create a group with 2 members
 	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name:      "Payer Auto-Add Test",
-		MemberIds: []string{"Alice", "Bob"},
+		Members: []string{"Alice", "Bob"},
 	}))
 	if err != nil {
 		t.Fatalf("CreateGroup failed: %v", err)
@@ -906,7 +906,7 @@ func TestCreateBill_AutoAddsPayerToGroup(t *testing.T) {
 		t.Fatalf("GetGroup failed: %v", err)
 	}
 
-	members := getResp.Msg.Group.MemberIds
+	members := getResp.Msg.Group.Members
 	if len(members) != 3 {
 		t.Fatalf("Expected 3 members after auto-add, got %d: %v", len(members), members)
 	}
@@ -930,7 +930,7 @@ func TestListMyBills(t *testing.T) {
 	// Create a group
 	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name:      "My Bills Test Group",
-		MemberIds: []string{"Alice", "Bob"},
+		Members: []string{"Alice", "Bob"},
 	}))
 	if err != nil {
 		t.Fatalf("CreateGroup failed: %v", err)

@@ -103,6 +103,13 @@ async function loadGroups() {
     if (groups.length > 0) {
       groupSelector.classList.remove('hidden');
       renderGroupOptions();
+
+      // Auto-select group from URL ?group= param (e.g. from "New Bill" link on group page)
+      const urlGroupId = new URLSearchParams(window.location.search).get('group');
+      if (urlGroupId && groups.find(g => g.id === urlGroupId)) {
+        groupSelect.value = urlGroupId;
+        handleGroupSelect();
+      }
     }
   } catch (err) {
     console.error('Failed to load groups:', err);
