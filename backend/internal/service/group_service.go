@@ -25,10 +25,20 @@ func NewGroupService(store storage.Store) *GroupService {
 	return &GroupService{store: store}
 }
 
-// isMember checks if the user is in the members list.
-func isMember(userID string, members []string) bool {
+// isMember checks if the user (by UUID) is in the members list.
+func isMember(userID string, members []models.GroupMember) bool {
 	for _, m := range members {
-		if m == userID {
+		if m.UserID == userID {
+			return true
+		}
+	}
+	return false
+}
+
+// isMemberByName checks if a display name is in the members list.
+func isMemberByName(name string, members []models.GroupMember) bool {
+	for _, m := range members {
+		if m.DisplayName == name {
 			return true
 		}
 	}
@@ -45,30 +55,53 @@ func (s *GroupService) resolveDisplayName(ctx context.Context, userID string) st
 	return users[userID].DisplayName
 }
 
+// modelToPbMembers converts model GroupMembers to proto GroupMembers.
+func modelToPbMembers(members []models.GroupMember) []*pb.GroupMember {
+	result := make([]*pb.GroupMember, len(members))
+	for i, m := range members {
+		pbm := &pb.GroupMember{DisplayName: m.DisplayName}
+		if m.UserID != "" {
+			uid := m.UserID
+			pbm.UserId = &uid
+		}
+		result[i] = pbm
+	}
+	return result
+}
+
+// pbToModelMembers converts proto GroupMembers to model GroupMembers.
+func pbToModelMembers(pbMembers []*pb.GroupMember) []models.GroupMember {
+	result := make([]models.GroupMember, len(pbMembers))
+	for i, m := range pbMembers {
+		result[i] = models.GroupMember{
+			DisplayName: m.DisplayName,
+			UserID:      m.GetUserId(),
+		}
+	}
+	return result
+}
+
 // CreateGroup creates a new group.
 func (s *GroupService) CreateGroup(ctx context.Context, req *connect.Request[pb.CreateGroupRequest]) (*connect.Response[pb.CreateGroupResponse], error) {
-	// Get authenticated user ID from context
 	userID := middleware.GetUserID(ctx)
 	if userID == "" {
 		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("authentication required"))
 	}
 
-	// Resolve creator's display name
 	creatorName := s.resolveDisplayName(ctx, userID)
 
-	// Add creator to members if not already present
-	members := req.Msg.Members
-	if !isMember(creatorName, members) {
-		members = append([]string{creatorName}, members...)
+	members := pbToModelMembers(req.Msg.Members)
+
+	// Add creator with their user_id if not already present
+	if !isMemberByName(creatorName, members) {
+		members = append([]models.GroupMember{{DisplayName: creatorName, UserID: userID}}, members...)
 	}
 
-	// Create group model
 	group := &models.Group{
 		Name:    req.Msg.Name,
 		Members: members,
 	}
 
-	// Save to storage (generates ID and CreatedAt)
 	if err := s.store.CreateGroup(ctx, group); err != nil {
 		slog.Error("CreateGroup failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -78,7 +111,7 @@ func (s *GroupService) CreateGroup(ctx context.Context, req *connect.Request[pb.
 		Group: &pb.Group{
 			Id:        group.ID,
 			Name:      group.Name,
-			Members:   group.Members,
+			Members:   modelToPbMembers(group.Members),
 			CreatedAt: group.CreatedAt,
 		},
 	}), nil
@@ -86,7 +119,6 @@ func (s *GroupService) CreateGroup(ctx context.Context, req *connect.Request[pb.
 
 // GetGroup retrieves a group by ID.
 func (s *GroupService) GetGroup(ctx context.Context, req *connect.Request[pb.GetGroupRequest]) (*connect.Response[pb.GetGroupResponse], error) {
-	// Get authenticated user ID from context
 	userID := middleware.GetUserID(ctx)
 	if userID == "" {
 		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("authentication required"))
@@ -102,7 +134,7 @@ func (s *GroupService) GetGroup(ctx context.Context, req *connect.Request[pb.Get
 		Group: &pb.Group{
 			Id:        group.ID,
 			Name:      group.Name,
-			Members:   group.Members,
+			Members:   modelToPbMembers(group.Members),
 			CreatedAt: group.CreatedAt,
 		},
 	}), nil
@@ -115,20 +147,18 @@ func (s *GroupService) ListGroups(ctx context.Context, req *connect.Request[pb.L
 		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("authentication required"))
 	}
 
-	displayName := s.resolveDisplayName(ctx, userID)
-	groups, err := s.store.ListGroupsByUser(ctx, displayName)
+	groups, err := s.store.ListGroupsByUser(ctx, userID)
 	if err != nil {
 		slog.Error("ListGroups failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	// Convert to proto format
 	protoGroups := make([]*pb.Group, len(groups))
 	for i, group := range groups {
 		protoGroups[i] = &pb.Group{
 			Id:        group.ID,
 			Name:      group.Name,
-			Members:   group.Members,
+			Members:   modelToPbMembers(group.Members),
 			CreatedAt: group.CreatedAt,
 		}
 	}
@@ -140,20 +170,17 @@ func (s *GroupService) ListGroups(ctx context.Context, req *connect.Request[pb.L
 
 // UpdateGroup updates an existing group.
 func (s *GroupService) UpdateGroup(ctx context.Context, req *connect.Request[pb.UpdateGroupRequest]) (*connect.Response[pb.UpdateGroupResponse], error) {
-	// Create group model
 	group := &models.Group{
 		ID:      req.Msg.GroupId,
 		Name:    req.Msg.Name,
-		Members: req.Msg.Members,
+		Members: pbToModelMembers(req.Msg.Members),
 	}
 
-	// Update in storage
 	if err := s.store.UpdateGroup(ctx, group); err != nil {
 		slog.Error("UpdateGroup failed", "error", err)
 		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
 
-	// Fetch updated group to get CreatedAt
 	updatedGroup, err := s.store.GetGroup(ctx, group.ID)
 	if err != nil {
 		slog.Error("Failed to fetch updated group", "error", err)
@@ -164,7 +191,7 @@ func (s *GroupService) UpdateGroup(ctx context.Context, req *connect.Request[pb.
 		Group: &pb.Group{
 			Id:        updatedGroup.ID,
 			Name:      updatedGroup.Name,
-			Members:   updatedGroup.Members,
+			Members:   modelToPbMembers(updatedGroup.Members),
 			CreatedAt: updatedGroup.CreatedAt,
 		},
 	}), nil
@@ -187,21 +214,18 @@ func (s *GroupService) GetGroupBalances(ctx context.Context, req *connect.Reques
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("group_id required"))
 	}
 
-	// Verify group exists
 	_, err := s.store.GetGroup(ctx, groupID)
 	if err != nil {
 		slog.Error("GetGroupBalances failed - group not found", "group_id", groupID, "error", err)
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("group not found"))
 	}
 
-	// Get all bills for this group
 	billSummaries, err := s.store.ListBillsByGroup(ctx, groupID)
 	if err != nil {
 		slog.Error("GetGroupBalances failed - could not list bills", "group_id", groupID, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	// Fetch full bill details for each
 	var bills []calculator.BillForBalance
 	for _, summary := range billSummaries {
 		bill, err := s.store.GetBill(ctx, summary.ID)
@@ -210,7 +234,6 @@ func (s *GroupService) GetGroupBalances(ctx context.Context, req *connect.Reques
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
 
-		// Convert to calculator format
 		calcItems := make([]calculator.Item, len(bill.Items))
 		for i, item := range bill.Items {
 			calcItems[i] = calculator.Item{
@@ -225,18 +248,16 @@ func (s *GroupService) GetGroupBalances(ctx context.Context, req *connect.Reques
 			Subtotal:     bill.Subtotal,
 			PayerID:      bill.PayerID,
 			Items:        calcItems,
-			Participants: bill.Participants,
+			Participants: participantDisplayNames(bill.Participants),
 		})
 	}
 
-	// Fetch settlements for this group
 	settlementsList, err := s.store.ListSettlementsByGroup(ctx, groupID)
 	if err != nil {
 		slog.Error("GetGroupBalances failed - could not list settlements", "group_id", groupID, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	// Convert settlements to calculator format
 	calcSettlements := make([]calculator.SettlementForBalance, len(settlementsList))
 	for i, settlement := range settlementsList {
 		calcSettlements[i] = calculator.SettlementForBalance{
@@ -246,14 +267,12 @@ func (s *GroupService) GetGroupBalances(ctx context.Context, req *connect.Reques
 		}
 	}
 
-	// Calculate balances
 	memberBalances, debtEdges, err := calculator.CalculateGroupBalances(bills, calcSettlements)
 	if err != nil {
 		slog.Error("GetGroupBalances failed - calculation error", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	// Convert to proto messages
 	pbBalances := make([]*pb.MemberBalance, len(memberBalances))
 	for i, bal := range memberBalances {
 		pbBalances[i] = &pb.MemberBalance{
@@ -281,7 +300,6 @@ func (s *GroupService) GetGroupBalances(ctx context.Context, req *connect.Reques
 
 // RecordSettlement records a payment between group members.
 func (s *GroupService) RecordSettlement(ctx context.Context, req *connect.Request[pb.RecordSettlementRequest]) (*connect.Response[pb.RecordSettlementResponse], error) {
-	// Get authenticated user ID from context
 	userID := middleware.GetUserID(ctx)
 	if userID == "" {
 		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("authentication required"))
@@ -293,7 +311,6 @@ func (s *GroupService) RecordSettlement(ctx context.Context, req *connect.Reques
 	amount := req.Msg.GetAmount()
 	note := req.Msg.GetNote()
 
-	// Validation
 	if groupID == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("group_id required"))
 	}
@@ -310,7 +327,6 @@ func (s *GroupService) RecordSettlement(ctx context.Context, req *connect.Reques
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("from_user_id and to_user_id must be different"))
 	}
 
-	// Verify group exists and user is a member
 	group, err := s.store.GetGroup(ctx, groupID)
 	if err != nil {
 		slog.Error("RecordSettlement failed - group not found", "group_id", groupID, "error", err)
@@ -318,19 +334,18 @@ func (s *GroupService) RecordSettlement(ctx context.Context, req *connect.Reques
 	}
 
 	creatorDisplayName := s.resolveDisplayName(ctx, userID)
-	if !isMember(creatorDisplayName, group.Members) {
+	if !isMemberByName(creatorDisplayName, group.Members) {
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("not a member of this group"))
 	}
 
-	// Verify from_user and to_user are members (they are display names)
-	if !isMember(fromUserID, group.Members) {
+	// from/to are display names
+	if !isMemberByName(fromUserID, group.Members) {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("from_user is not a member of this group"))
 	}
-	if !isMember(toUserID, group.Members) {
+	if !isMemberByName(toUserID, group.Members) {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("to_user is not a member of this group"))
 	}
 
-	// Create settlement (fromUserID/toUserID are display names)
 	settlement := &models.Settlement{
 		GroupID:    groupID,
 		FromUserID: fromUserID,
@@ -345,10 +360,6 @@ func (s *GroupService) RecordSettlement(ctx context.Context, req *connect.Reques
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	// fromUserID/toUserID are already display names
-	fromName := fromUserID
-	toName := toUserID
-
 	return connect.NewResponse(&pb.RecordSettlementResponse{
 		Settlement: &pb.Settlement{
 			Id:         settlement.ID,
@@ -359,27 +370,24 @@ func (s *GroupService) RecordSettlement(ctx context.Context, req *connect.Reques
 			CreatedAt:  settlement.CreatedAt,
 			CreatedBy:  settlement.CreatedBy,
 			Note:       settlement.Note,
-			FromName:   fromName,
-			ToName:     toName,
+			FromName:   fromUserID,
+			ToName:     toUserID,
 		},
 	}), nil
 }
 
 // ListSettlements lists all settlements for a group.
 func (s *GroupService) ListSettlements(ctx context.Context, req *connect.Request[pb.ListSettlementsRequest]) (*connect.Response[pb.ListSettlementsResponse], error) {
-	// Get authenticated user ID from context
 	userID := middleware.GetUserID(ctx)
 	if userID == "" {
 		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("authentication required"))
 	}
 
 	groupID := req.Msg.GetGroupId()
-
 	if groupID == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("group_id required"))
 	}
 
-	// Verify group exists and user is a member
 	group, err := s.store.GetGroup(ctx, groupID)
 	if err != nil {
 		slog.Error("ListSettlements failed - group not found", "group_id", groupID, "error", err)
@@ -387,18 +395,16 @@ func (s *GroupService) ListSettlements(ctx context.Context, req *connect.Request
 	}
 
 	memberDisplayName := s.resolveDisplayName(ctx, userID)
-	if !isMember(memberDisplayName, group.Members) {
+	if !isMemberByName(memberDisplayName, group.Members) {
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("not a member of this group"))
 	}
 
-	// Get settlements
 	settlements, err := s.store.ListSettlementsByGroup(ctx, groupID)
 	if err != nil {
 		slog.Error("ListSettlements failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	// Convert to proto (FromUserID/ToUserID are already display names)
 	pbSettlements := make([]*pb.Settlement, len(settlements))
 	for i, settlement := range settlements {
 		pbSettlements[i] = &pb.Settlement{
@@ -422,26 +428,22 @@ func (s *GroupService) ListSettlements(ctx context.Context, req *connect.Request
 
 // DeleteSettlement removes a settlement.
 func (s *GroupService) DeleteSettlement(ctx context.Context, req *connect.Request[pb.DeleteSettlementRequest]) (*connect.Response[pb.DeleteSettlementResponse], error) {
-	// Get authenticated user ID from context
 	userID := middleware.GetUserID(ctx)
 	if userID == "" {
 		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("authentication required"))
 	}
 
 	settlementID := req.Msg.GetSettlementId()
-
 	if settlementID == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("settlement_id required"))
 	}
 
-	// Get settlement to check group membership
 	settlement, err := s.store.GetSettlement(ctx, settlementID)
 	if err != nil {
 		slog.Error("DeleteSettlement failed - settlement not found", "settlement_id", settlementID, "error", err)
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("settlement not found"))
 	}
 
-	// Verify user is a member of the group
 	group, err := s.store.GetGroup(ctx, settlement.GroupID)
 	if err != nil {
 		slog.Error("DeleteSettlement failed - group not found", "group_id", settlement.GroupID, "error", err)
@@ -449,11 +451,10 @@ func (s *GroupService) DeleteSettlement(ctx context.Context, req *connect.Reques
 	}
 
 	deletorDisplayName := s.resolveDisplayName(ctx, userID)
-	if !isMember(deletorDisplayName, group.Members) {
+	if !isMemberByName(deletorDisplayName, group.Members) {
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("not a member of this group"))
 	}
 
-	// Delete settlement
 	if err := s.store.DeleteSettlement(ctx, settlementID); err != nil {
 		slog.Error("DeleteSettlement failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)

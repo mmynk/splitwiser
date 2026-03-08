@@ -60,6 +60,14 @@ func (s *SQLiteStore) Close() error {
 	return s.db.Close()
 }
 
+// nullString returns a sql.NullString for a string value, treating empty string as NULL.
+func nullString(v string) sql.NullString {
+	if v == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: v, Valid: true}
+}
+
 // CreateBill persists a new bill to the database.
 func (s *SQLiteStore) CreateBill(ctx context.Context, bill *models.Bill) error {
 	// Generate IDs if not set
@@ -80,27 +88,20 @@ func (s *SQLiteStore) CreateBill(ctx context.Context, bill *models.Bill) error {
 	defer tx.Rollback()
 
 	// Insert bill
-	var groupID interface{} = nil
-	if bill.GroupID != "" {
-		groupID = bill.GroupID
-	}
-	var payerID interface{} = nil
-	if bill.PayerID != "" {
-		payerID = bill.PayerID
-	}
 	_, err = tx.ExecContext(ctx,
 		"INSERT INTO bills (id, title, total, subtotal, created_at, group_id, payer_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		bill.ID, bill.Title, bill.Total, bill.Subtotal, bill.CreatedAt, groupID, payerID,
+		bill.ID, bill.Title, bill.Total, bill.Subtotal, bill.CreatedAt,
+		nullString(bill.GroupID), nullString(bill.PayerID),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to insert bill: %w", err)
 	}
 
 	// Insert participants
-	for _, name := range bill.Participants {
+	for _, p := range bill.Participants {
 		_, err = tx.ExecContext(ctx,
-			"INSERT INTO participants (bill_id, name) VALUES (?, ?)",
-			bill.ID, name,
+			"INSERT INTO participants (bill_id, name, user_id) VALUES (?, ?, ?)",
+			bill.ID, p.DisplayName, nullString(p.UserID),
 		)
 		if err != nil {
 			return fmt.Errorf("failed to insert participant: %w", err)
@@ -122,7 +123,7 @@ func (s *SQLiteStore) CreateBill(ctx context.Context, bill *models.Bill) error {
 			return fmt.Errorf("failed to insert item: %w", err)
 		}
 
-		// Insert item assignments
+		// Insert item assignments (display names)
 		for _, participant := range item.Participants {
 			_, err = tx.ExecContext(ctx,
 				"INSERT INTO item_assignments (item_id, participant) VALUES (?, ?)",
@@ -143,7 +144,6 @@ func (s *SQLiteStore) CreateBill(ctx context.Context, bill *models.Bill) error {
 
 // GetBill retrieves a bill by ID, including all items and participants.
 func (s *SQLiteStore) GetBill(ctx context.Context, billID string) (*models.Bill, error) {
-	// Get bill
 	bill := &models.Bill{}
 	var groupID sql.NullString
 	var payerID sql.NullString
@@ -166,7 +166,7 @@ func (s *SQLiteStore) GetBill(ctx context.Context, billID string) (*models.Bill,
 
 	// Get participants
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT name FROM participants WHERE bill_id = ? ORDER BY name",
+		"SELECT name, user_id FROM participants WHERE bill_id = ? ORDER BY name",
 		billID,
 	)
 	if err != nil {
@@ -176,10 +176,15 @@ func (s *SQLiteStore) GetBill(ctx context.Context, billID string) (*models.Bill,
 
 	for rows.Next() {
 		var name string
-		if err := rows.Scan(&name); err != nil {
+		var userID sql.NullString
+		if err := rows.Scan(&name, &userID); err != nil {
 			return nil, fmt.Errorf("failed to scan participant: %w", err)
 		}
-		bill.Participants = append(bill.Participants, name)
+		p := models.BillParticipant{DisplayName: name}
+		if userID.Valid {
+			p.UserID = userID.String
+		}
+		bill.Participants = append(bill.Participants, p)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("failed to iterate participants: %w", err)
@@ -254,18 +259,9 @@ func (s *SQLiteStore) UpdateBill(ctx context.Context, bill *models.Bill) error {
 	}
 	defer tx.Rollback()
 
-	// Update bill fields
-	var groupID interface{} = nil
-	if bill.GroupID != "" {
-		groupID = bill.GroupID
-	}
-	var payerID interface{} = nil
-	if bill.PayerID != "" {
-		payerID = bill.PayerID
-	}
 	_, err = tx.ExecContext(ctx,
 		"UPDATE bills SET title = ?, total = ?, subtotal = ?, group_id = ?, payer_id = ? WHERE id = ?",
-		bill.Title, bill.Total, bill.Subtotal, groupID, payerID, bill.ID,
+		bill.Title, bill.Total, bill.Subtotal, nullString(bill.GroupID), nullString(bill.PayerID), bill.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update bill: %w", err)
@@ -284,10 +280,10 @@ func (s *SQLiteStore) UpdateBill(ctx context.Context, bill *models.Bill) error {
 	}
 
 	// Insert new participants
-	for _, name := range bill.Participants {
+	for _, p := range bill.Participants {
 		_, err = tx.ExecContext(ctx,
-			"INSERT INTO participants (bill_id, name) VALUES (?, ?)",
-			bill.ID, name,
+			"INSERT INTO participants (bill_id, name, user_id) VALUES (?, ?, ?)",
+			bill.ID, p.DisplayName, nullString(p.UserID),
 		)
 		if err != nil {
 			return fmt.Errorf("failed to insert participant: %w", err)
@@ -309,7 +305,6 @@ func (s *SQLiteStore) UpdateBill(ctx context.Context, bill *models.Bill) error {
 			return fmt.Errorf("failed to insert item: %w", err)
 		}
 
-		// Insert item assignments
 		for _, participant := range item.Participants {
 			_, err = tx.ExecContext(ctx,
 				"INSERT INTO item_assignments (item_id, participant) VALUES (?, ?)",
@@ -330,7 +325,6 @@ func (s *SQLiteStore) UpdateBill(ctx context.Context, bill *models.Bill) error {
 
 // DeleteBill removes a bill and its associated data (items, participants, assignments).
 func (s *SQLiteStore) DeleteBill(ctx context.Context, billID string) error {
-	// Check if bill exists
 	var exists int
 	err := s.db.QueryRowContext(ctx, "SELECT 1 FROM bills WHERE id = ?", billID).Scan(&exists)
 	if err == sql.ErrNoRows {
@@ -340,7 +334,6 @@ func (s *SQLiteStore) DeleteBill(ctx context.Context, billID string) error {
 		return fmt.Errorf("failed to check bill existence: %w", err)
 	}
 
-	// Delete bill (cascades to items, participants, and item_assignments via FK)
 	_, err = s.db.ExecContext(ctx, "DELETE FROM bills WHERE id = ?", billID)
 	if err != nil {
 		return fmt.Errorf("failed to delete bill: %w", err)
@@ -351,7 +344,6 @@ func (s *SQLiteStore) DeleteBill(ctx context.Context, billID string) error {
 
 // ListBillsByGroup retrieves all bills associated with a group.
 func (s *SQLiteStore) ListBillsByGroup(ctx context.Context, groupID string) ([]*models.Bill, error) {
-	// Get all bills for the group
 	rows, err := s.db.QueryContext(ctx,
 		"SELECT id, title, total, subtotal, payer_id, created_at, group_id FROM bills WHERE group_id = ? ORDER BY created_at DESC",
 		groupID,
@@ -376,74 +368,14 @@ func (s *SQLiteStore) ListBillsByGroup(ctx context.Context, groupID string) ([]*
 			bill.GroupID = groupIDStr.String
 		}
 
-		// Get participants for this bill
-		participantRows, err := s.db.QueryContext(ctx,
-			"SELECT name FROM participants WHERE bill_id = ? ORDER BY name",
-			bill.ID,
-		)
+		bill.Participants, err = s.getParticipants(ctx, bill.ID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get participants: %w", err)
+			return nil, err
 		}
 
-		for participantRows.Next() {
-			var name string
-			if err := participantRows.Scan(&name); err != nil {
-				participantRows.Close()
-				return nil, fmt.Errorf("failed to scan participant: %w", err)
-			}
-			bill.Participants = append(bill.Participants, name)
-		}
-		participantRows.Close()
-		if err := participantRows.Err(); err != nil {
-			return nil, fmt.Errorf("failed to iterate participants: %w", err)
-		}
-
-		// Get items for this bill (we include them for completeness, though the API might not need them)
-		itemRows, err := s.db.QueryContext(ctx,
-			"SELECT id, description, amount FROM items WHERE bill_id = ?",
-			bill.ID,
-		)
+		bill.Items, err = s.getItemsWithAssignments(ctx, bill.ID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get items: %w", err)
-		}
-
-		for itemRows.Next() {
-			var item models.Item
-			if err := itemRows.Scan(&item.ID, &item.Description, &item.Amount); err != nil {
-				itemRows.Close()
-				return nil, fmt.Errorf("failed to scan item: %w", err)
-			}
-
-			// Get assignments for this item
-			assignRows, err := s.db.QueryContext(ctx,
-				"SELECT participant FROM item_assignments WHERE item_id = ? ORDER BY participant",
-				item.ID,
-			)
-			if err != nil {
-				itemRows.Close()
-				return nil, fmt.Errorf("failed to get item assignments: %w", err)
-			}
-
-			for assignRows.Next() {
-				var participant string
-				if err := assignRows.Scan(&participant); err != nil {
-					assignRows.Close()
-					itemRows.Close()
-					return nil, fmt.Errorf("failed to scan assignment: %w", err)
-				}
-				item.Participants = append(item.Participants, participant)
-			}
-			assignRows.Close()
-			if err := assignRows.Err(); err != nil {
-				itemRows.Close()
-				return nil, fmt.Errorf("failed to iterate assignments: %w", err)
-			}
-
-			bill.Items = append(bill.Items, item)
-		}
-		itemRows.Close()
-		if err := itemRows.Err(); err != nil {
-			return nil, fmt.Errorf("failed to iterate items: %w", err)
+			return nil, err
 		}
 
 		bills = append(bills, bill)
@@ -455,15 +387,15 @@ func (s *SQLiteStore) ListBillsByGroup(ctx context.Context, groupID string) ([]*
 	return bills, nil
 }
 
-// ListBillsByParticipant retrieves all bills where the given user is a participant.
-func (s *SQLiteStore) ListBillsByParticipant(ctx context.Context, participantID string) ([]*models.Bill, error) {
+// ListBillsByParticipant retrieves all bills where the given user_id is linked as a participant.
+func (s *SQLiteStore) ListBillsByParticipant(ctx context.Context, userID string) ([]*models.Bill, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT b.id, b.title, b.total, b.subtotal, b.payer_id, b.group_id, b.created_at
 		FROM bills b
 		INNER JOIN participants p ON b.id = p.bill_id
-		WHERE p.name = ?
+		WHERE p.user_id = ?
 		ORDER BY b.created_at DESC`,
-		participantID,
+		userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list bills by participant: %w", err)
@@ -485,25 +417,9 @@ func (s *SQLiteStore) ListBillsByParticipant(ctx context.Context, participantID 
 			bill.GroupID = groupID.String
 		}
 
-		// Get participant count
-		participantRows, err := s.db.QueryContext(ctx,
-			"SELECT name FROM participants WHERE bill_id = ? ORDER BY name",
-			bill.ID,
-		)
+		bill.Participants, err = s.getParticipants(ctx, bill.ID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get participants: %w", err)
-		}
-		for participantRows.Next() {
-			var name string
-			if err := participantRows.Scan(&name); err != nil {
-				participantRows.Close()
-				return nil, fmt.Errorf("failed to scan participant: %w", err)
-			}
-			bill.Participants = append(bill.Participants, name)
-		}
-		participantRows.Close()
-		if err := participantRows.Err(); err != nil {
-			return nil, fmt.Errorf("failed to iterate participants: %w", err)
+			return nil, err
 		}
 
 		bills = append(bills, bill)
@@ -515,10 +431,79 @@ func (s *SQLiteStore) ListBillsByParticipant(ctx context.Context, participantID 
 	return bills, nil
 }
 
-// generateTitle creates an auto-generated title using hybrid "Items - Participants" format.
-func generateTitle(items []models.Item, participants []string) string {
-	// Strategy: "Items - Participants"
+// getParticipants is a helper that fetches participants for a bill.
+func (s *SQLiteStore) getParticipants(ctx context.Context, billID string) ([]models.BillParticipant, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT name, user_id FROM participants WHERE bill_id = ? ORDER BY name",
+		billID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get participants: %w", err)
+	}
+	defer rows.Close()
 
+	var participants []models.BillParticipant
+	for rows.Next() {
+		var name string
+		var userID sql.NullString
+		if err := rows.Scan(&name, &userID); err != nil {
+			return nil, fmt.Errorf("failed to scan participant: %w", err)
+		}
+		p := models.BillParticipant{DisplayName: name}
+		if userID.Valid {
+			p.UserID = userID.String
+		}
+		participants = append(participants, p)
+	}
+	return participants, rows.Err()
+}
+
+// getItemsWithAssignments is a helper that fetches items and their participant assignments.
+func (s *SQLiteStore) getItemsWithAssignments(ctx context.Context, billID string) ([]models.Item, error) {
+	itemRows, err := s.db.QueryContext(ctx,
+		"SELECT id, description, amount FROM items WHERE bill_id = ?",
+		billID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get items: %w", err)
+	}
+	defer itemRows.Close()
+
+	var items []models.Item
+	for itemRows.Next() {
+		var item models.Item
+		if err := itemRows.Scan(&item.ID, &item.Description, &item.Amount); err != nil {
+			return nil, fmt.Errorf("failed to scan item: %w", err)
+		}
+
+		assignRows, err := s.db.QueryContext(ctx,
+			"SELECT participant FROM item_assignments WHERE item_id = ? ORDER BY participant",
+			item.ID,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get item assignments: %w", err)
+		}
+
+		for assignRows.Next() {
+			var participant string
+			if err := assignRows.Scan(&participant); err != nil {
+				assignRows.Close()
+				return nil, fmt.Errorf("failed to scan assignment: %w", err)
+			}
+			item.Participants = append(item.Participants, participant)
+		}
+		assignRows.Close()
+		if err := assignRows.Err(); err != nil {
+			return nil, fmt.Errorf("failed to iterate assignments: %w", err)
+		}
+
+		items = append(items, item)
+	}
+	return items, itemRows.Err()
+}
+
+// generateTitle creates an auto-generated title using hybrid "Items - Participants" format.
+func generateTitle(items []models.Item, participants []models.BillParticipant) string {
 	itemsStr := ""
 	if len(items) > 0 {
 		if len(items) == 1 {
@@ -530,37 +515,33 @@ func generateTitle(items []models.Item, participants []string) string {
 			}
 			itemsStr = strings.Join(descriptions, ", ")
 		} else {
-			descriptions := make([]string, 2)
-			descriptions[0] = items[0].Description
-			descriptions[1] = items[1].Description
-			itemsStr = fmt.Sprintf("%s & %d more", strings.Join(descriptions, ", "), len(items)-2)
+			itemsStr = fmt.Sprintf("%s, %s & %d more", items[0].Description, items[1].Description, len(items)-2)
 		}
 	}
 
 	participantsStr := ""
-	if len(participants) <= 3 {
-		participantsStr = strings.Join(participants, ", ")
+	names := make([]string, len(participants))
+	for i, p := range participants {
+		names[i] = p.DisplayName
+	}
+	if len(names) <= 3 {
+		participantsStr = strings.Join(names, ", ")
 	} else {
-		participantsStr = fmt.Sprintf("%s & %d others",
-			strings.Join(participants[:2], ", "),
-			len(participants)-2)
+		participantsStr = fmt.Sprintf("%s & %d others", strings.Join(names[:2], ", "), len(names)-2)
 	}
 
-	// Combine
 	if itemsStr != "" && participantsStr != "" {
 		return fmt.Sprintf("%s - %s", itemsStr, participantsStr)
 	} else if itemsStr != "" {
 		return itemsStr
 	} else if participantsStr != "" {
 		return fmt.Sprintf("Split with %s", participantsStr)
-	} else {
-		return fmt.Sprintf("Bill - %s", time.Now().Format("Jan 2, 2006"))
 	}
+	return fmt.Sprintf("Bill - %s", time.Now().Format("Jan 2, 2006"))
 }
 
 // CreateGroup persists a new group to the database.
 func (s *SQLiteStore) CreateGroup(ctx context.Context, group *models.Group) error {
-	// Generate IDs if not set
 	if group.ID == "" {
 		group.ID = uuid.New().String()
 	}
@@ -574,7 +555,6 @@ func (s *SQLiteStore) CreateGroup(ctx context.Context, group *models.Group) erro
 	}
 	defer tx.Rollback()
 
-	// Insert group
 	_, err = tx.ExecContext(ctx,
 		"INSERT INTO groups (id, name, created_at) VALUES (?, ?, ?)",
 		group.ID, group.Name, group.CreatedAt,
@@ -583,11 +563,10 @@ func (s *SQLiteStore) CreateGroup(ctx context.Context, group *models.Group) erro
 		return fmt.Errorf("failed to insert group: %w", err)
 	}
 
-	// Insert members
-	for _, name := range group.Members {
+	for _, m := range group.Members {
 		_, err = tx.ExecContext(ctx,
-			"INSERT INTO group_members (group_id, name) VALUES (?, ?)",
-			group.ID, name,
+			"INSERT INTO group_members (group_id, name, user_id) VALUES (?, ?, ?)",
+			group.ID, m.DisplayName, nullString(m.UserID),
 		)
 		if err != nil {
 			return fmt.Errorf("failed to insert group member: %w", err)
@@ -603,7 +582,6 @@ func (s *SQLiteStore) CreateGroup(ctx context.Context, group *models.Group) erro
 
 // GetGroup retrieves a group by ID, including all members.
 func (s *SQLiteStore) GetGroup(ctx context.Context, groupID string) (*models.Group, error) {
-	// Get group
 	group := &models.Group{}
 	err := s.db.QueryRowContext(ctx,
 		"SELECT id, name, created_at FROM groups WHERE id = ?",
@@ -616,38 +594,17 @@ func (s *SQLiteStore) GetGroup(ctx context.Context, groupID string) (*models.Gro
 		return nil, fmt.Errorf("failed to get group: %w", err)
 	}
 
-	// Get members
-	rows, err := s.db.QueryContext(ctx,
-		"SELECT name FROM group_members WHERE group_id = ? ORDER BY name",
-		groupID,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get group members: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, fmt.Errorf("failed to scan group member: %w", err)
-		}
-		group.Members = append(group.Members, name)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to iterate group members: %w", err)
-	}
-
-	return group, nil
+	group.Members, err = s.getGroupMembers(ctx, groupID)
+	return group, err
 }
 
-// ListGroupsByUser retrieves all groups the given user belongs to, with their members.
+// ListGroupsByUser retrieves all groups where the given user_id is a member.
 func (s *SQLiteStore) ListGroupsByUser(ctx context.Context, userID string) ([]*models.Group, error) {
-	// Get groups where user is a member
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT g.id, g.name, g.created_at
 		FROM groups g
 		JOIN group_members gm ON g.id = gm.group_id
-		WHERE gm.name = ?
+		WHERE gm.user_id = ?
 		ORDER BY g.created_at DESC`,
 		userID,
 	)
@@ -668,27 +625,10 @@ func (s *SQLiteStore) ListGroupsByUser(ctx context.Context, userID string) ([]*m
 		return nil, fmt.Errorf("failed to iterate groups: %w", err)
 	}
 
-	// Get members for each group
 	for _, group := range groups {
-		memberRows, err := s.db.QueryContext(ctx,
-			"SELECT name FROM group_members WHERE group_id = ? ORDER BY name",
-			group.ID,
-		)
+		group.Members, err = s.getGroupMembers(ctx, group.ID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get group members: %w", err)
-		}
-
-		for memberRows.Next() {
-			var name string
-			if err := memberRows.Scan(&name); err != nil {
-				memberRows.Close()
-				return nil, fmt.Errorf("failed to scan group member: %w", err)
-			}
-			group.Members = append(group.Members, name)
-		}
-		memberRows.Close()
-		if err := memberRows.Err(); err != nil {
-			return nil, fmt.Errorf("failed to iterate group members: %w", err)
+			return nil, err
 		}
 	}
 
@@ -701,7 +641,6 @@ func (s *SQLiteStore) UpdateGroup(ctx context.Context, group *models.Group) erro
 		return fmt.Errorf("group ID is required for update")
 	}
 
-	// Check if group exists
 	var exists int
 	err := s.db.QueryRowContext(ctx, "SELECT 1 FROM groups WHERE id = ?", group.ID).Scan(&exists)
 	if err == sql.ErrNoRows {
@@ -717,7 +656,6 @@ func (s *SQLiteStore) UpdateGroup(ctx context.Context, group *models.Group) erro
 	}
 	defer tx.Rollback()
 
-	// Update group fields
 	_, err = tx.ExecContext(ctx,
 		"UPDATE groups SET name = ? WHERE id = ?",
 		group.Name, group.ID,
@@ -726,17 +664,15 @@ func (s *SQLiteStore) UpdateGroup(ctx context.Context, group *models.Group) erro
 		return fmt.Errorf("failed to update group: %w", err)
 	}
 
-	// Delete existing members
 	_, err = tx.ExecContext(ctx, "DELETE FROM group_members WHERE group_id = ?", group.ID)
 	if err != nil {
 		return fmt.Errorf("failed to delete existing members: %w", err)
 	}
 
-	// Insert new members
-	for _, name := range group.Members {
+	for _, m := range group.Members {
 		_, err = tx.ExecContext(ctx,
-			"INSERT INTO group_members (group_id, name) VALUES (?, ?)",
-			group.ID, name,
+			"INSERT INTO group_members (group_id, name, user_id) VALUES (?, ?, ?)",
+			group.ID, m.DisplayName, nullString(m.UserID),
 		)
 		if err != nil {
 			return fmt.Errorf("failed to insert group member: %w", err)
@@ -750,9 +686,19 @@ func (s *SQLiteStore) UpdateGroup(ctx context.Context, group *models.Group) erro
 	return nil
 }
 
-// AddGroupMembers adds members to a group idempotently using INSERT OR IGNORE.
+// AddGroupMembers adds members (by display name only) to a group idempotently.
+// Deprecated: use AddGroupMembersWithIDs for members with optional user IDs.
 func (s *SQLiteStore) AddGroupMembers(ctx context.Context, groupID string, memberIDs []string) error {
-	if len(memberIDs) == 0 {
+	members := make([]models.GroupMember, len(memberIDs))
+	for i, name := range memberIDs {
+		members[i] = models.GroupMember{DisplayName: name}
+	}
+	return s.AddGroupMembersWithIDs(ctx, groupID, members)
+}
+
+// AddGroupMembersWithIDs adds members (with optional user IDs) to a group idempotently.
+func (s *SQLiteStore) AddGroupMembersWithIDs(ctx context.Context, groupID string, members []models.GroupMember) error {
+	if len(members) == 0 {
 		return nil
 	}
 
@@ -762,10 +708,10 @@ func (s *SQLiteStore) AddGroupMembers(ctx context.Context, groupID string, membe
 	}
 	defer tx.Rollback()
 
-	for _, name := range memberIDs {
+	for _, m := range members {
 		_, err = tx.ExecContext(ctx,
-			"INSERT OR IGNORE INTO group_members (group_id, name) VALUES (?, ?)",
-			groupID, name,
+			"INSERT OR IGNORE INTO group_members (group_id, name, user_id) VALUES (?, ?, ?)",
+			groupID, m.DisplayName, nullString(m.UserID),
 		)
 		if err != nil {
 			return fmt.Errorf("failed to add group member: %w", err)
@@ -780,9 +726,7 @@ func (s *SQLiteStore) AddGroupMembers(ctx context.Context, groupID string, membe
 }
 
 // DeleteGroup removes a group by ID.
-// Bills associated with the group will have their group_id set to NULL (via ON DELETE SET NULL).
 func (s *SQLiteStore) DeleteGroup(ctx context.Context, groupID string) error {
-	// Check if group exists
 	var exists int
 	err := s.db.QueryRowContext(ctx, "SELECT 1 FROM groups WHERE id = ?", groupID).Scan(&exists)
 	if err == sql.ErrNoRows {
@@ -792,11 +736,37 @@ func (s *SQLiteStore) DeleteGroup(ctx context.Context, groupID string) error {
 		return fmt.Errorf("failed to check group existence: %w", err)
 	}
 
-	// Delete group (cascades to group_members, sets bills.group_id to NULL)
 	_, err = s.db.ExecContext(ctx, "DELETE FROM groups WHERE id = ?", groupID)
 	if err != nil {
 		return fmt.Errorf("failed to delete group: %w", err)
 	}
 
 	return nil
+}
+
+// getGroupMembers is a helper that fetches members for a group.
+func (s *SQLiteStore) getGroupMembers(ctx context.Context, groupID string) ([]models.GroupMember, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT name, user_id FROM group_members WHERE group_id = ? ORDER BY name",
+		groupID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get group members: %w", err)
+	}
+	defer rows.Close()
+
+	var members []models.GroupMember
+	for rows.Next() {
+		var name string
+		var userID sql.NullString
+		if err := rows.Scan(&name, &userID); err != nil {
+			return nil, fmt.Errorf("failed to scan group member: %w", err)
+		}
+		m := models.GroupMember{DisplayName: name}
+		if userID.Valid {
+			m.UserID = userID.String
+		}
+		members = append(members, m)
+	}
+	return members, rows.Err()
 }

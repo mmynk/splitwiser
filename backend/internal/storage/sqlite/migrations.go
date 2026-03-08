@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS groups (
 CREATE TABLE IF NOT EXISTS group_members (
     group_id TEXT NOT NULL,
     name TEXT NOT NULL,
+    user_id TEXT,
     PRIMARY KEY (group_id, name),
     FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE
 );
@@ -57,6 +58,7 @@ CREATE TABLE IF NOT EXISTS item_assignments (
 CREATE TABLE IF NOT EXISTS participants (
     bill_id TEXT NOT NULL,
     name TEXT NOT NULL,
+    user_id TEXT,
     PRIMARY KEY (bill_id, name),
     FOREIGN KEY (bill_id) REFERENCES bills(id) ON DELETE CASCADE
 );
@@ -76,7 +78,9 @@ CREATE TABLE IF NOT EXISTS settlements (
 CREATE INDEX IF NOT EXISTS idx_items_bill_id ON items(bill_id);
 CREATE INDEX IF NOT EXISTS idx_item_assignments_item_id ON item_assignments(item_id);
 CREATE INDEX IF NOT EXISTS idx_participants_bill_id ON participants(bill_id);
+CREATE INDEX IF NOT EXISTS idx_participants_user_id ON participants(user_id);
 CREATE INDEX IF NOT EXISTS idx_group_members_group_id ON group_members(group_id);
+CREATE INDEX IF NOT EXISTS idx_group_members_user_id ON group_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_bills_group_id ON bills(group_id);
 CREATE INDEX IF NOT EXISTS idx_settlements_group_id ON settlements(group_id);
 `

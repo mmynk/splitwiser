@@ -34,18 +34,24 @@ service GroupService {
   rpc DeleteSettlement(DeleteSettlementRequest) returns (DeleteSettlementResponse);
 }
 
+// GroupMember links a display name to an optional registered user account.
+message GroupMember {
+  string display_name = 1;
+  optional string user_id = 2;
+}
+
 // Group represents a reusable participant list
 message Group {
   string id = 1;
   string name = 2;
-  repeated string members = 3;  // Display names of group members
+  repeated GroupMember members = 3;
   int64 created_at = 4;
 }
 
 // Request to create a group
 message CreateGroupRequest {
   string name = 1;
-  repeated string members = 2;  // Display names of members (creator added automatically)
+  repeated GroupMember members = 2;  // Creator added automatically
 }
 
 message CreateGroupResponse {
@@ -72,7 +78,7 @@ message ListGroupsResponse {
 message UpdateGroupRequest {
   string group_id = 1;
   string name = 2;
-  repeated string members = 3;  // Display names of all group members
+  repeated GroupMember members = 3;
 }
 
 message UpdateGroupResponse {

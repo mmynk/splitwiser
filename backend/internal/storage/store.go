@@ -77,6 +77,12 @@ type Store interface {
 	// GetUsersByIDs retrieves multiple users by their IDs. Missing IDs are omitted.
 	GetUsersByIDs(ctx context.Context, ids []string) (map[string]*models.User, error)
 
+	// SearchUsers finds registered users whose display_name or email matches the query prefix.
+	SearchUsers(ctx context.Context, query string, limit int) ([]*models.User, error)
+
+	// AddGroupMembersWithIDs adds members (with optional user IDs) to a group idempotently.
+	AddGroupMembersWithIDs(ctx context.Context, groupID string, members []models.GroupMember) error
+
 	// Close releases any resources held by the store.
 	Close() error
 }

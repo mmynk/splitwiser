@@ -28,14 +28,24 @@ service SplitService {
 
   // List bills the authenticated user participates in
   rpc ListMyBills(ListMyBillsRequest) returns (ListMyBillsResponse);
+
+  // Search for registered users by name or email
+  rpc SearchUsers(SearchUsersRequest) returns (SearchUsersResponse);
 }
 
-// Request to calculate a split
+// BillParticipant links a display name to an optional registered user account.
+// If user_id is absent or empty, the participant is a guest.
+message BillParticipant {
+  string display_name = 1;
+  optional string user_id = 2;
+}
+
+// Request to calculate a split (math only — participants are display names)
 message CalculateSplitRequest {
   repeated Item items = 1;
   double total = 2;        // Total bill amount including tax
   double subtotal = 3;     // Subtotal before tax
-  repeated string participant_ids = 4;  // User IDs of all participants
+  repeated string participant_ids = 4;  // Display names of all participants
 }
 
 // Response with calculated split
@@ -51,8 +61,8 @@ message CreateBillRequest {
   double total = 2;
   double subtotal = 3;
   repeated Item items = 4;
-  repeated string participant_ids = 5;  // User IDs of all participants
-  optional string payer_id = 6;         // User ID of participant who paid this bill
+  repeated BillParticipant participants = 5;
+  optional string payer_id = 6;         // Display name of participant who paid
   optional string group_id = 7;         // Links bill to a group
 }
 
@@ -71,12 +81,12 @@ message GetBillResponse {
   double total = 3;
   double subtotal = 4;
   repeated Item items = 5;
-  repeated string participant_ids = 6;  // User IDs of all participants
-  string payer_id = 7;                  // User ID of payer (always has a payer)
+  repeated BillParticipant participants = 6;
+  string payer_id = 7;                  // Display name of payer
   optional string group_id = 8;
   int64 created_at = 9;
   CalculateSplitResponse split = 10;
-  optional string group_name = 11;  // Name of the group (if group_id is set)
+  optional string group_name = 11;
 }
 
 message UpdateBillRequest {
@@ -85,8 +95,8 @@ message UpdateBillRequest {
   double total = 3;
   double subtotal = 4;
   repeated Item items = 5;
-  repeated string participant_ids = 6;  // User IDs of all participants
-  optional string payer_id = 7;         // User ID of participant who paid this bill
+  repeated BillParticipant participants = 6;
+  optional string payer_id = 7;         // Display name of participant who paid
   optional string group_id = 8;         // Links bill to a group
 }
 
@@ -105,10 +115,10 @@ message BillSummary {
   string bill_id = 1;
   string title = 2;
   double total = 3;
-  string payer_id = 4;  // User ID of payer (always has a payer)
+  string payer_id = 4;  // Display name of payer
   int64 created_at = 5;
   int32 participant_count = 6;
-  optional string group_name = 7;  // Name of the group (if bill belongs to a group)
+  optional string group_name = 7;
 }
 
 message ListBillsByGroupResponse {
@@ -128,3 +138,18 @@ message DeleteBillRequest {
 }
 
 message DeleteBillResponse {}
+
+// Search for registered users by name or email
+message SearchUsersRequest {
+  string query = 1;
+}
+
+message UserSearchResult {
+  string user_id = 1;
+  string display_name = 2;
+  string email = 3;
+}
+
+message SearchUsersResponse {
+  repeated UserSearchResult users = 1;
+}
