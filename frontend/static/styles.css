@@ -49,9 +49,66 @@ section {
   margin-bottom: var(--spacing-sm);
 }
 
-.participant-row input {
+.participant-input-wrapper {
   flex: 1;
+  position: relative;
+}
+
+.participant-input-wrapper input {
+  width: 100%;
   margin-bottom: 0;
+}
+
+.participant-row input {
+  margin-bottom: 0;
+}
+
+.linked-badge {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--pico-primary);
+  font-weight: bold;
+  font-size: 0.8em;
+  pointer-events: none;
+}
+
+.search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--pico-card-background-color);
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: var(--pico-border-radius);
+  z-index: 100;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.search-dropdown.hidden {
+  display: none;
+}
+
+.search-result {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--pico-muted-border-color);
+}
+
+.search-result:last-child {
+  border-bottom: none;
+}
+
+.search-result:hover {
+  background: var(--pico-secondary-background);
+}
+
+.search-result small {
+  color: var(--pico-muted-color);
+  margin-left: 4px;
 }
 
 .participant-row .remove-btn {

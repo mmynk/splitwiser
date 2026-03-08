@@ -29,6 +29,10 @@ Feel free to tear down and recreate as needed. Clean code over legacy support.
 
 **Commits:** After completing a plan (or any cohesive set of changes), create a commit. Don't make tiny incremental commits for each file, but do commit after each logical unit of work is done and verified. This keeps the history clean and makes it easy to revert if needed.
 
+## Learning Mode
+
+When operating in Learning mode, only request human contributions for **backend Go code** (service logic, storage, algorithms). Do not ask users to implement frontend JavaScript — implement it fully yourself.
+
 ## Project Overview
 
 Splitwiser is a free and open source alternative to Splitwise. It improves upon Splitwise with granular item-level splitting and automatic tax/fee distribution.

@@ -203,11 +203,12 @@ function displayBill(bill) {
     itemsSectionEl.classList.add('hidden');
   }
 
-  // Splits
+  // Splits — participants are now [{displayName, userId}] objects
   const splits = bill.split?.splits || {};
   const participants = bill.participants || [];
 
-  splitsGridEl.innerHTML = participants.map(name => {
+  splitsGridEl.innerHTML = participants.map(p => {
+    const name = p.displayName || p; // handle legacy string format
     const rawSplit = splits[name] || {};
     const split = {
       subtotal: rawSplit.subtotal || 0,
@@ -239,7 +240,7 @@ function displayBill(bill) {
   }).join('');
 
   // Participants list
-  participantsListEl.textContent = participants.join(', ');
+  participantsListEl.textContent = participants.map(p => p.displayName || p).join(', ');
 }
 
 // Enter edit mode
@@ -257,14 +258,15 @@ function enterEditMode() {
   // Load title
   editTitleInput.value = currentBill.title || '';
 
-  // Populate payer dropdown
+  // Populate payer dropdown — participants are [{displayName, userId}] objects
   const participants = currentBill.participants || [];
   editPayerSelect.innerHTML = '<option value="">Not recorded</option>' +
-    participants.map(p =>
-      `<option value="${escapeHtml(p)}" ${p === currentBill.payerId ? 'selected' : ''}>
-        ${escapeHtml(p)}
-      </option>`
-    ).join('');
+    participants.map(p => {
+      const name = p.displayName || p;
+      return `<option value="${escapeHtml(name)}" ${name === currentBill.payerId ? 'selected' : ''}>
+        ${escapeHtml(name)}
+      </option>`;
+    }).join('');
 }
 
 // Exit edit mode

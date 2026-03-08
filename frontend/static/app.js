@@ -6,12 +6,13 @@ import { requireAuth, displayUserInfo, authenticatedFetch, getCurrentUser } from
 requireAuth();
 
 // State
-let participants = [];
+let participants = []; // {id, displayName, userId}
 let items = [];
 let groups = [];
 let selectedGroupId = null;
 let selectedPayerId = '';
 let currentUser = null;
+let _searchTimeout = null;
 
 // DOM Elements
 const myBillsSection = document.getElementById('my-bills-section');
@@ -38,12 +39,8 @@ const payerSelect = document.getElementById('payer-select');
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-  // Get current user
   currentUser = getCurrentUser();
-
-  // Display user info in header
   displayUserInfo();
-
   addParticipant('');
   addParticipant('');
   updateTaxDisplay();
@@ -80,8 +77,7 @@ saveBtn.addEventListener('click', async () => {
 function updateTaxDisplay() {
   const total = parseFloat(totalInput.value) || 0;
   const subtotal = parseFloat(subtotalInput.value) || 0;
-  const tax = total - subtotal;
-  taxAmountEl.textContent = `$${tax.toFixed(2)}`;
+  taxAmountEl.textContent = `$${(total - subtotal).toFixed(2)}`;
 }
 
 // Groups
@@ -104,7 +100,6 @@ async function loadGroups() {
       groupSelector.classList.remove('hidden');
       renderGroupOptions();
 
-      // Auto-select group from URL ?group= param (e.g. from "New Bill" link on group page)
       const urlGroupId = new URLSearchParams(window.location.search).get('group');
       if (urlGroupId && groups.find(g => g.id === urlGroupId)) {
         groupSelect.value = urlGroupId;
@@ -192,16 +187,19 @@ function handleGroupSelect() {
 
   selectedGroupId = groupId;
 
-  // Replace participants with group members
+  // group.members are now [{displayName, userId}] objects from the API
   participants = [];
-  (group.members || []).forEach(name => {
+  (group.members || []).forEach(m => {
     const id = Date.now() + Math.random();
-    participants.push({ id, name });
+    participants.push({
+      id,
+      displayName: m.displayName || m,
+      userId: m.userId || null
+    });
   });
 
-  // Clear items (their participant assignments are now invalid)
   items.forEach(item => {
-    item.participants = [...(group.members || [])];
+    item.participants = participants.filter(p => p.displayName.trim()).map(p => p.displayName);
   });
 
   renderParticipants();
@@ -209,16 +207,15 @@ function handleGroupSelect() {
 }
 
 // Participants
-function addParticipant(name) {
+function addParticipant(displayName = '', userId = null) {
   const id = Date.now() + Math.random();
-  participants.push({ id, name });
+  participants.push({ id, displayName, userId });
   renderParticipants();
 
-  // Focus the new input
   setTimeout(() => {
     const inputs = participantsList.querySelectorAll('input');
     const lastInput = inputs[inputs.length - 1];
-    if (lastInput && !name) lastInput.focus();
+    if (lastInput && !displayName) lastInput.focus();
   }, 0);
 }
 
@@ -228,10 +225,9 @@ function removeParticipant(id) {
   const participant = participants.find(p => p.id === id);
   participants = participants.filter(p => p.id !== id);
 
-  // Remove from all item assignments
   if (participant) {
     items.forEach(item => {
-      item.participants = item.participants.filter(name => name !== participant.name);
+      item.participants = item.participants.filter(name => name !== participant.displayName);
     });
   }
 
@@ -242,37 +238,69 @@ function removeParticipant(id) {
 function updateParticipantName(id, oldName, newName) {
   const participant = participants.find(p => p.id === id);
   if (participant) {
-    participant.name = newName;
+    participant.displayName = newName;
 
-    // Update item assignments
     items.forEach(item => {
       const idx = item.participants.indexOf(oldName);
-      if (idx !== -1) {
-        item.participants[idx] = newName;
-      }
+      if (idx !== -1) item.participants[idx] = newName;
     });
 
     renderItems();
   }
 }
 
+function linkParticipant(id, user) {
+  const participant = participants.find(p => p.id === id);
+  if (!participant) return;
+
+  const oldName = participant.displayName;
+  participant.displayName = user.displayName;
+  participant.userId = user.userId;
+
+  items.forEach(item => {
+    const idx = item.participants.indexOf(oldName);
+    if (idx !== -1) item.participants[idx] = user.displayName;
+  });
+
+  renderParticipants();
+  renderItems();
+}
+
+// Debounced search for registered users (min 2 chars)
+function searchUsers(query, callback) {
+  clearTimeout(_searchTimeout);
+  if (!query || query.length < 2) { callback([]); return; }
+  _searchTimeout = setTimeout(async () => {
+    try {
+      const resp = await authenticatedFetch('/splitwiser.v1.SplitService/SearchUsers', {
+        method: 'POST',
+        body: JSON.stringify({ query })
+      });
+      callback(resp.ok ? ((await resp.json()).users || []) : []);
+    } catch { callback([]); }
+  }, 300);
+}
+
 function renderParticipants() {
   participantsList.innerHTML = participants.map((p, index) => `
     <div class="participant-row">
-      <input
-        type="text"
-        value="${escapeHtml(p.name)}"
-        placeholder="Person ${index + 1}"
-        data-id="${p.id}"
-        data-old-name="${escapeHtml(p.name)}"
-      >
+      <div class="participant-input-wrapper">
+        <input
+          type="text"
+          value="${escapeHtml(p.displayName)}"
+          placeholder="Person ${index + 1}"
+          data-id="${p.id}"
+          data-old-name="${escapeHtml(p.displayName)}"
+        >
+        ${p.userId ? `<span class="linked-badge" title="Registered user linked">✓</span>` : ''}
+        <div class="search-dropdown hidden"></div>
+      </div>
       <button type="button" class="remove-btn" data-remove-participant="${p.id}" ${participants.length <= 1 ? 'disabled' : ''}>
         Remove
       </button>
     </div>
   `).join('');
 
-  // Add event listeners
   participantsList.querySelectorAll('input').forEach(input => {
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
@@ -286,10 +314,25 @@ function renderParticipants() {
       const oldName = e.target.dataset.oldName;
       const newName = e.target.value.trim();
       if (oldName !== newName) {
-        updateParticipantName(id, oldName, newName);
+        // If user manually changed a linked participant's name, unlink them
+        const p = participants.find(p => p.id === id);
+        if (p?.userId) {
+          p.userId = null;
+          renderParticipants();
+        } else {
+          updateParticipantName(id, oldName, newName);
+        }
         e.target.dataset.oldName = newName;
       }
       updatePayerDropdown();
+
+      // Hide the search dropdown after a 200ms delay
+      // (to allow mousedown on results to fire first)
+      setTimeout(() => {
+        e.target.closest('.participant-input-wrapper')
+          ?.querySelector('.search-dropdown')
+          ?.classList.add('hidden');
+      }, 200);
     });
 
     input.addEventListener('input', (e) => {
@@ -297,6 +340,28 @@ function renderParticipants() {
       const oldName = e.target.dataset.oldName;
       const newName = e.target.value.trim();
       updateParticipantName(id, oldName, newName);
+
+      const dropdown = e.target.closest('.participant-input-wrapper')?.querySelector('.search-dropdown');
+      if (!dropdown) return;
+
+      searchUsers(newName, (users) => {
+        if (users.length === 0) { dropdown.classList.add('hidden'); return; }
+        dropdown.innerHTML = users.map(u =>
+          `<div class="search-result"
+                data-user-id="${escapeHtml(u.userId)}"
+                data-display-name="${escapeHtml(u.displayName)}">
+            <strong>${escapeHtml(u.displayName)}</strong>
+            <small>${escapeHtml(u.email)}</small>
+          </div>`
+        ).join('');
+        dropdown.classList.remove('hidden');
+        dropdown.querySelectorAll('.search-result').forEach(item => {
+          item.addEventListener('mousedown', (ev) => {
+            ev.preventDefault();
+            linkParticipant(id, { displayName: item.dataset.displayName, userId: item.dataset.userId });
+          });
+        });
+      });
     });
   });
 
@@ -312,7 +377,7 @@ function renderParticipants() {
 
 // Update payer dropdown when participants change
 function updatePayerDropdown() {
-  const validParticipants = participants.filter(p => p.name.trim()).map(p => p.name);
+  const validParticipants = participants.filter(p => p.displayName.trim()).map(p => p.displayName);
 
   if (validParticipants.length === 0) {
     payerSection.classList.add('hidden');
@@ -321,7 +386,6 @@ function updatePayerDropdown() {
 
   payerSection.classList.remove('hidden');
 
-  // Rebuild options
   payerSelect.innerHTML = '<option value="">Select payer...</option>' +
     validParticipants.map(p =>
       `<option value="${escapeHtml(p)}" ${p === selectedPayerId ? 'selected' : ''}>
@@ -329,7 +393,6 @@ function updatePayerDropdown() {
       </option>`
     ).join('');
 
-  // Auto-select first participant if none selected
   if (!selectedPayerId && validParticipants.length > 0) {
     selectedPayerId = validParticipants[0];
     payerSelect.value = selectedPayerId;
@@ -339,7 +402,7 @@ function updatePayerDropdown() {
 // Items
 function addItem() {
   const id = Date.now() + Math.random();
-  const validParticipants = participants.filter(p => p.name.trim()).map(p => p.name);
+  const validParticipants = participants.filter(p => p.displayName.trim()).map(p => p.displayName);
   items.push({
     id,
     description: '',
@@ -348,7 +411,6 @@ function addItem() {
   });
   renderItems();
 
-  // Focus the new description input
   setTimeout(() => {
     const itemRows = itemsList.querySelectorAll('.item-row');
     const lastRow = itemRows[itemRows.length - 1];
@@ -366,9 +428,7 @@ function removeItem(id) {
 
 function updateItem(id, field, value) {
   const item = items.find(i => i.id === id);
-  if (item) {
-    item[field] = value;
-  }
+  if (item) item[field] = value;
 }
 
 function toggleItemAssignment(itemId, participantName) {
@@ -384,7 +444,7 @@ function toggleItemAssignment(itemId, participantName) {
 }
 
 function renderItems() {
-  const validParticipants = participants.filter(p => p.name.trim());
+  const validParticipants = participants.filter(p => p.displayName.trim());
 
   itemsList.innerHTML = items.map(item => `
     <div class="item-row" data-item-id="${item.id}">
@@ -411,17 +471,16 @@ function renderItems() {
           <label>
             <input
               type="checkbox"
-              ${item.participants.includes(p.name) ? 'checked' : ''}
-              data-participant="${escapeHtml(p.name)}"
+              ${item.participants.includes(p.displayName) ? 'checked' : ''}
+              data-participant="${escapeHtml(p.displayName)}"
             >
-            ${escapeHtml(p.name)}
+            ${escapeHtml(p.displayName)}
           </label>
         `).join('')}
       </div>
     </div>
   `).join('');
 
-  // Add event listeners
   itemsList.querySelectorAll('.item-row').forEach(row => {
     const itemId = parseFloat(row.dataset.itemId);
 
@@ -429,16 +488,13 @@ function renderItems() {
       input.addEventListener('input', (e) => {
         const field = e.target.dataset.field;
         let value = e.target.value;
-        if (field === 'amount') {
-          value = parseFloat(value) || 0;
-        }
+        if (field === 'amount') value = parseFloat(value) || 0;
         updateItem(itemId, field, value);
       });
 
       input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          // Move to next input or add new item
           const allInputs = Array.from(itemsList.querySelectorAll('input[data-field]'));
           const currentIdx = allInputs.indexOf(e.target);
           if (currentIdx === allInputs.length - 1) {
@@ -452,8 +508,7 @@ function renderItems() {
 
     row.querySelectorAll('input[data-participant]').forEach(checkbox => {
       checkbox.addEventListener('change', (e) => {
-        const participantName = e.target.dataset.participant;
-        toggleItemAssignment(itemId, participantName);
+        toggleItemAssignment(itemId, e.target.dataset.participant);
       });
     });
   });
@@ -473,7 +528,7 @@ async function calculateSplit() {
 
   const total = parseFloat(totalInput.value) || 0;
   const subtotal = parseFloat(subtotalInput.value) || 0;
-  const validParticipants = participants.filter(p => p.name.trim()).map(p => p.name);
+  const validParticipants = participants.filter(p => p.displayName.trim());
 
   if (validParticipants.length === 0) {
     showError('Please add at least one participant with a name.');
@@ -485,18 +540,18 @@ async function calculateSplit() {
     return;
   }
 
-  // Send items as-is, let backend handle validation
   const requestItems = items.map(i => ({
     description: i.description || 'Item',
     amount: i.amount,
     participantIds: i.participants
   }));
 
+  // CalculateSplit uses display names (math only, no auth)
   const request = {
     items: requestItems,
     total,
     subtotal: subtotal || total,
-    participantIds: validParticipants
+    participantIds: validParticipants.map(p => p.displayName)
   };
 
   try {
@@ -514,7 +569,7 @@ async function calculateSplit() {
     }
 
     const data = await response.json();
-    displayResults(data, validParticipants);
+    displayResults(data, validParticipants.map(p => p.displayName));
   } catch (err) {
     showError(err.message);
   } finally {
@@ -528,7 +583,7 @@ async function saveBill() {
 
   const total = parseFloat(totalInput.value) || 0;
   const subtotal = parseFloat(subtotalInput.value) || 0;
-  const validParticipants = participants.filter(p => p.name.trim()).map(p => p.name);
+  const validParticipants = participants.filter(p => p.displayName.trim());
 
   if (validParticipants.length === 0) {
     showError('Please add at least one participant with a name.');
@@ -540,7 +595,6 @@ async function saveBill() {
     return;
   }
 
-  // Send items as-is, let backend handle validation
   const requestItems = items.map(i => ({
     description: i.description || 'Item',
     amount: i.amount,
@@ -548,15 +602,18 @@ async function saveBill() {
   }));
 
   const request = {
-    title: billTitleInput.value.trim() || '',  // Empty = auto-generate
+    title: billTitleInput.value.trim() || '',
     items: requestItems,
     total,
     subtotal: subtotal || total,
-    participantIds: validParticipants,
+    // Send {displayName, userId?} — userId omitted for guests
+    participants: validParticipants.map(p => ({
+      displayName: p.displayName,
+      ...(p.userId ? { userId: p.userId } : {})
+    })),
     payerId: selectedPayerId || undefined
   };
 
-  // Include group_id if a group was selected
   if (selectedGroupId) {
     request.groupId = selectedGroupId;
   }

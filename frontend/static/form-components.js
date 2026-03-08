@@ -3,9 +3,10 @@
 
 class BillForm {
   constructor(options = {}) {
-    this.participants = [];
+    this.participants = []; // {id, displayName, userId}
     this.items = [];
     this.onUpdate = options.onUpdate || (() => {});
+    this._searchTimeout = null;
 
     // DOM containers (set via init)
     this.participantsList = null;
@@ -22,7 +23,6 @@ class BillForm {
     this.subtotalInput = subtotalInput;
     this.taxAmountEl = taxAmountEl;
 
-    // Add input listeners for tax calculation
     if (this.totalInput && this.subtotalInput) {
       this.totalInput.addEventListener('input', () => this.updateTaxDisplay());
       this.subtotalInput.addEventListener('input', () => this.updateTaxDisplay());
@@ -31,18 +31,17 @@ class BillForm {
 
   // Load existing bill data
   loadBill(bill) {
-    // Set amounts
     if (this.totalInput) this.totalInput.value = bill.total || '';
     if (this.subtotalInput) this.subtotalInput.value = bill.subtotal || '';
     this.updateTaxDisplay();
 
-    // Load participants
-    this.participants = (bill.participants || []).map((name, i) => ({
+    // Participants come as [{displayName, userId}] objects from the API
+    this.participants = (bill.participants || []).map((p, i) => ({
       id: Date.now() + i + Math.random(),
-      name
+      displayName: typeof p === 'string' ? p : (p.displayName || ''),
+      userId: (typeof p === 'object' ? p.userId : null) || null
     }));
 
-    // Load items
     this.items = (bill.items || []).map((item, i) => ({
       id: Date.now() + i + Math.random(),
       description: item.description || '',
@@ -58,19 +57,21 @@ class BillForm {
   getData() {
     const total = parseFloat(this.totalInput?.value) || 0;
     const subtotal = parseFloat(this.subtotalInput?.value) || 0;
-    const validParticipants = this.participants.filter(p => p.name.trim()).map(p => p.name);
+    const validParticipants = this.participants.filter(p => p.displayName.trim());
+
+    // Send {displayName, userId?} — userId omitted for guests
+    const participants = validParticipants.map(p => ({
+      displayName: p.displayName,
+      ...(p.userId ? { userId: p.userId } : {})
+    }));
+
     const requestItems = this.items.map(i => ({
       description: i.description || 'Item',
       amount: i.amount,
       participantIds: i.participants
     }));
 
-    return {
-      total,
-      subtotal: subtotal || total,
-      participantIds: validParticipants,
-      items: requestItems
-    };
+    return { total, subtotal: subtotal || total, participants, items: requestItems };
   }
 
   // Tax Display
@@ -78,21 +79,19 @@ class BillForm {
     if (!this.taxAmountEl) return;
     const total = parseFloat(this.totalInput?.value) || 0;
     const subtotal = parseFloat(this.subtotalInput?.value) || 0;
-    const tax = total - subtotal;
-    this.taxAmountEl.textContent = `$${tax.toFixed(2)}`;
+    this.taxAmountEl.textContent = `$${(total - subtotal).toFixed(2)}`;
   }
 
   // Participants
-  addParticipant(name = '') {
+  addParticipant(displayName = '', userId = null) {
     const id = Date.now() + Math.random();
-    this.participants.push({ id, name });
+    this.participants.push({ id, displayName, userId });
     this.renderParticipants();
 
-    // Focus the new input
     setTimeout(() => {
       const inputs = this.participantsList?.querySelectorAll('input');
       const lastInput = inputs?.[inputs.length - 1];
-      if (lastInput && !name) lastInput.focus();
+      if (lastInput && !displayName) lastInput.focus();
     }, 0);
   }
 
@@ -102,10 +101,9 @@ class BillForm {
     const participant = this.participants.find(p => p.id === id);
     this.participants = this.participants.filter(p => p.id !== id);
 
-    // Remove from all item assignments
     if (participant) {
       this.items.forEach(item => {
-        item.participants = item.participants.filter(name => name !== participant.name);
+        item.participants = item.participants.filter(name => name !== participant.displayName);
       });
     }
 
@@ -116,18 +114,50 @@ class BillForm {
   updateParticipantName(id, oldName, newName) {
     const participant = this.participants.find(p => p.id === id);
     if (participant) {
-      participant.name = newName;
+      participant.displayName = newName;
 
-      // Update item assignments
       this.items.forEach(item => {
         const idx = item.participants.indexOf(oldName);
-        if (idx !== -1) {
-          item.participants[idx] = newName;
-        }
+        if (idx !== -1) item.participants[idx] = newName;
       });
 
       this.renderItems();
     }
+  }
+
+  // Link a participant to a registered user account
+  linkParticipant(id, user) {
+    const participant = this.participants.find(p => p.id === id);
+    if (!participant) return;
+
+    const oldName = participant.displayName;
+    participant.displayName = user.displayName;
+    participant.userId = user.userId;
+
+    this.items.forEach(item => {
+      const idx = item.participants.indexOf(oldName);
+      if (idx !== -1) item.participants[idx] = user.displayName;
+    });
+
+    this.renderParticipants();
+    this.renderItems();
+  }
+
+  // Debounced search for registered users (min 2 chars)
+  _searchUsers(query, callback) {
+    clearTimeout(this._searchTimeout);
+    if (!query || query.length < 2) { callback([]); return; }
+    this._searchTimeout = setTimeout(async () => {
+      try {
+        const token = localStorage.getItem('auth_token');
+        const resp = await fetch('http://localhost:8080/splitwiser.v1.SplitService/SearchUsers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ query })
+        });
+        callback(resp.ok ? ((await resp.json()).users || []) : []);
+      } catch { callback([]); }
+    }, 300);
   }
 
   renderParticipants() {
@@ -135,20 +165,23 @@ class BillForm {
 
     this.participantsList.innerHTML = this.participants.map((p, index) => `
       <div class="participant-row">
-        <input
-          type="text"
-          value="${escapeHtml(p.name)}"
-          placeholder="Person ${index + 1}"
-          data-id="${p.id}"
-          data-old-name="${escapeHtml(p.name)}"
-        >
+        <div class="participant-input-wrapper">
+          <input
+            type="text"
+            value="${escapeHtml(p.displayName)}"
+            placeholder="Person ${index + 1}"
+            data-id="${p.id}"
+            data-old-name="${escapeHtml(p.displayName)}"
+          >
+          ${p.userId ? `<span class="linked-badge" title="Registered user linked">✓</span>` : ''}
+          <div class="search-dropdown hidden"></div>
+        </div>
         <button type="button" class="remove-btn" data-remove-participant="${p.id}" ${this.participants.length <= 1 ? 'disabled' : ''}>
           Remove
         </button>
       </div>
     `).join('');
 
-    // Add event listeners
     this.participantsList.querySelectorAll('input').forEach(input => {
       input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
@@ -157,21 +190,59 @@ class BillForm {
         }
       });
 
-      input.addEventListener('blur', (e) => {
-        const id = parseFloat(e.target.dataset.id);
-        const oldName = e.target.dataset.oldName;
-        const newName = e.target.value.trim();
-        if (oldName !== newName) {
-          this.updateParticipantName(id, oldName, newName);
-          e.target.dataset.oldName = newName;
-        }
-      });
-
       input.addEventListener('input', (e) => {
         const id = parseFloat(e.target.dataset.id);
         const oldName = e.target.dataset.oldName;
         const newName = e.target.value.trim();
         this.updateParticipantName(id, oldName, newName);
+
+        // Search for matching registered users and populate dropdown
+        const dropdown = e.target.closest('.participant-input-wrapper')?.querySelector('.search-dropdown');
+        if (!dropdown) return;
+
+        this._searchUsers(newName, (users) => {
+          if (users.length === 0) { dropdown.classList.add('hidden'); return; }
+          dropdown.innerHTML = users.map(u =>
+            `<div class="search-result"
+                  data-user-id="${escapeHtml(u.userId)}"
+                  data-display-name="${escapeHtml(u.displayName)}">
+              <strong>${escapeHtml(u.displayName)}</strong>
+              <small>${escapeHtml(u.email)}</small>
+            </div>`
+          ).join('');
+          dropdown.classList.remove('hidden');
+          dropdown.querySelectorAll('.search-result').forEach(item => {
+            // mousedown fires before blur, preventing dropdown hiding before selection
+            item.addEventListener('mousedown', (ev) => {
+              ev.preventDefault();
+              this.linkParticipant(id, {
+                displayName: item.dataset.displayName,
+                userId: item.dataset.userId
+              });
+            });
+          });
+        });
+      });
+
+      input.addEventListener('blur', (e) => {
+        const id = parseFloat(e.target.dataset.id);
+        const oldName = e.target.dataset.oldName;
+        const newName = e.target.value.trim();
+        if (oldName !== newName) {
+          // If the name was manually changed away from a linked user, unlink them
+          const p = this.participants.find(p => p.id === id);
+          if (p?.userId) {
+            p.userId = null;
+            this.renderParticipants();
+          } else {
+            this.updateParticipantName(id, oldName, newName);
+          }
+          e.target.dataset.oldName = newName;
+        }
+        // Hide dropdown after a delay to allow mousedown on results to fire first
+        setTimeout(() => {
+          e.target.closest?.('.participant-input-wrapper')?.querySelector('.search-dropdown')?.classList.add('hidden');
+        }, 200);
       });
     });
 
@@ -186,7 +257,7 @@ class BillForm {
   // Items
   addItem() {
     const id = Date.now() + Math.random();
-    const validParticipants = this.participants.filter(p => p.name.trim()).map(p => p.name);
+    const validParticipants = this.participants.filter(p => p.displayName.trim()).map(p => p.displayName);
     this.items.push({
       id,
       description: '',
@@ -195,7 +266,6 @@ class BillForm {
     });
     this.renderItems();
 
-    // Focus the new description input
     setTimeout(() => {
       const itemRows = this.itemsList?.querySelectorAll('.item-row');
       const lastRow = itemRows?.[itemRows.length - 1];
@@ -213,9 +283,7 @@ class BillForm {
 
   updateItem(id, field, value) {
     const item = this.items.find(i => i.id === id);
-    if (item) {
-      item[field] = value;
-    }
+    if (item) item[field] = value;
   }
 
   toggleItemAssignment(itemId, participantName) {
@@ -233,7 +301,7 @@ class BillForm {
   renderItems() {
     if (!this.itemsList) return;
 
-    const validParticipants = this.participants.filter(p => p.name.trim());
+    const validParticipants = this.participants.filter(p => p.displayName.trim());
 
     this.itemsList.innerHTML = this.items.map(item => `
       <div class="item-row" data-item-id="${item.id}">
@@ -260,17 +328,16 @@ class BillForm {
             <label>
               <input
                 type="checkbox"
-                ${item.participants.includes(p.name) ? 'checked' : ''}
-                data-participant="${escapeHtml(p.name)}"
+                ${item.participants.includes(p.displayName) ? 'checked' : ''}
+                data-participant="${escapeHtml(p.displayName)}"
               >
-              ${escapeHtml(p.name)}
+              ${escapeHtml(p.displayName)}
             </label>
           `).join('')}
         </div>
       </div>
     `).join('');
 
-    // Add event listeners
     this.itemsList.querySelectorAll('.item-row').forEach(row => {
       const itemId = parseFloat(row.dataset.itemId);
 
@@ -278,16 +345,13 @@ class BillForm {
         input.addEventListener('input', (e) => {
           const field = e.target.dataset.field;
           let value = e.target.value;
-          if (field === 'amount') {
-            value = parseFloat(value) || 0;
-          }
+          if (field === 'amount') value = parseFloat(value) || 0;
           this.updateItem(itemId, field, value);
         });
 
         input.addEventListener('keydown', (e) => {
           if (e.key === 'Enter') {
             e.preventDefault();
-            // Move to next input or add new item
             const allInputs = Array.from(this.itemsList.querySelectorAll('input[data-field]'));
             const currentIdx = allInputs.indexOf(e.target);
             if (currentIdx === allInputs.length - 1) {
@@ -301,8 +365,7 @@ class BillForm {
 
       row.querySelectorAll('input[data-participant]').forEach(checkbox => {
         checkbox.addEventListener('change', (e) => {
-          const participantName = e.target.dataset.participant;
-          this.toggleItemAssignment(itemId, participantName);
+          this.toggleItemAssignment(itemId, e.target.dataset.participant);
         });
       });
     });
