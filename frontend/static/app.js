@@ -489,14 +489,14 @@ async function calculateSplit() {
   const requestItems = items.map(i => ({
     description: i.description || 'Item',
     amount: i.amount,
-    participants: i.participants
+    participantIds: i.participants
   }));
 
   const request = {
     items: requestItems,
     total,
     subtotal: subtotal || total,
-    participants: validParticipants
+    participantIds: validParticipants
   };
 
   try {
@@ -544,7 +544,7 @@ async function saveBill() {
   const requestItems = items.map(i => ({
     description: i.description || 'Item',
     amount: i.amount,
-    participants: i.participants
+    participantIds: i.participants
   }));
 
   const request = {
@@ -552,7 +552,7 @@ async function saveBill() {
     items: requestItems,
     total,
     subtotal: subtotal || total,
-    participants: validParticipants,
+    participantIds: validParticipants,
     payerId: selectedPayerId || undefined
   };
 

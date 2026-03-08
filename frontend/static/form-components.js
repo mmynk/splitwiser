@@ -62,13 +62,13 @@ class BillForm {
     const requestItems = this.items.map(i => ({
       description: i.description || 'Item',
       amount: i.amount,
-      participants: i.participants
+      participantIds: i.participants
     }));
 
     return {
       total,
       subtotal: subtotal || total,
-      participants: validParticipants,
+      participantIds: validParticipants,
       items: requestItems
     };
   }
