@@ -53,7 +53,7 @@ docker-build:
 	podman build -t splitwiser .
 
 docker-run:
-	podman run -p 8080:8080 -v splitwiser-data:/app/data splitwiser
+	podman run -p 9090:8080 -v splitwiser-data:/app/data splitwiser
 
 docker-up:
 	podman compose up --build
