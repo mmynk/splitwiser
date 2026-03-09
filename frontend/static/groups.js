@@ -1,6 +1,6 @@
 // Splitwiser - Groups Management
 
-import { requireAuth, displayUserInfo, authenticatedFetch, getCurrentUser } from './auth-utils.js';
+import { requireAuth, authenticatedFetch, getCurrentUser } from './auth-utils.js';
 
 // Require authentication
 requireAuth();
@@ -8,8 +8,8 @@ requireAuth();
 let currentUser = null;
 
 // State
-let members = [];
-let editMembers = [];
+let members = [];      // {id, name, userId, isCreator}
+let editMembers = [];  // {id, name, userId}
 let groups = [];
 
 // DOM Elements
@@ -31,8 +31,16 @@ const errorEl = document.getElementById('error');
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+  currentUser = getCurrentUser();
+
+  // Pre-populate creator as first (non-removable) member
+  if (currentUser) {
+    const name = currentUser.display_name || currentUser.displayName || currentUser.email || '';
+    const userId = currentUser.id || currentUser.userId || null;
+    addMember(name, userId, true);
+  }
   addMember('');
-  addMember('');
+
   loadGroups();
 });
 
@@ -64,73 +72,132 @@ editForm.addEventListener('submit', async (e) => {
   await saveGroup();
 });
 
+// User search (debounced)
+let _searchTimeout = null;
+function searchUsers(query, callback) {
+  clearTimeout(_searchTimeout);
+  if (!query || query.length < 2) { callback([]); return; }
+  _searchTimeout = setTimeout(async () => {
+    try {
+      const resp = await authenticatedFetch('/splitwiser.v1.SplitService/SearchUsers', {
+        method: 'POST',
+        body: JSON.stringify({ query })
+      });
+      callback(resp.ok ? ((await resp.json()).users || []) : []);
+    } catch { callback([]); }
+  }, 300);
+}
+
+// Attach search behaviour to a text input inside a .participant-row
+function attachSearch(input, memberId, memberArray, renderFn) {
+  input.addEventListener('input', (e) => {
+    const newName = e.target.value.trim();
+    const m = memberArray.find(m => m.id === memberId);
+    if (m) { m.name = newName; m.userId = null; }
+
+    const dropdown = e.target.closest('.participant-input-wrapper')?.querySelector('.search-dropdown');
+    if (!dropdown) return;
+
+    searchUsers(newName, (users) => {
+      if (users.length === 0) { dropdown.classList.add('hidden'); return; }
+      dropdown.innerHTML = users.map(u =>
+        `<div class="search-result"
+              data-user-id="${escapeHtml(u.userId)}"
+              data-display-name="${escapeHtml(u.displayName)}">
+          <strong>${escapeHtml(u.displayName)}</strong>
+          <small>${escapeHtml(u.email)}</small>
+        </div>`
+      ).join('');
+      dropdown.classList.remove('hidden');
+      dropdown.querySelectorAll('.search-result').forEach(item => {
+        item.addEventListener('mousedown', (ev) => {
+          ev.preventDefault();
+          const m = memberArray.find(m => m.id === memberId);
+          if (m) { m.name = item.dataset.displayName; m.userId = item.dataset.userId; }
+          renderFn();
+        });
+      });
+    });
+  });
+
+  input.addEventListener('blur', () => {
+    setTimeout(() => {
+      input.closest?.('.participant-input-wrapper')?.querySelector('.search-dropdown')?.classList.add('hidden');
+    }, 200);
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); addMember(''); }
+  });
+}
+
 // Members Management (Create Form)
-function addMember(name) {
+function addMember(name, userId = null, isCreator = false) {
   const id = Date.now() + Math.random();
-  members.push({ id, name });
+  members.push({ id, name, userId, isCreator });
   renderMembers();
 
-  setTimeout(() => {
-    const inputs = membersList.querySelectorAll('input');
-    const lastInput = inputs[inputs.length - 1];
-    if (lastInput && !name) lastInput.focus();
-  }, 0);
+  if (!isCreator) {
+    setTimeout(() => {
+      const inputs = membersList.querySelectorAll('input:not([readonly])');
+      const lastInput = inputs[inputs.length - 1];
+      if (lastInput && !name) lastInput.focus();
+    }, 0);
+  }
 }
 
 function removeMember(id) {
-  if (members.length <= 1) return;
+  const m = members.find(m => m.id === id);
+  if (!m || m.isCreator) return;
+  if (members.filter(m => !m.isCreator).length <= 1) return;
   members = members.filter(m => m.id !== id);
   renderMembers();
 }
 
-function updateMemberName(id, name) {
-  const member = members.find(m => m.id === id);
-  if (member) {
-    member.name = name;
-  }
-}
-
 function renderMembers() {
-  membersList.innerHTML = members.map((m, index) => `
-    <div class="participant-row">
-      <input
-        type="text"
-        value="${escapeHtml(m.name)}"
-        placeholder="Member ${index + 1}"
-        data-id="${m.id}"
-      >
-      <button type="button" class="remove-btn" data-remove="${m.id}" ${members.length <= 1 ? 'disabled' : ''}>
-        Remove
-      </button>
-    </div>
-  `).join('');
+  membersList.innerHTML = members.map((m, index) => {
+    if (m.isCreator) {
+      return `
+        <div class="participant-row">
+          <div class="participant-input-wrapper">
+            <input type="text" value="${escapeHtml(m.name)}" readonly data-id="${m.id}">
+            <span class="linked-badge" title="You (group creator)">You</span>
+            <div class="search-dropdown hidden"></div>
+          </div>
+          <button type="button" class="remove-btn" disabled>Remove</button>
+        </div>`;
+    }
+    return `
+      <div class="participant-row">
+        <div class="participant-input-wrapper">
+          <input type="text" value="${escapeHtml(m.name)}"
+            placeholder="Member ${index + 1}" data-id="${m.id}">
+          ${m.userId ? `<span class="linked-badge" title="Registered user">✓</span>` : ''}
+          <div class="search-dropdown hidden"></div>
+        </div>
+        <button type="button" class="remove-btn" data-remove="${m.id}"
+          ${members.filter(m => !m.isCreator).length <= 1 ? 'disabled' : ''}>
+          Remove
+        </button>
+      </div>`;
+  }).join('');
 
-  membersList.querySelectorAll('input').forEach(input => {
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        addMember('');
-      }
-    });
-
-    input.addEventListener('input', (e) => {
-      const id = parseFloat(e.target.dataset.id);
-      updateMemberName(id, e.target.value.trim());
-    });
+  membersList.querySelectorAll('input:not([readonly])').forEach(input => {
+    const id = parseFloat(input.dataset.id);
+    attachSearch(input, id, members, renderMembers);
   });
 
   membersList.querySelectorAll('[data-remove]').forEach(btn => {
     btn.addEventListener('click', (e) => {
-      const id = parseFloat(e.target.dataset.remove);
-      removeMember(id);
+      removeMember(parseFloat(e.target.dataset.remove));
     });
   });
 }
 
 // Edit Members Management
-function addEditMember(name) {
+function addEditMember(name, userId = null) {
   const id = Date.now() + Math.random();
-  editMembers.push({ id, name });
+  editMembers.push({ id, name, userId });
   renderEditMembers();
 
   setTimeout(() => {
@@ -146,48 +213,45 @@ function removeEditMember(id) {
   renderEditMembers();
 }
 
-function updateEditMemberName(id, name) {
-  const member = editMembers.find(m => m.id === id);
-  if (member) {
-    member.name = name;
-  }
-}
-
 function renderEditMembers() {
   editMembersList.innerHTML = editMembers.map((m, index) => `
     <div class="participant-row">
-      <input
-        type="text"
-        value="${escapeHtml(m.name)}"
-        placeholder="Member ${index + 1}"
-        data-id="${m.id}"
-      >
-      <button type="button" class="remove-btn" data-remove="${m.id}" ${editMembers.length <= 1 ? 'disabled' : ''}>
+      <div class="participant-input-wrapper">
+        <input type="text" value="${escapeHtml(m.name)}"
+          placeholder="Member ${index + 1}" data-id="${m.id}">
+        ${m.userId ? `<span class="linked-badge" title="Registered user">✓</span>` : ''}
+        <div class="search-dropdown hidden"></div>
+      </div>
+      <button type="button" class="remove-btn" data-remove="${m.id}"
+        ${editMembers.length <= 1 ? 'disabled' : ''}>
         Remove
       </button>
     </div>
   `).join('');
 
   editMembersList.querySelectorAll('input').forEach(input => {
+    const id = parseFloat(input.dataset.id);
     input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        addEditMember('');
-      }
+      if (e.key === 'Enter') { e.preventDefault(); addEditMember(''); }
     });
-
-    input.addEventListener('input', (e) => {
-      const id = parseFloat(e.target.dataset.id);
-      updateEditMemberName(id, e.target.value.trim());
-    });
+    attachSearch(input, id, editMembers, renderEditMembers);
   });
 
   editMembersList.querySelectorAll('[data-remove]').forEach(btn => {
     btn.addEventListener('click', (e) => {
-      const id = parseFloat(e.target.dataset.remove);
-      removeEditMember(id);
+      removeEditMember(parseFloat(e.target.dataset.remove));
     });
   });
+}
+
+// Serialise members array → proto GroupMember objects
+function toMemberObjects(arr) {
+  return arr
+    .filter(m => m.name.trim())
+    .map(m => ({
+      displayName: m.name.trim(),
+      ...(m.userId ? { userId: m.userId } : {})
+    }));
 }
 
 // API Calls
@@ -201,7 +265,7 @@ async function loadGroups() {
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json().catch(() => ({}));
       throw new Error(error.message || 'Failed to load groups');
     }
 
@@ -218,14 +282,14 @@ async function createGroup() {
   hideError();
 
   const name = groupNameInput.value.trim();
-  const validMembers = members.filter(m => m.name.trim()).map(m => m.name.trim());
+  const memberObjects = toMemberObjects(members);
 
   if (!name) {
     showError('Please enter a group name.');
     return;
   }
 
-  if (validMembers.length === 0) {
+  if (memberObjects.length === 0) {
     showError('Please add at least one member.');
     return;
   }
@@ -236,24 +300,24 @@ async function createGroup() {
 
     const response = await authenticatedFetch('/splitwiser.v1.GroupService/CreateGroup', {
       method: 'POST',
-      body: JSON.stringify({
-        name,
-        members: validMembers
-      })
+      body: JSON.stringify({ name, members: memberObjects })
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json().catch(() => ({}));
       throw new Error(error.message || 'Failed to create group');
     }
 
-    // Reset form
+    // Reset form (keep creator row)
     groupNameInput.value = '';
     members = [];
-    addMember('');
+    if (currentUser) {
+      const uname = currentUser.display_name || currentUser.displayName || currentUser.email || '';
+      const uid = currentUser.id || currentUser.userId || null;
+      addMember(uname, uid, true);
+    }
     addMember('');
 
-    // Reload groups
     await loadGroups();
   } catch (err) {
     showError(err.message);
@@ -266,9 +330,14 @@ async function createGroup() {
 function startEdit(group) {
   editGroupIdInput.value = group.id;
   editGroupNameInput.value = group.name;
-  editMembers = (group.members || []).map((name, i) => ({ id: Date.now() + i, name }));
+  // group.members is [{displayName, userId?}] from the API
+  editMembers = (group.members || []).map((m, i) => ({
+    id: Date.now() + i,
+    name: m.displayName || '',
+    userId: m.userId || null,
+  }));
   if (editMembers.length === 0) {
-    editMembers = [{ id: Date.now(), name: '' }];
+    editMembers = [{ id: Date.now(), name: '', userId: null }];
   }
   renderEditMembers();
   editSection.classList.remove('hidden');
@@ -287,14 +356,14 @@ async function saveGroup() {
 
   const groupId = editGroupIdInput.value;
   const name = editGroupNameInput.value.trim();
-  const validMembers = editMembers.filter(m => m.name.trim()).map(m => m.name.trim());
+  const memberObjects = toMemberObjects(editMembers);
 
   if (!name) {
     showError('Please enter a group name.');
     return;
   }
 
-  if (validMembers.length === 0) {
+  if (memberObjects.length === 0) {
     showError('Please add at least one member.');
     return;
   }
@@ -306,15 +375,11 @@ async function saveGroup() {
 
     const response = await authenticatedFetch('/splitwiser.v1.GroupService/UpdateGroup', {
       method: 'POST',
-      body: JSON.stringify({
-        groupId,
-        name,
-        members: validMembers
-      })
+      body: JSON.stringify({ groupId, name, members: memberObjects })
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json().catch(() => ({}));
       throw new Error(error.message || 'Failed to update group');
     }
 
@@ -343,7 +408,7 @@ async function deleteGroup(groupId, groupName) {
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json().catch(() => ({}));
       throw new Error(error.message || 'Failed to delete group');
     }
 
@@ -360,11 +425,16 @@ function renderGroups() {
     return;
   }
 
-  groupsList.innerHTML = groups.map(group => `
+  groupsList.innerHTML = groups.map(group => {
+    const memberNames = (group.members || [])
+      .map(m => escapeHtml(m.displayName || ''))
+      .filter(Boolean)
+      .join(', ') || 'No members';
+    return `
     <div class="result-card" id="group-${group.id}">
       <h3><a href="/group.html?id=${group.id}" style="color: var(--pico-primary); text-decoration: none; cursor: pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${escapeHtml(group.name)}</a></h3>
       <div class="breakdown">
-        <strong>Members:</strong> ${(group.members || []).map(m => escapeHtml(m)).join(', ') || 'No members'}
+        <strong>Members:</strong> ${memberNames}
       </div>
       <div id="bills-${group.id}" class="group-bills" style="margin-top: var(--spacing-md);">
         <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
@@ -377,8 +447,8 @@ function renderGroups() {
         <button type="button" class="secondary outline" data-action="edit-group" data-group='${escapeAttr(JSON.stringify(group))}' style="flex: 1;">Edit</button>
         <button type="button" class="remove-btn" data-action="delete-group" data-group-id="${group.id}" data-group-name="${escapeHtml(group.name)}" style="flex: 1;">Delete</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 // Toggle bills display for a group
@@ -386,7 +456,6 @@ async function toggleBills(groupId, button) {
   const billsList = document.getElementById(`bills-list-${groupId}`);
 
   if (billsList.style.display === 'none') {
-    // Load and show bills
     button.setAttribute('aria-busy', 'true');
     button.textContent = 'Loading...';
 
@@ -402,13 +471,11 @@ async function toggleBills(groupId, button) {
       button.removeAttribute('aria-busy');
     }
   } else {
-    // Hide bills
     billsList.style.display = 'none';
     button.textContent = 'Show Bills';
   }
 }
 
-// Load bills for a specific group
 async function loadBillsForGroup(groupId) {
   const response = await authenticatedFetch('/splitwiser.v1.SplitService/ListBillsByGroup', {
     method: 'POST',
@@ -416,7 +483,7 @@ async function loadBillsForGroup(groupId) {
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await response.json().catch(() => ({}));
     throw new Error(error.message || 'Failed to load bills');
   }
 
@@ -424,7 +491,6 @@ async function loadBillsForGroup(groupId) {
   return data.bills || [];
 }
 
-// Render bills list for a group
 function renderBillsList(groupId, bills) {
   const billsList = document.getElementById(`bills-list-${groupId}`);
 
@@ -457,7 +523,6 @@ function renderBillsList(groupId, bills) {
   `;
 }
 
-// Format Unix timestamp to readable date
 function formatDate(timestamp) {
   const date = new Date(timestamp * 1000);
   return date.toLocaleDateString('en-US', {
@@ -467,7 +532,6 @@ function formatDate(timestamp) {
   });
 }
 
-// Error Handling
 function showError(message) {
   errorEl.textContent = message;
   errorEl.classList.remove('hidden');
@@ -477,7 +541,6 @@ function hideError() {
   errorEl.classList.add('hidden');
 }
 
-// Utility
 function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;

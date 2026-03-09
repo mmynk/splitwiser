@@ -46,7 +46,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
   submitBtn.textContent = 'Logging in...';
 
   try {
-    const response = await fetch('splitwiser.v1.AuthService/Login', {
+    const response = await fetch('/splitwiser.v1.AuthService/Login', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -58,8 +58,8 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Login failed');
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || 'Invalid email or password.');
     }
 
     const data = await response.json();
@@ -102,7 +102,7 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
   submitBtn.textContent = 'Creating account...';
 
   try {
-    const response = await fetch('splitwiser.v1.AuthService/Register', {
+    const response = await fetch('/splitwiser.v1.AuthService/Register', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -115,8 +115,8 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Registration failed');
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || 'Registration failed. Please try again.');
     }
 
     const data = await response.json();
