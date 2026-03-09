@@ -119,6 +119,7 @@ message BillSummary {
   int64 created_at = 5;
   int32 participant_count = 6;
   optional string group_name = 7;
+  optional string group_id = 8;
 }
 
 message ListBillsByGroupResponse {

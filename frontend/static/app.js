@@ -159,7 +159,7 @@ async function loadMyBills() {
             return `
               <tr>
                 <td><a href="/bill.html?id=${escapeHtml(bill.billId)}">${escapeHtml(bill.title || 'Untitled')}</a></td>
-                <td>${bill.groupName ? escapeHtml(bill.groupName) : '<em>—</em>'}</td>
+                <td>${bill.groupName ? (bill.groupId ? `<a href="/group.html?id=${escapeHtml(bill.groupId)}">${escapeHtml(bill.groupName)}</a>` : escapeHtml(bill.groupName)) : '<em>—</em>'}</td>
                 <td>$${(bill.total || 0).toFixed(2)}</td>
                 <td>${bill.participantCount || 0}</td>
                 <td>${date}</td>

@@ -524,6 +524,10 @@ func (s *SplitService) ListMyBills(ctx context.Context, req *connect.Request[pb.
 			CreatedAt:        bill.CreatedAt,
 			ParticipantCount: int32(len(bill.Participants)),
 		}
+		if bill.GroupID != "" {
+			gid := bill.GroupID
+			s.GroupId = &gid
+		}
 		if name, ok := groupNames[bill.GroupID]; ok {
 			s.GroupName = &name
 		}
