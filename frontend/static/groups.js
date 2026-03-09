@@ -294,6 +294,13 @@ async function createGroup() {
     return;
   }
 
+  const memberNames = memberObjects.map(m => m.displayName.toLowerCase());
+  const duplicate = memberNames.find((n, i) => memberNames.indexOf(n) !== i);
+  if (duplicate) {
+    showError('Duplicate member: remove repeated names');
+    return;
+  }
+
   try {
     createBtn.setAttribute('aria-busy', 'true');
     createBtn.disabled = true;
@@ -365,6 +372,13 @@ async function saveGroup() {
 
   if (memberObjects.length === 0) {
     showError('Please add at least one member.');
+    return;
+  }
+
+  const editMemberNames = memberObjects.map(m => m.displayName.toLowerCase());
+  const editDuplicate = editMemberNames.find((n, i) => editMemberNames.indexOf(n) !== i);
+  if (editDuplicate) {
+    showError('Duplicate member: remove repeated names');
     return;
   }
 
