@@ -1,7 +1,5 @@
 // Auth utilities - shared authentication helpers
 
-const API_BASE = 'http://localhost:8080';
-
 // Get auth token from localStorage
 export function getAuthToken() {
   return localStorage.getItem('auth_token');
@@ -49,7 +47,7 @@ export async function authenticatedFetch(endpoint, options = {}) {
     ...options.headers,
   };
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
+  const response = await fetch(endpoint, {
     ...options,
     headers,
   });

@@ -1,7 +1,5 @@
 // Auth module - handles login, registration, and session management
 
-const API_BASE = 'http://localhost:8080';
-
 // Tab switching
 const tabButtons = document.querySelectorAll('.tab-button');
 const tabContents = document.querySelectorAll('.tab-content');
@@ -48,7 +46,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
   submitBtn.textContent = 'Logging in...';
 
   try {
-    const response = await fetch(`${API_BASE}/splitwiser.v1.AuthService/Login`, {
+    const response = await fetch('splitwiser.v1.AuthService/Login', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -104,7 +102,7 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
   submitBtn.textContent = 'Creating account...';
 
   try {
-    const response = await fetch(`${API_BASE}/splitwiser.v1.AuthService/Register`, {
+    const response = await fetch('splitwiser.v1.AuthService/Register', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

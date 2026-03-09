@@ -150,7 +150,7 @@ class BillForm {
     this._searchTimeout = setTimeout(async () => {
       try {
         const token = localStorage.getItem('auth_token');
-        const resp = await fetch('http://localhost:8080/splitwiser.v1.SplitService/SearchUsers', {
+        const resp = await fetch('/splitwiser.v1.SplitService/SearchUsers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({ query })
