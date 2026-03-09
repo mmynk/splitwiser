@@ -92,9 +92,17 @@ func (s *GroupService) CreateGroup(ctx context.Context, req *connect.Request[pb.
 
 	members := pbToModelMembers(req.Msg.Members)
 
-	// Add creator with their user_id if not already present
+	// Ensure creator is in the members list with their user_id
 	if !isMemberByName(creatorName, members) {
 		members = append([]models.GroupMember{{DisplayName: creatorName, UserID: userID}}, members...)
+	} else {
+		// Creator matched by name but may lack user_id — backfill it
+		for i := range members {
+			if members[i].DisplayName == creatorName && members[i].UserID == "" {
+				members[i].UserID = userID
+				break
+			}
+		}
 	}
 
 	group := &models.Group{
@@ -207,31 +215,18 @@ func (s *GroupService) DeleteGroup(ctx context.Context, req *connect.Request[pb.
 	return connect.NewResponse(&pb.DeleteGroupResponse{}), nil
 }
 
-// GetGroupBalances calculates balances across all bills in a group.
-func (s *GroupService) GetGroupBalances(ctx context.Context, req *connect.Request[pb.GetGroupBalancesRequest]) (*connect.Response[pb.GetGroupBalancesResponse], error) {
-	groupID := req.Msg.GetGroupId()
-	if groupID == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("group_id required"))
-	}
-
-	_, err := s.store.GetGroup(ctx, groupID)
-	if err != nil {
-		slog.Error("GetGroupBalances failed - group not found", "group_id", groupID, "error", err)
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("group not found"))
-	}
-
+// computeGroupBalances calculates member balances and debt edges for a single group.
+func (s *GroupService) computeGroupBalances(ctx context.Context, groupID string) ([]calculator.MemberBalance, []calculator.DebtEdge, error) {
 	billSummaries, err := s.store.ListBillsByGroup(ctx, groupID)
 	if err != nil {
-		slog.Error("GetGroupBalances failed - could not list bills", "group_id", groupID, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, nil, fmt.Errorf("could not list bills: %w", err)
 	}
 
 	var bills []calculator.BillForBalance
 	for _, summary := range billSummaries {
 		bill, err := s.store.GetBill(ctx, summary.ID)
 		if err != nil {
-			slog.Error("GetGroupBalances failed - could not get bill", "bill_id", summary.ID, "error", err)
-			return nil, connect.NewError(connect.CodeInternal, err)
+			return nil, nil, fmt.Errorf("could not get bill %s: %w", summary.ID, err)
 		}
 
 		calcItems := make([]calculator.Item, len(bill.Items))
@@ -254,8 +249,7 @@ func (s *GroupService) GetGroupBalances(ctx context.Context, req *connect.Reques
 
 	settlementsList, err := s.store.ListSettlementsByGroup(ctx, groupID)
 	if err != nil {
-		slog.Error("GetGroupBalances failed - could not list settlements", "group_id", groupID, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, nil, fmt.Errorf("could not list settlements: %w", err)
 	}
 
 	calcSettlements := make([]calculator.SettlementForBalance, len(settlementsList))
@@ -267,9 +261,25 @@ func (s *GroupService) GetGroupBalances(ctx context.Context, req *connect.Reques
 		}
 	}
 
-	memberBalances, debtEdges, err := calculator.CalculateGroupBalances(bills, calcSettlements)
+	return calculator.CalculateGroupBalances(bills, calcSettlements)
+}
+
+// GetGroupBalances calculates balances across all bills in a group.
+func (s *GroupService) GetGroupBalances(ctx context.Context, req *connect.Request[pb.GetGroupBalancesRequest]) (*connect.Response[pb.GetGroupBalancesResponse], error) {
+	groupID := req.Msg.GetGroupId()
+	if groupID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("group_id required"))
+	}
+
+	_, err := s.store.GetGroup(ctx, groupID)
 	if err != nil {
-		slog.Error("GetGroupBalances failed - calculation error", "error", err)
+		slog.Error("GetGroupBalances failed - group not found", "group_id", groupID, "error", err)
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("group not found"))
+	}
+
+	memberBalances, debtEdges, err := s.computeGroupBalances(ctx, groupID)
+	if err != nil {
+		slog.Error("GetGroupBalances failed", "group_id", groupID, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
@@ -295,6 +305,92 @@ func (s *GroupService) GetGroupBalances(ctx context.Context, req *connect.Reques
 	return connect.NewResponse(&pb.GetGroupBalancesResponse{
 		MemberBalances: pbBalances,
 		DebtMatrix:     pbDebts,
+	}), nil
+}
+
+// GetMyBalances aggregates balances across all groups for the authenticated user.
+func (s *GroupService) GetMyBalances(ctx context.Context, req *connect.Request[pb.GetMyBalancesRequest]) (*connect.Response[pb.GetMyBalancesResponse], error) {
+	userID := middleware.GetUserID(ctx)
+	if userID == "" {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("authentication required"))
+	}
+
+	myName := s.resolveDisplayName(ctx, userID)
+
+	groups, err := s.store.ListGroupsByUser(ctx, userID)
+	if err != nil {
+		slog.Error("GetMyBalances failed - could not list groups", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// Aggregate per-person balances across all groups.
+	// Key: other person's display name
+	type personAgg struct {
+		netAmount     float64
+		groupBalances []*pb.PersonGroupBalance
+	}
+	perPerson := make(map[string]*personAgg)
+
+	for _, group := range groups {
+		_, debtEdges, err := s.computeGroupBalances(ctx, group.ID)
+		if err != nil {
+			slog.Error("GetMyBalances failed - balance calc error", "group_id", group.ID, "error", err)
+			continue
+		}
+
+		for _, edge := range debtEdges {
+			var otherName string
+			var amount float64 // positive = they owe me, negative = I owe them
+
+			if edge.From == myName {
+				// I owe someone
+				otherName = edge.To
+				amount = -edge.Amount
+			} else if edge.To == myName {
+				// Someone owes me
+				otherName = edge.From
+				amount = edge.Amount
+			} else {
+				continue
+			}
+
+			agg, ok := perPerson[otherName]
+			if !ok {
+				agg = &personAgg{}
+				perPerson[otherName] = agg
+			}
+			agg.netAmount += amount
+			agg.groupBalances = append(agg.groupBalances, &pb.PersonGroupBalance{
+				GroupId:   group.ID,
+				GroupName: group.Name,
+				NetAmount: amount,
+			})
+		}
+	}
+
+	var totalYouOwe, totalOwedToYou float64
+	personBalances := make([]*pb.PersonBalance, 0, len(perPerson))
+	for name, agg := range perPerson {
+		// Compute totals from individual group balances (don't let cross-group
+		// debts with the same person cancel each other in the summary).
+		for _, gb := range agg.groupBalances {
+			if gb.NetAmount > 0 {
+				totalOwedToYou += gb.NetAmount
+			} else if gb.NetAmount < 0 {
+				totalYouOwe += -gb.NetAmount
+			}
+		}
+		personBalances = append(personBalances, &pb.PersonBalance{
+			DisplayName:   name,
+			NetAmount:     agg.netAmount,
+			GroupBalances: agg.groupBalances,
+		})
+	}
+
+	return connect.NewResponse(&pb.GetMyBalancesResponse{
+		TotalYouOwe:    totalYouOwe,
+		TotalOwedToYou: totalOwedToYou,
+		PersonBalances: personBalances,
 	}), nil
 }
 

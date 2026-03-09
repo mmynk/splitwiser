@@ -15,6 +15,10 @@ let currentUser = null;
 let _searchTimeout = null;
 
 // DOM Elements
+const balanceSection = document.getElementById('balance-section');
+const totalYouOweEl = document.getElementById('total-you-owe');
+const totalOwedToYouEl = document.getElementById('total-owed-to-you');
+const personBalancesList = document.getElementById('person-balances-list');
 const myBillsSection = document.getElementById('my-bills-section');
 const myBillsList = document.getElementById('my-bills-list');
 const newBillBtn = document.getElementById('new-bill-btn');
@@ -45,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
   addParticipant('');
   updateTaxDisplay();
   loadGroups();
+  loadMyBalances();
   loadMyBills();
 });
 
@@ -168,6 +173,95 @@ async function loadMyBills() {
     console.error('Failed to load my bills:', err);
     myBillsList.innerHTML = '<em>Failed to load bills.</em>';
   }
+}
+
+async function loadMyBalances() {
+  try {
+    const response = await authenticatedFetch('/splitwiser.v1.GroupService/GetMyBalances', {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+
+    if (!response.ok) {
+      console.error('Failed to load balances');
+      return;
+    }
+
+    const data = await response.json();
+    renderBalanceSummary(data);
+  } catch (err) {
+    console.error('Failed to load balances:', err);
+  }
+}
+
+function renderBalanceSummary(data) {
+  const youOwe = data.totalYouOwe || 0;
+  const owedToYou = data.totalOwedToYou || 0;
+  const personBalances = data.personBalances || [];
+
+  if (youOwe === 0 && owedToYou === 0 && personBalances.length === 0) {
+    balanceSection.classList.add('hidden');
+    return;
+  }
+
+  balanceSection.classList.remove('hidden');
+  totalYouOweEl.textContent = `$${youOwe.toFixed(2)}`;
+  totalOwedToYouEl.textContent = `$${owedToYou.toFixed(2)}`;
+
+  if (personBalances.length === 0) {
+    personBalancesList.innerHTML = '';
+    return;
+  }
+
+  // Sort: people who owe you first (positive), then people you owe (negative)
+  personBalances.sort((a, b) => (b.netAmount || 0) - (a.netAmount || 0));
+
+  personBalancesList.innerHTML = personBalances.map(person => {
+    const net = person.netAmount || 0;
+    const absAmount = Math.abs(net).toFixed(2);
+    const isPositive = net > 0;
+    const direction = isPositive ? 'owes you' : 'you owe';
+    const colorClass = net === 0 ? 'neutral' : (isPositive ? 'positive' : 'negative');
+    const groupBalances = person.groupBalances || [];
+    const hasMultipleGroups = groupBalances.length > 1;
+
+    return `
+      <div class="person-balance-row ${colorClass}" ${hasMultipleGroups ? 'data-expandable' : ''}>
+        <div class="person-balance-main">
+          <span class="person-name">${escapeHtml(person.displayName)}</span>
+          <span class="person-direction">${direction}</span>
+          <span class="person-amount">$${absAmount}</span>
+          ${hasMultipleGroups ? '<span class="expand-icon">&#9654;</span>' : ''}
+        </div>
+        ${groupBalances.length > 0 ? `
+          <div class="person-group-breakdown hidden">
+            ${groupBalances.map(gb => {
+              const gbNet = gb.netAmount || 0;
+              const gbAbs = Math.abs(gbNet).toFixed(2);
+              const gbDir = gbNet > 0 ? 'owes you' : 'you owe';
+              const gbColor = gbNet === 0 ? 'neutral' : (gbNet > 0 ? 'positive' : 'negative');
+              return `
+                <a href="/group.html?id=${escapeHtml(gb.groupId)}" class="group-balance-link ${gbColor}">
+                  <span>${escapeHtml(gb.groupName)}</span>
+                  <span>${gbDir} $${gbAbs}</span>
+                </a>
+              `;
+            }).join('')}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+
+  // Expand/collapse for multi-group persons
+  personBalancesList.querySelectorAll('[data-expandable]').forEach(row => {
+    row.querySelector('.person-balance-main').addEventListener('click', () => {
+      const breakdown = row.querySelector('.person-group-breakdown');
+      const icon = row.querySelector('.expand-icon');
+      breakdown.classList.toggle('hidden');
+      icon.classList.toggle('expanded');
+    });
+  });
 }
 
 function renderGroupOptions() {

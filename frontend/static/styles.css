@@ -463,9 +463,150 @@ section {
   margin-bottom: 0;
 }
 
+/* Landing page - Balance summary cards */
+.balance-summary-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.balance-summary-card {
+  padding: var(--spacing-lg);
+  border-radius: var(--pico-border-radius);
+  text-align: center;
+}
+
+.balance-summary-card.owe {
+  background: color-mix(in srgb, #dc3545 10%, var(--pico-card-background-color));
+  border-left: 4px solid #dc3545;
+}
+
+.balance-summary-card.owed {
+  background: color-mix(in srgb, #28a745 10%, var(--pico-card-background-color));
+  border-left: 4px solid #28a745;
+}
+
+.balance-summary-label {
+  font-size: 0.875rem;
+  color: var(--pico-muted-color);
+  margin-bottom: var(--spacing-sm);
+}
+
+.balance-summary-card.owe .balance-summary-amount {
+  font-size: 1.75rem;
+  font-weight: bold;
+  color: #dc3545;
+}
+
+.balance-summary-card.owed .balance-summary-amount {
+  font-size: 1.75rem;
+  font-weight: bold;
+  color: #28a745;
+}
+
+/* Person balance rows */
+.person-balance-row {
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: var(--pico-border-radius);
+  margin-bottom: var(--spacing-sm);
+  overflow: hidden;
+}
+
+.person-balance-row.positive {
+  border-left: 4px solid #28a745;
+}
+
+.person-balance-row.negative {
+  border-left: 4px solid #dc3545;
+}
+
+.person-balance-row.neutral {
+  border-left: 4px solid var(--pico-muted-border-color);
+}
+
+.person-balance-main {
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-md);
+  gap: var(--spacing-sm);
+}
+
+[data-expandable] .person-balance-main {
+  cursor: pointer;
+}
+
+[data-expandable] .person-balance-main:hover {
+  background: var(--pico-secondary-background);
+}
+
+.person-name {
+  font-weight: 600;
+  flex: 1;
+}
+
+.person-direction {
+  font-size: 0.875rem;
+  color: var(--pico-muted-color);
+}
+
+.person-amount {
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.person-balance-row.positive .person-amount {
+  color: #28a745;
+}
+
+.person-balance-row.negative .person-amount {
+  color: #dc3545;
+}
+
+.expand-icon {
+  font-size: 0.75rem;
+  transition: transform 0.2s;
+  color: var(--pico-muted-color);
+}
+
+.expand-icon.expanded {
+  transform: rotate(90deg);
+}
+
+.person-group-breakdown {
+  padding: 0 var(--spacing-md) var(--spacing-md);
+}
+
+.group-balance-link {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--pico-border-radius);
+  background: var(--pico-background-color);
+  margin-bottom: 4px;
+  text-decoration: none;
+  font-size: 0.875rem;
+}
+
+.group-balance-link:hover {
+  background: var(--pico-secondary-background);
+}
+
+.group-balance-link.positive {
+  color: #28a745;
+}
+
+.group-balance-link.negative {
+  color: #dc3545;
+}
+
 /* Responsive */
 @media (max-width: 600px) {
   .bill-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .balance-summary-cards {
     grid-template-columns: 1fr;
   }
 

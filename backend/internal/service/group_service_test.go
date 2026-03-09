@@ -868,3 +868,228 @@ func TestGetGroupBalances_WithSettlements(t *testing.T) {
 		t.Errorf("debt: expected Bob→Alice $20, got %s→%s $%f", debt.FromUserId, debt.ToUserId, debt.Amount)
 	}
 }
+
+// GetMyBalances Tests
+
+func TestGetMyBalances_NoGroups(t *testing.T) {
+	client, _, cleanup := setupGroupTestServer(t)
+	defer cleanup()
+
+	resp, err := client.GetMyBalances(context.Background(), connect.NewRequest(&pb.GetMyBalancesRequest{}))
+	if err != nil {
+		t.Fatalf("GetMyBalances failed: %v", err)
+	}
+
+	if resp.Msg.TotalYouOwe != 0 {
+		t.Errorf("total_you_owe: expected 0, got %f", resp.Msg.TotalYouOwe)
+	}
+	if resp.Msg.TotalOwedToYou != 0 {
+		t.Errorf("total_owed_to_you: expected 0, got %f", resp.Msg.TotalOwedToYou)
+	}
+	if len(resp.Msg.PersonBalances) != 0 {
+		t.Errorf("expected 0 person balances, got %d", len(resp.Msg.PersonBalances))
+	}
+}
+
+func TestGetMyBalances_SingleGroup(t *testing.T) {
+	groupClient, splitClient, cleanup := setupGroupTestServer(t)
+	defer cleanup()
+
+	// Create group with Alice (auth user) and Bob
+	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
+		Name:    "Test Group",
+		Members: gm("Alice", "Bob"),
+	}))
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+	groupId := groupResp.Msg.Group.Id
+
+	// Alice paid $100 for both
+	alicePayer := "Alice"
+	_, err = splitClient.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:        "Dinner",
+		Total:        100,
+		Subtotal:     100,
+		Participants: []*pb.BillParticipant{aliceBP(), guestBP("Bob")},
+		GroupId:      &groupId,
+		PayerId:      &alicePayer,
+	}))
+	if err != nil {
+		t.Fatalf("CreateBill failed: %v", err)
+	}
+
+	resp, err := groupClient.GetMyBalances(context.Background(), connect.NewRequest(&pb.GetMyBalancesRequest{}))
+	if err != nil {
+		t.Fatalf("GetMyBalances failed: %v", err)
+	}
+
+	// Bob owes Alice $50
+	if resp.Msg.TotalOwedToYou != 50 {
+		t.Errorf("total_owed_to_you: expected 50, got %f", resp.Msg.TotalOwedToYou)
+	}
+	if resp.Msg.TotalYouOwe != 0 {
+		t.Errorf("total_you_owe: expected 0, got %f", resp.Msg.TotalYouOwe)
+	}
+	if len(resp.Msg.PersonBalances) != 1 {
+		t.Fatalf("expected 1 person balance, got %d", len(resp.Msg.PersonBalances))
+	}
+
+	bob := resp.Msg.PersonBalances[0]
+	if bob.DisplayName != "Bob" {
+		t.Errorf("expected Bob, got %s", bob.DisplayName)
+	}
+	if bob.NetAmount != 50 {
+		t.Errorf("Bob net_amount: expected 50 (owes Alice), got %f", bob.NetAmount)
+	}
+	if len(bob.GroupBalances) != 1 {
+		t.Fatalf("expected 1 group balance for Bob, got %d", len(bob.GroupBalances))
+	}
+	if bob.GroupBalances[0].GroupId != groupId {
+		t.Errorf("group_id mismatch")
+	}
+}
+
+func TestGetMyBalances_MultipleGroups(t *testing.T) {
+	groupClient, splitClient, cleanup := setupGroupTestServer(t)
+	defer cleanup()
+
+	// Group 1: Alice + Bob
+	g1Resp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
+		Name:    "Group 1",
+		Members: gm("Alice", "Bob"),
+	}))
+	if err != nil {
+		t.Fatalf("CreateGroup 1 failed: %v", err)
+	}
+	g1Id := g1Resp.Msg.Group.Id
+
+	// Group 2: Alice + Bob + Charlie
+	g2Resp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
+		Name:    "Group 2",
+		Members: gm("Alice", "Bob", "Charlie"),
+	}))
+	if err != nil {
+		t.Fatalf("CreateGroup 2 failed: %v", err)
+	}
+	g2Id := g2Resp.Msg.Group.Id
+
+	// Group 1: Alice paid $60 for Alice + Bob → Bob owes $30
+	alicePayer := "Alice"
+	_, err = splitClient.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:        "Lunch",
+		Total:        60,
+		Subtotal:     60,
+		Participants: []*pb.BillParticipant{aliceBP(), guestBP("Bob")},
+		GroupId:      &g1Id,
+		PayerId:      &alicePayer,
+	}))
+	if err != nil {
+		t.Fatalf("CreateBill 1 failed: %v", err)
+	}
+
+	// Group 2: Bob paid $90 for all 3 → Alice owes $30, Charlie owes $30
+	bobPayer := "Bob"
+	_, err = splitClient.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:        "Dinner",
+		Total:        90,
+		Subtotal:     90,
+		Participants: []*pb.BillParticipant{aliceBP(), guestBP("Bob"), guestBP("Charlie")},
+		GroupId:      &g2Id,
+		PayerId:      &bobPayer,
+	}))
+	if err != nil {
+		t.Fatalf("CreateBill 2 failed: %v", err)
+	}
+
+	resp, err := groupClient.GetMyBalances(context.Background(), connect.NewRequest(&pb.GetMyBalancesRequest{}))
+	if err != nil {
+		t.Fatalf("GetMyBalances failed: %v", err)
+	}
+
+	// Bob: group1 owes Alice $30, group2 Alice owes Bob $30 → net 0
+	// Charlie: group2 Alice is owed $0 from Charlie (Charlie owes Bob, not Alice)
+	// Actually, let me recalculate:
+	// Group 1: Alice paid $60, split 2 ways. Bob owes Alice $30. Debt: Bob→Alice $30
+	// Group 2: Bob paid $90, split 3 ways. Alice owes Bob $30, Charlie owes Bob $30. Debt: Alice→Bob $30, Charlie→Bob $30
+	// For Alice: Bob owes me $30 (group1), I owe Bob $30 (group2). Net with Bob = 0.
+	// Alice has no debt with Charlie in either group.
+
+	// So net Bob balance for Alice: +30 - 30 = 0
+	// total_you_owe = 30 (from group 2, Alice→Bob)
+	// total_owed_to_you = 30 (from group 1, Bob→Alice)
+
+	if resp.Msg.TotalYouOwe != 30 {
+		t.Errorf("total_you_owe: expected 30, got %f", resp.Msg.TotalYouOwe)
+	}
+	if resp.Msg.TotalOwedToYou != 30 {
+		t.Errorf("total_owed_to_you: expected 30, got %f", resp.Msg.TotalOwedToYou)
+	}
+
+	// Should have 1 person (Bob) with net 0 and 2 group_balances
+	if len(resp.Msg.PersonBalances) != 1 {
+		t.Fatalf("expected 1 person balance (Bob), got %d", len(resp.Msg.PersonBalances))
+	}
+	bob := resp.Msg.PersonBalances[0]
+	if bob.DisplayName != "Bob" {
+		t.Errorf("expected Bob, got %s", bob.DisplayName)
+	}
+	if bob.NetAmount != 0 {
+		t.Errorf("Bob net: expected 0, got %f", bob.NetAmount)
+	}
+	if len(bob.GroupBalances) != 2 {
+		t.Errorf("expected 2 group balances for Bob, got %d", len(bob.GroupBalances))
+	}
+}
+
+func TestGetMyBalances_WithSettlements(t *testing.T) {
+	groupClient, splitClient, cleanup := setupGroupTestServer(t)
+	defer cleanup()
+
+	groupResp, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
+		Name:    "Settlement Group",
+		Members: gm("Alice", "Bob"),
+	}))
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+	groupId := groupResp.Msg.Group.Id
+
+	// Alice paid $100 → Bob owes $50
+	alicePayer := "Alice"
+	_, err = splitClient.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:        "Dinner",
+		Total:        100,
+		Subtotal:     100,
+		Participants: []*pb.BillParticipant{aliceBP(), guestBP("Bob")},
+		GroupId:      &groupId,
+		PayerId:      &alicePayer,
+	}))
+	if err != nil {
+		t.Fatalf("CreateBill failed: %v", err)
+	}
+
+	// Bob settles $30
+	_, err = groupClient.RecordSettlement(context.Background(), connect.NewRequest(&pb.RecordSettlementRequest{
+		GroupId:    groupId,
+		FromUserId: "Bob",
+		ToUserId:   "Alice",
+		Amount:     30,
+	}))
+	if err != nil {
+		t.Fatalf("RecordSettlement failed: %v", err)
+	}
+
+	resp, err := groupClient.GetMyBalances(context.Background(), connect.NewRequest(&pb.GetMyBalancesRequest{}))
+	if err != nil {
+		t.Fatalf("GetMyBalances failed: %v", err)
+	}
+
+	// After settlement: Bob owes Alice $20
+	if resp.Msg.TotalOwedToYou != 20 {
+		t.Errorf("total_owed_to_you: expected 20, got %f", resp.Msg.TotalOwedToYou)
+	}
+	if resp.Msg.TotalYouOwe != 0 {
+		t.Errorf("total_you_owe: expected 0, got %f", resp.Msg.TotalYouOwe)
+	}
+}
