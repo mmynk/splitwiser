@@ -27,7 +27,7 @@ This file provides guidance to AI coding assistants when working with code in th
 
 Feel free to tear down and recreate as needed. Clean code over legacy support.
 
-**Commits:** After completing a plan (or any cohesive set of changes), create a commit. Don't make tiny incremental commits for each file, but do commit after each logical unit of work is done and verified. This keeps the history clean and makes it easy to revert if needed.
+**Commits:** After completing a plan (or any cohesive set of changes), create a commit. Don't make tiny incremental commits for each file, but do commit after each logical unit of work is done and verified. This keeps the history clean and makes it easy to revert if needed. Commit after each logical task — not one big commit at the end. Each commit message should describe only that task's changes.
 
 ## Learning Mode
 
