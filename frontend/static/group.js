@@ -52,7 +52,7 @@ async function loadGroup() {
 
     document.getElementById('group-name').textContent = currentGroup.name;
     document.getElementById('group-members').textContent =
-      `Members: ${(currentGroup.members || []).join(', ')}`;
+      `Members: ${(currentGroup.members || []).map(m => m.displayName).join(', ')}`;
   } catch (err) {
     showError('Failed to load group: ' + err.message);
   }
@@ -273,8 +273,9 @@ function openSettlementDialog() {
   toSelect.innerHTML = '<option value="">Select recipient...</option>';
 
   for (const member of currentGroup.members) {
-    fromSelect.innerHTML += `<option value="${escapeHtml(member)}">${escapeHtml(member)}</option>`;
-    toSelect.innerHTML += `<option value="${escapeHtml(member)}">${escapeHtml(member)}</option>`;
+    const name = member.displayName;
+    fromSelect.innerHTML += `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
+    toSelect.innerHTML += `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
   }
 
   // Clear form
