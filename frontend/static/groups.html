@@ -10,13 +10,33 @@
 <body>
   <main class="container">
     <header>
-      <h1>Groups</h1>
-      <p>Create and manage reusable participant lists.</p>
-      <p><a href="/">&larr; Back to Bill Splitter</a></p>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div>
+          <h1>Splitwiser</h1>
+        </div>
+        <div id="user-info"></div>
+      </div>
+      <p>Manage reusable participant lists.</p>
     </header>
 
+    <nav class="tab-nav">
+      <a href="/">Bills</a>
+      <a href="/groups.html" class="active">Groups</a>
+    </nav>
+
+    <!-- Groups List -->
+    <section id="groups-section">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>Your Groups</h2>
+        <button type="button" id="new-group-btn" class="outline">+ New Group</button>
+      </div>
+      <div id="groups-list">
+        <p class="loading">Loading groups...</p>
+      </div>
+    </section>
+
     <!-- Create Group Form -->
-    <section id="create-section">
+    <section id="create-section" class="hidden">
       <h2>Create New Group</h2>
       <form id="create-form">
         <label>
@@ -33,14 +53,6 @@
           <button type="submit" id="create-btn">Create Group</button>
         </div>
       </form>
-    </section>
-
-    <!-- Groups List -->
-    <section id="groups-section">
-      <h2>Your Groups</h2>
-      <div id="groups-list">
-        <p class="loading">Loading groups...</p>
-      </div>
     </section>
 
     <!-- Edit Group Modal/Section -->

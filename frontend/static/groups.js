@@ -14,10 +14,12 @@ let groups = [];
 
 // DOM Elements
 const createForm = document.getElementById('create-form');
+const createSection = document.getElementById('create-section');
 const groupNameInput = document.getElementById('group-name');
 const membersList = document.getElementById('members-list');
 const addMemberBtn = document.getElementById('add-member');
 const createBtn = document.getElementById('create-btn');
+const newGroupBtn = document.getElementById('new-group-btn');
 const groupsSection = document.getElementById('groups-section');
 const groupsList = document.getElementById('groups-list');
 const editSection = document.getElementById('edit-section');
@@ -45,6 +47,13 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Event Listeners
+newGroupBtn.addEventListener('click', () => {
+  const isHidden = createSection.classList.contains('hidden');
+  createSection.classList.toggle('hidden');
+  newGroupBtn.textContent = isHidden ? 'Cancel' : '+ New Group';
+  if (isHidden) groupNameInput.focus();
+});
+
 addMemberBtn.addEventListener('click', () => addMember(''));
 createForm.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -325,6 +334,9 @@ async function createGroup() {
     }
     addMember('');
 
+    createSection.classList.add('hidden');
+    newGroupBtn.textContent = '+ New Group';
+
     await loadGroups();
   } catch (err) {
     showError(err.message);
@@ -435,7 +447,7 @@ async function deleteGroup(groupId, groupName) {
 // Render Groups
 function renderGroups() {
   if (groups.length === 0) {
-    groupsList.innerHTML = '<p>No groups yet. Create one above!</p>';
+    groupsList.innerHTML = '<p>No groups yet. Click &ldquo;+ New Group&rdquo; to create one.</p>';
     return;
   }
 
@@ -451,10 +463,7 @@ function renderGroups() {
         <strong>Members:</strong> ${memberNames}
       </div>
       <div id="bills-${group.id}" class="group-bills" style="margin-top: var(--spacing-md);">
-        <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
-          <strong>Bills:</strong>
-          <button type="button" class="secondary outline" style="font-size: 0.9em; padding: 0.25em 0.5em;" data-action="toggle-bills" data-group-id="${group.id}">Show Bills</button>
-        </div>
+        <button type="button" class="secondary outline" style="font-size: 0.9em; padding: 0.25em 0.5em;" data-action="toggle-bills" data-group-id="${group.id}">Bills &#9662;</button>
         <div id="bills-list-${group.id}" style="display: none; margin-top: var(--spacing-sm);"></div>
       </div>
       <div style="margin-top: var(--spacing-md); display: flex; gap: var(--spacing-sm); flex-wrap: wrap;">
@@ -477,16 +486,16 @@ async function toggleBills(groupId, button) {
       const bills = await loadBillsForGroup(groupId);
       renderBillsList(groupId, bills);
       billsList.style.display = 'block';
-      button.textContent = 'Hide Bills';
+      button.textContent = 'Bills \u25B4';
     } catch (err) {
       showError(err.message);
-      button.textContent = 'Show Bills';
+      button.textContent = 'Bills \u25BE';
     } finally {
       button.removeAttribute('aria-busy');
     }
   } else {
     billsList.style.display = 'none';
-    button.textContent = 'Show Bills';
+    button.textContent = 'Bills \u25BE';
   }
 }
 
