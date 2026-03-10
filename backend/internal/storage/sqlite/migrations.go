@@ -83,6 +83,20 @@ CREATE INDEX IF NOT EXISTS idx_group_members_group_id ON group_members(group_id)
 CREATE INDEX IF NOT EXISTS idx_group_members_user_id ON group_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_bills_group_id ON bills(group_id);
 CREATE INDEX IF NOT EXISTS idx_settlements_group_id ON settlements(group_id);
+
+CREATE TABLE IF NOT EXISTS friendships (
+    id TEXT PRIMARY KEY,
+    requester_id TEXT NOT NULL,
+    addressee_id TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('pending', 'accepted', 'declined')),
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY (requester_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (addressee_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE (requester_id, addressee_id)
+);
+CREATE INDEX IF NOT EXISTS idx_friendships_requester ON friendships(requester_id);
+CREATE INDEX IF NOT EXISTS idx_friendships_addressee ON friendships(addressee_id);
 `
 
 // runMigrations executes the schema setup.

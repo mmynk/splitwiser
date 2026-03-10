@@ -83,6 +83,34 @@ type Store interface {
 	// AddGroupMembersWithIDs adds members (with optional user IDs) to a group idempotently.
 	AddGroupMembersWithIDs(ctx context.Context, groupID string, members []models.GroupMember) error
 
+	// SendFriendRequest persists a new friendship request.
+	// Returns an error if a request already exists in either direction.
+	SendFriendRequest(ctx context.Context, friendship *models.Friendship) error
+
+	// GetFriendship retrieves a friendship by ID.
+	GetFriendship(ctx context.Context, id string) (*models.Friendship, error)
+
+	// UpdateFriendshipStatus updates the status of a friendship.
+	UpdateFriendshipStatus(ctx context.Context, id string, status models.FriendshipStatus) error
+
+	// ListFriendships lists friendships for a user.
+	// If incoming is true, returns requests where userID is the addressee.
+	// If incoming is false, returns requests where userID is the requester.
+	ListFriendships(ctx context.Context, userID string, incoming bool, status models.FriendshipStatus) ([]*models.Friendship, error)
+
+	// DeleteFriendship removes a friendship by ID.
+	DeleteFriendship(ctx context.Context, id string) error
+
+	// AreFriends returns true if the two users have an accepted friendship in either direction.
+	AreFriends(ctx context.Context, userIDA, userIDB string) (bool, error)
+
+	// GetFriends returns all accepted friends of a user (the other party in each friendship).
+	GetFriends(ctx context.Context, userID string) ([]*models.User, error)
+
+	// GetFriendshipBetween retrieves the friendship between two users in either direction.
+	// Returns a not-found error if no row exists.
+	GetFriendshipBetween(ctx context.Context, userIDA, userIDB string) (*models.Friendship, error)
+
 	// Close releases any resources held by the store.
 	Close() error
 }

@@ -960,9 +960,11 @@ func TestSearchUsers(t *testing.T) {
 	client, cleanup := setupTestServer(t)
 	defer cleanup()
 
-	// Search for "ali" (should match Alice)
+	// Search for "ali" (should match Alice); use IncludeNonFriends since Alice is the caller,
+	// not her own friend, and the default mode filters to friends only.
 	resp, err := client.SearchUsers(context.Background(), connect.NewRequest(&pb.SearchUsersRequest{
-		Query: "ali",
+		Query:             "ali",
+		IncludeNonFriends: true,
 	}))
 	if err != nil {
 		t.Fatalf("SearchUsers failed: %v", err)

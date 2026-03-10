@@ -92,6 +92,10 @@ func (s *GroupService) CreateGroup(ctx context.Context, req *connect.Request[pb.
 
 	members := pbToModelMembers(req.Msg.Members)
 
+	if err := validateRegisteredMembers(ctx, s.store, userID, members); err != nil {
+		return nil, err
+	}
+
 	// Ensure creator is in the members list with their user_id
 	if !isMemberByName(creatorName, members) {
 		members = append([]models.GroupMember{{DisplayName: creatorName, UserID: userID}}, members...)
@@ -178,10 +182,21 @@ func (s *GroupService) ListGroups(ctx context.Context, req *connect.Request[pb.L
 
 // UpdateGroup updates an existing group.
 func (s *GroupService) UpdateGroup(ctx context.Context, req *connect.Request[pb.UpdateGroupRequest]) (*connect.Response[pb.UpdateGroupResponse], error) {
+	userID := middleware.GetUserID(ctx)
+	if userID == "" {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("authentication required"))
+	}
+
+	members := pbToModelMembers(req.Msg.Members)
+
+	if err := validateRegisteredMembers(ctx, s.store, userID, members); err != nil {
+		return nil, err
+	}
+
 	group := &models.Group{
 		ID:      req.Msg.GroupId,
 		Name:    req.Msg.Name,
-		Members: pbToModelMembers(req.Msg.Members),
+		Members: members,
 	}
 
 	if err := s.store.UpdateGroup(ctx, group); err != nil {

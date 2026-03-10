@@ -197,6 +197,10 @@ func (s *SplitService) CreateBill(ctx context.Context, req *connect.Request[pb.C
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("you must be a participant to create this bill"))
 	}
 
+	if err := validateRegisteredParticipants(ctx, s.store, userID, participants); err != nil {
+		return nil, err
+	}
+
 	// Convert proto items to models
 	items := make([]models.Item, len(req.Msg.Items))
 	for i, item := range req.Msg.Items {
@@ -378,6 +382,10 @@ func (s *SplitService) UpdateBill(ctx context.Context, req *connect.Request[pb.U
 	}
 
 	participants := pbToModelParticipants(req.Msg.Participants)
+
+	if err := validateRegisteredParticipants(ctx, s.store, userID, participants); err != nil {
+		return nil, err
+	}
 
 	items := make([]models.Item, len(req.Msg.Items))
 	for i, item := range req.Msg.Items {
@@ -593,6 +601,26 @@ func (s *SplitService) SearchUsers(ctx context.Context, req *connect.Request[pb.
 	if err != nil {
 		slog.Error("SearchUsers failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// By default, scope results to friends only. Pass include_non_friends=true for the "add friend" flow.
+	if !req.Msg.IncludeNonFriends {
+		friends, err := s.store.GetFriends(ctx, userID)
+		if err != nil {
+			slog.Error("SearchUsers: failed to fetch friends", "error", err)
+			return nil, connect.NewError(connect.CodeInternal, err)
+		}
+		friendSet := make(map[string]struct{}, len(friends))
+		for _, f := range friends {
+			friendSet[f.ID] = struct{}{}
+		}
+		var filtered []*models.User
+		for _, u := range users {
+			if _, ok := friendSet[u.ID]; ok {
+				filtered = append(filtered, u)
+			}
+		}
+		users = filtered
 	}
 
 	results := make([]*pb.UserSearchResult, len(users))

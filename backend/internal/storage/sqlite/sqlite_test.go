@@ -1035,3 +1035,131 @@ func TestSettlementStorage(t *testing.T) {
 		}
 	})
 }
+
+func TestFriendshipStorage(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "splitwiser-friendship-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	store, err := New(filepath.Join(tempDir, "test.db"))
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+
+	alice := &models.User{ID: "alice-id", Email: "alice@test.com", DisplayName: "Alice", PasswordHash: "h", CreatedAt: 1, UpdatedAt: 1}
+	bob := &models.User{ID: "bob-id", Email: "bob@test.com", DisplayName: "Bob", PasswordHash: "h", CreatedAt: 1, UpdatedAt: 1}
+	if err := store.CreateUser(ctx, alice); err != nil {
+		t.Fatalf("CreateUser alice: %v", err)
+	}
+	if err := store.CreateUser(ctx, bob); err != nil {
+		t.Fatalf("CreateUser bob: %v", err)
+	}
+
+	t.Run("AreFriends_PendingRequest_ReturnsFalse", func(t *testing.T) {
+		f := &models.Friendship{RequesterID: alice.ID, AddresseeID: bob.ID, Status: models.FriendshipPending}
+		if err := store.SendFriendRequest(ctx, f); err != nil {
+			t.Fatalf("SendFriendRequest failed: %v", err)
+		}
+
+		ok, err := store.AreFriends(ctx, alice.ID, bob.ID)
+		if err != nil {
+			t.Fatalf("AreFriends failed: %v", err)
+		}
+		if ok {
+			t.Error("Expected AreFriends to be false for pending request")
+		}
+	})
+
+	t.Run("SendFriendRequest_Duplicate_Error", func(t *testing.T) {
+		// Request already sent in previous subtest
+		f2 := &models.Friendship{RequesterID: alice.ID, AddresseeID: bob.ID, Status: models.FriendshipPending}
+		err := store.SendFriendRequest(ctx, f2)
+		if err == nil {
+			t.Error("Expected error for duplicate friend request, got nil")
+		}
+	})
+
+	t.Run("SendFriendRequest_ReverseDirection_Error", func(t *testing.T) {
+		f := &models.Friendship{RequesterID: bob.ID, AddresseeID: alice.ID, Status: models.FriendshipPending}
+		err := store.SendFriendRequest(ctx, f)
+		if err == nil {
+			t.Error("Expected error for reverse direction friend request, got nil")
+		}
+	})
+
+	t.Run("AreFriends_AcceptedRequest_ReturnsTrue", func(t *testing.T) {
+		// Get the pending friendship created above
+		friendships, err := store.ListFriendships(ctx, alice.ID, false, models.FriendshipPending)
+		if err != nil {
+			t.Fatalf("ListFriendships failed: %v", err)
+		}
+		if len(friendships) == 0 {
+			t.Fatal("Expected at least one pending friendship")
+		}
+		fID := friendships[0].ID
+
+		if err := store.UpdateFriendshipStatus(ctx, fID, models.FriendshipAccepted); err != nil {
+			t.Fatalf("UpdateFriendshipStatus failed: %v", err)
+		}
+
+		// Test both directions
+		ok, err := store.AreFriends(ctx, alice.ID, bob.ID)
+		if err != nil || !ok {
+			t.Errorf("Expected AreFriends(alice, bob)=true, got %v (err: %v)", ok, err)
+		}
+		ok, err = store.AreFriends(ctx, bob.ID, alice.ID)
+		if err != nil || !ok {
+			t.Errorf("Expected AreFriends(bob, alice)=true, got %v (err: %v)", ok, err)
+		}
+	})
+
+	t.Run("ListFriendships_Incoming", func(t *testing.T) {
+		// Bob has an incoming accepted request from Alice
+		friendships, err := store.ListFriendships(ctx, bob.ID, true, models.FriendshipAccepted)
+		if err != nil {
+			t.Fatalf("ListFriendships incoming failed: %v", err)
+		}
+		if len(friendships) != 1 {
+			t.Errorf("Expected 1 incoming friendship for Bob, got %d", len(friendships))
+		}
+	})
+
+	t.Run("ListFriendships_Outgoing", func(t *testing.T) {
+		friendships, err := store.ListFriendships(ctx, alice.ID, false, models.FriendshipAccepted)
+		if err != nil {
+			t.Fatalf("ListFriendships outgoing failed: %v", err)
+		}
+		if len(friendships) != 1 {
+			t.Errorf("Expected 1 outgoing friendship for Alice, got %d", len(friendships))
+		}
+	})
+
+	t.Run("GetFriends_ReturnsFriendUser", func(t *testing.T) {
+		friends, err := store.GetFriends(ctx, alice.ID)
+		if err != nil {
+			t.Fatalf("GetFriends failed: %v", err)
+		}
+		if len(friends) != 1 || friends[0].ID != bob.ID {
+			t.Errorf("Expected Bob as Alice's friend, got %v", friends)
+		}
+	})
+
+	t.Run("DeleteFriendship_RemovesFriendship", func(t *testing.T) {
+		friendships, err := store.ListFriendships(ctx, alice.ID, false, models.FriendshipAccepted)
+		if err != nil || len(friendships) == 0 {
+			t.Fatalf("Could not get friendship to delete")
+		}
+		if err := store.DeleteFriendship(ctx, friendships[0].ID); err != nil {
+			t.Fatalf("DeleteFriendship failed: %v", err)
+		}
+		ok, err := store.AreFriends(ctx, alice.ID, bob.ID)
+		if err != nil || ok {
+			t.Errorf("Expected AreFriends=false after deletion, got %v (err: %v)", ok, err)
+		}
+	})
+}

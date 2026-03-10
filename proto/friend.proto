@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package splitwiser.v1;
+
+option go_package = "github.com/mmynk/splitwiser/pkg/proto;proto";
+
+// FriendService manages friend requests and relationships between registered users.
+service FriendService {
+  // Send a friend request to another user.
+  rpc SendFriendRequest(SendFriendRequestRequest) returns (SendFriendRequestResponse);
+
+  // Accept or decline an incoming friend request.
+  rpc RespondToFriendRequest(RespondToFriendRequestRequest) returns (RespondToFriendRequestResponse);
+
+  // List all accepted friends of the authenticated user.
+  rpc ListFriends(ListFriendsRequest) returns (ListFriendsResponse);
+
+  // List pending friend requests (incoming or outgoing).
+  rpc ListFriendRequests(ListFriendRequestsRequest) returns (ListFriendRequestsResponse);
+
+  // Remove an accepted friend (unfriend).
+  rpc RemoveFriend(RemoveFriendRequest) returns (RemoveFriendResponse);
+}
+
+message FriendRequest {
+  string id = 1;
+  string requester_id = 2;
+  string requester_display_name = 3;
+  string addressee_id = 4;
+  string addressee_display_name = 5;
+  string status = 6;  // "pending", "accepted", "declined"
+  int64 created_at = 7;
+}
+
+message Friend {
+  string user_id = 1;
+  string display_name = 2;
+  string email = 3;
+}
+
+message SendFriendRequestRequest {
+  string addressee_id = 1;  // UUID of the user to add as a friend
+}
+
+message SendFriendRequestResponse {
+  FriendRequest request = 1;
+}
+
+message RespondToFriendRequestRequest {
+  string request_id = 1;
+  bool accept = 2;  // true = accept, false = decline
+}
+
+message RespondToFriendRequestResponse {
+  FriendRequest request = 1;
+}
+
+message ListFriendsRequest {}
+
+message ListFriendsResponse {
+  repeated Friend friends = 1;
+}
+
+message ListFriendRequestsRequest {
+  bool incoming = 1;  // true = incoming requests, false = outgoing requests
+}
+
+message ListFriendRequestsResponse {
+  repeated FriendRequest requests = 1;
+}
+
+message RemoveFriendRequest {
+  string user_id = 1;  // UUID of the friend to remove
+}
+
+message RemoveFriendResponse {}
