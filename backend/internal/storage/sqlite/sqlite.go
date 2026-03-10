@@ -502,6 +502,29 @@ func (s *SQLiteStore) getItemsWithAssignments(ctx context.Context, billID string
 	return items, itemRows.Err()
 }
 
+// Stats holds aggregate counts for observability metrics.
+type Stats struct {
+	Users  int64
+	Bills  int64
+	Groups int64
+}
+
+// GetStats returns aggregate counts of users, bills, and groups.
+// It runs a single query with three subselects, so it's cheap to call on each scrape.
+func (s *SQLiteStore) GetStats(ctx context.Context) (Stats, error) {
+	var stats Stats
+	row := s.db.QueryRowContext(ctx, `
+		SELECT
+			(SELECT COUNT(*) FROM users),
+			(SELECT COUNT(*) FROM bills),
+			(SELECT COUNT(*) FROM groups)
+	`)
+	if err := row.Scan(&stats.Users, &stats.Bills, &stats.Groups); err != nil {
+		return Stats{}, fmt.Errorf("failed to get stats: %w", err)
+	}
+	return stats, nil
+}
+
 // generateTitle creates an auto-generated title using hybrid "Items - Participants" format.
 func generateTitle(items []models.Item, participants []models.BillParticipant) string {
 	itemsStr := ""

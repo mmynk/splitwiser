@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
@@ -72,6 +74,9 @@ func main() {
 	defer store.Close()
 	slog.Info("Storage initialized", "database", dbPath)
 
+	// Register custom Prometheus collector for DB-level gauges
+	prometheus.MustRegister(newCollector(store))
+
 	// Initialize authentication components
 	jwtManager := auth.NewJWTManager(jwtSecret, jwtTokenDuration)
 	passwordAuth := auth.NewPasswordAuthenticator(store)
@@ -89,6 +94,9 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
 	})
+
+	// Prometheus metrics endpoint (no auth required, scraped by Fly.io)
+	mux.Handle("/metrics", promhttp.Handler())
 
 	// Register AuthService with optional auth so GetCurrentUser can read the JWT,
 	// while Register/Login/Logout remain accessible without a token.
