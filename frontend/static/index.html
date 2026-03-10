@@ -63,17 +63,10 @@
           <input type="text" id="bill-title" placeholder="e.g., Team Lunch, Grocery Run">
           <small>Leave empty for auto-generated name like "Pizza - Alice, Bob"</small>
         </label>
-        <div class="grid">
-          <label>
-            Total (with tax)
-            <input type="number" id="total" step="0.01" min="0" placeholder="0.00" required>
-          </label>
-          <label>
-            Subtotal (before tax)
-            <input type="number" id="subtotal" step="0.01" min="0" placeholder="0.00" required>
-          </label>
-        </div>
-        <p class="tax-display">Tax & Fees: <strong id="tax-amount">$0.00</strong></p>
+        <label>
+          Total (with tax)
+          <input type="number" id="total" step="0.01" min="0" placeholder="0.00" required>
+        </label>
       </section>
 
       <!-- Participants -->
@@ -104,6 +97,14 @@
       <section>
         <h2>Items <small>(optional)</small></h2>
         <p class="hint">Leave empty to split equally among all participants</p>
+        <div id="subtotal-wrapper" class="hidden">
+          <label>
+            Subtotal (before tax)
+            <input type="number" id="subtotal" step="0.01" min="0" placeholder="0.00">
+            <small>Pre-tax total from your receipt</small>
+          </label>
+          <p id="tax-display" class="tax-display">Tax & Fees: <strong id="tax-amount">$0.00</strong></p>
+        </div>
         <div id="items-list"></div>
         <button type="button" id="add-item" class="secondary outline">+ Add Item</button>
       </section>

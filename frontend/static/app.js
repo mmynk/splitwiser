@@ -26,6 +26,8 @@ const form = document.getElementById('bill-form');
 const billTitleInput = document.getElementById('bill-title');
 const totalInput = document.getElementById('total');
 const subtotalInput = document.getElementById('subtotal');
+const subtotalWrapper = document.getElementById('subtotal-wrapper');
+const taxDisplay = document.getElementById('tax-display');
 const taxAmountEl = document.getElementById('tax-amount');
 const participantsList = document.getElementById('participants-list');
 const itemsList = document.getElementById('items-list');
@@ -505,6 +507,18 @@ function updatePayerDropdown() {
 }
 
 // Items
+function showSubtotal() {
+  if (subtotalWrapper.classList.contains('hidden')) {
+    subtotalWrapper.classList.remove('hidden');
+    updateTaxDisplay();
+  }
+}
+
+function hideSubtotal() {
+  subtotalWrapper.classList.add('hidden');
+  subtotalInput.value = '';
+}
+
 function addItem() {
   const id = Date.now() + Math.random();
   const validParticipants = participants.filter(p => p.displayName.trim()).map(p => p.displayName);
@@ -514,6 +528,7 @@ function addItem() {
     amount: 0,
     participants: [...validParticipants]
   });
+  showSubtotal();
   renderItems();
 
   setTimeout(() => {
@@ -528,6 +543,7 @@ function addItem() {
 
 function removeItem(id) {
   items = items.filter(i => i.id !== id);
+  if (items.length === 0) hideSubtotal();
   renderItems();
 }
 
