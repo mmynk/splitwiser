@@ -42,8 +42,10 @@ func main() {
 	logger := slog.Default()
 
 	// Read configuration from environment
+	isProd := getEnv("APP_ENV", "development") == "production"
+
 	jwtSecret := getEnv("JWT_SECRET", "dev-secret-do-not-use-in-production")
-	if jwtSecret == "dev-secret-do-not-use-in-production" {
+	if isProd && jwtSecret == "dev-secret-do-not-use-in-production" {
 		slog.Warn("JWT_SECRET not set - using insecure default. Set JWT_SECRET for production.")
 	}
 
@@ -55,7 +57,7 @@ func main() {
 	}
 
 	corsOrigin := getEnv("CORS_ORIGIN", "*")
-	if corsOrigin == "*" {
+	if isProd && corsOrigin == "*" {
 		slog.Warn("CORS_ORIGIN is set to wildcard '*'. Set CORS_ORIGIN to your domain for production.")
 	}
 
