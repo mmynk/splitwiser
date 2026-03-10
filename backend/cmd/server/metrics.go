@@ -3,11 +3,32 @@ package main
 import (
 	"context"
 	"log/slog"
+	"net"
+	"net/http"
+	"os"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/mmynk/splitwiser/internal/storage/sqlite"
 )
+
+// flyNetworkOnly restricts the handler to Fly.io's private IPv6 network (fdaa::/7).
+// The managed Prometheus scraper (fly-metrics.net) runs inside this network,
+// so the Grafana dashboard continues to work. All external requests return 403.
+// In local dev (APP_ENV != production), all requests are allowed.
+func flyNetworkOnly(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if os.Getenv("APP_ENV") == "production" {
+			ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+			if !strings.HasPrefix(ip, "fdaa") {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
 
 // splitwiserCollector implements prometheus.Collector to expose DB-level gauges.
 // Queries run on each scrape, so counts are always current without background goroutines.

@@ -97,8 +97,8 @@ func main() {
 		w.Write([]byte("ok"))
 	})
 
-	// Prometheus metrics endpoint (no auth required, scraped by Fly.io)
-	mux.Handle("/metrics", promhttp.Handler())
+	// Prometheus metrics endpoint — restricted to Fly.io private network in production
+	mux.Handle("/metrics", flyNetworkOnly(promhttp.Handler()))
 
 	// Register AuthService with optional auth so GetCurrentUser can read the JWT,
 	// while Register/Login/Logout remain accessible without a token.
@@ -121,6 +121,12 @@ func main() {
 		connect.WithInterceptors(loggingInterceptor, authMiddleware),
 	)
 	mux.Handle(groupPath, groupHandler)
+
+	friendPath, friendHandler := protoconnect.NewFriendServiceHandler(
+		service.NewFriendService(store),
+		connect.WithInterceptors(loggingInterceptor, authMiddleware),
+	)
+	mux.Handle(friendPath, friendHandler)
 
 	// Serve static files from frontend/static
 	staticDir, err := filepath.Abs(staticPath)
