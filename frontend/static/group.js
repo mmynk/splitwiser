@@ -30,8 +30,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('create-first-bill').href = `/?group=${groupId}`;
 
   // Set up settlement button and form
-  document.getElementById('record-settlement-btn').addEventListener('click', openSettlementDialog);
+  document.getElementById('record-settlement-btn').addEventListener('click', () => openSettlementDialog());
   document.getElementById('settlement-form').addEventListener('submit', handleSettlementSubmit);
+
+  // Auto-open settlement dialog if URL params present
+  const params = new URLSearchParams(window.location.search);
+  const settleFrom = params.get('settleFrom'), settleTo = params.get('settleTo'), amount = params.get('amount');
+  if (settleFrom || settleTo) openSettlementDialog({ from: settleFrom, to: settleTo, amount });
 });
 
 // View toggle
@@ -113,14 +118,27 @@ function renderBalances() {
   } else {
     document.getElementById('no-debts-message').classList.add('hidden');
     tbody.innerHTML = balances.debtMatrix
-      .map(debt => `
-        <tr>
-          <td>${escapeHtml(debt.fromName || debt.fromUserId || '')}</td>
-          <td>${escapeHtml(debt.toName || debt.toUserId || '')}</td>
-          <td>$${(debt.amount || 0).toFixed(2)}</td>
-        </tr>
-      `)
+      .map(debt => {
+        const from = debt.fromName || debt.fromUserId || '';
+        const to = debt.toName || debt.toUserId || '';
+        const amount = (debt.amount || 0).toFixed(2);
+        return `
+          <tr>
+            <td>${escapeHtml(from)}</td>
+            <td>${escapeHtml(to)}</td>
+            <td>$${amount}</td>
+            <td><button class="settle-btn secondary outline" data-from="${escapeHtml(from)}" data-to="${escapeHtml(to)}" data-amount="${amount}">Settle</button></td>
+          </tr>
+        `;
+      })
       .join('');
+    tbody.querySelectorAll('.settle-btn').forEach(btn => {
+      btn.addEventListener('click', () => openSettlementDialog({
+        from: btn.dataset.from,
+        to: btn.dataset.to,
+        amount: btn.dataset.amount,
+      }));
+    });
   }
 }
 
@@ -259,7 +277,7 @@ async function loadSettlements() {
   }
 }
 
-function openSettlementDialog() {
+function openSettlementDialog(prefill = null) {
   if (!currentGroup || !currentGroup.members) {
     showError('Group data not loaded');
     return;
@@ -281,6 +299,13 @@ function openSettlementDialog() {
   // Clear form
   document.getElementById('settlement-amount').value = '';
   document.getElementById('settlement-note').value = '';
+
+  // Pre-fill if provided
+  if (prefill) {
+    if (prefill.from)   fromSelect.value = prefill.from;
+    if (prefill.to)     toSelect.value   = prefill.to;
+    if (prefill.amount) document.getElementById('settlement-amount').value = prefill.amount;
+  }
 
   document.getElementById('settlement-dialog').showModal();
 }
