@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"connectrpc.com/connect"
 	"github.com/mmynk/splitwiser/internal/middleware"
@@ -41,6 +42,7 @@ func (s *FriendService) SendFriendRequest(ctx context.Context, req *connect.Requ
 	// Verify addressee exists
 	users, err := s.store.GetUsersByIDs(ctx, []string{addresseeID})
 	if err != nil {
+		slog.Error("SendFriendRequest: lookup addressee failed", "error", err, "addressee_id", addresseeID)
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to lookup user: %w", err))
 	}
 	addressee, ok := users[addresseeID]
@@ -51,6 +53,7 @@ func (s *FriendService) SendFriendRequest(ctx context.Context, req *connect.Requ
 	// Look up caller's display name
 	callerUsers, err := s.store.GetUsersByIDs(ctx, []string{callerID})
 	if err != nil || callerUsers[callerID] == nil {
+		slog.Error("SendFriendRequest: lookup caller failed", "error", err, "caller_id", callerID)
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to lookup caller: %w", err))
 	}
 	caller := callerUsers[callerID]
@@ -62,8 +65,10 @@ func (s *FriendService) SendFriendRequest(ctx context.Context, req *connect.Requ
 	}
 
 	if err := s.store.SendFriendRequest(ctx, friendship); err != nil {
+		slog.Error("SendFriendRequest: insert failed", "error", err, "requester_id", callerID, "addressee_id", addresseeID)
 		return nil, connect.NewError(connect.CodeAlreadyExists, err)
 	}
+	slog.Info("Friend request sent", "requester_id", callerID, "addressee_id", addresseeID)
 
 	return connect.NewResponse(&pb.SendFriendRequestResponse{
 		Request: &pb.FriendRequest{
@@ -91,6 +96,7 @@ func (s *FriendService) RespondToFriendRequest(ctx context.Context, req *connect
 
 	friendship, err := s.store.GetFriendship(ctx, req.Msg.RequestId)
 	if err != nil {
+		slog.Error("RespondToFriendRequest: lookup failed", "error", err, "request_id", req.Msg.RequestId)
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("friend request not found"))
 	}
 
@@ -108,13 +114,16 @@ func (s *FriendService) RespondToFriendRequest(ctx context.Context, req *connect
 	}
 
 	if err := s.store.UpdateFriendshipStatus(ctx, friendship.ID, newStatus); err != nil {
+		slog.Error("RespondToFriendRequest: update status failed", "error", err, "request_id", friendship.ID)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	friendship.Status = newStatus
+	slog.Info("Friend request responded", "request_id", friendship.ID, "accept", req.Msg.Accept, "caller_id", callerID)
 
 	// Hydrate display names
 	userMap, err := s.store.GetUsersByIDs(ctx, []string{friendship.RequesterID, friendship.AddresseeID})
 	if err != nil {
+		slog.Error("RespondToFriendRequest: hydrate names failed", "error", err, "request_id", friendship.ID)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
@@ -131,6 +140,7 @@ func (s *FriendService) ListFriends(ctx context.Context, req *connect.Request[pb
 
 	friends, err := s.store.GetFriends(ctx, callerID)
 	if err != nil {
+		slog.Error("ListFriends: storage failed", "error", err, "caller_id", callerID)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
@@ -155,6 +165,7 @@ func (s *FriendService) ListFriendRequests(ctx context.Context, req *connect.Req
 
 	friendships, err := s.store.ListFriendships(ctx, callerID, req.Msg.Incoming, models.FriendshipPending)
 	if err != nil {
+		slog.Error("ListFriendRequests: storage failed", "error", err, "caller_id", callerID)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
@@ -171,6 +182,7 @@ func (s *FriendService) ListFriendRequests(ctx context.Context, req *connect.Req
 
 	userMap, err := s.store.GetUsersByIDs(ctx, ids)
 	if err != nil {
+		slog.Error("ListFriendRequests: hydrate names failed", "error", err, "caller_id", callerID)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
@@ -201,8 +213,10 @@ func (s *FriendService) RemoveFriend(ctx context.Context, req *connect.Request[p
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("no accepted friendship with that user"))
 	}
 	if err := s.store.DeleteFriendship(ctx, friendship.ID); err != nil {
+		slog.Error("RemoveFriend: delete failed", "error", err, "friendship_id", friendship.ID, "caller_id", callerID)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
+	slog.Info("Friend removed", "caller_id", callerID, "removed_user_id", req.Msg.UserId)
 
 	return connect.NewResponse(&pb.RemoveFriendResponse{}), nil
 }
@@ -221,6 +235,7 @@ func (s *FriendService) SearchFriends(ctx context.Context, req *connect.Request[
 
 	users, err := s.store.SearchFriends(ctx, callerID, query)
 	if err != nil {
+		slog.Error("SearchFriends: storage failed", "error", err, "caller_id", callerID)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
