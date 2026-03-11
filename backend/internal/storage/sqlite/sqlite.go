@@ -89,9 +89,9 @@ func (s *SQLiteStore) CreateBill(ctx context.Context, bill *models.Bill) error {
 
 	// Insert bill
 	_, err = tx.ExecContext(ctx,
-		"INSERT INTO bills (id, title, total, subtotal, created_at, group_id, payer_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		"INSERT INTO bills (id, title, total, subtotal, created_at, group_id, payer_id, creator_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
 		bill.ID, bill.Title, bill.Total, bill.Subtotal, bill.CreatedAt,
-		nullString(bill.GroupID), nullString(bill.PayerID),
+		nullString(bill.GroupID), nullString(bill.PayerID), nullString(bill.CreatorID),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to insert bill: %w", err)
@@ -147,10 +147,11 @@ func (s *SQLiteStore) GetBill(ctx context.Context, billID string) (*models.Bill,
 	bill := &models.Bill{}
 	var groupID sql.NullString
 	var payerID sql.NullString
+	var creatorID sql.NullString
 	err := s.db.QueryRowContext(ctx,
-		"SELECT id, title, total, subtotal, created_at, group_id, payer_id FROM bills WHERE id = ?",
+		"SELECT id, title, total, subtotal, created_at, group_id, payer_id, creator_id FROM bills WHERE id = ?",
 		billID,
-	).Scan(&bill.ID, &bill.Title, &bill.Total, &bill.Subtotal, &bill.CreatedAt, &groupID, &payerID)
+	).Scan(&bill.ID, &bill.Title, &bill.Total, &bill.Subtotal, &bill.CreatedAt, &groupID, &payerID, &creatorID)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("bill not found: %s", billID)
 	}
@@ -162,6 +163,9 @@ func (s *SQLiteStore) GetBill(ctx context.Context, billID string) (*models.Bill,
 	}
 	if payerID.Valid {
 		bill.PayerID = payerID.String
+	}
+	if creatorID.Valid {
+		bill.CreatorID = creatorID.String
 	}
 
 	// Get participants
@@ -387,15 +391,15 @@ func (s *SQLiteStore) ListBillsByGroup(ctx context.Context, groupID string) ([]*
 	return bills, nil
 }
 
-// ListBillsByParticipant retrieves all bills where the given user_id is linked as a participant.
-func (s *SQLiteStore) ListBillsByParticipant(ctx context.Context, userID string) ([]*models.Bill, error) {
+// ListBillsByUser retrieves all bills where the given user is the creator or a participant.
+func (s *SQLiteStore) ListBillsByUser(ctx context.Context, userID string) ([]*models.Bill, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT b.id, b.title, b.total, b.subtotal, b.payer_id, b.group_id, b.created_at
 		FROM bills b
-		INNER JOIN participants p ON b.id = p.bill_id
-		WHERE p.user_id = ?
+		WHERE b.creator_id = ?
+		   OR b.id IN (SELECT p.bill_id FROM participants p WHERE p.user_id = ?)
 		ORDER BY b.created_at DESC`,
-		userID,
+		userID, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list bills by participant: %w", err)

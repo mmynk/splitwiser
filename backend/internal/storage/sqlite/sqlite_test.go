@@ -711,7 +711,7 @@ func TestBillWithGroup(t *testing.T) {
 	})
 }
 
-func TestListBillsByParticipant(t *testing.T) {
+func TestListBillsByUser(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "splitwiser-listbills-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -728,7 +728,7 @@ func TestListBillsByParticipant(t *testing.T) {
 	const aliceID = "uuid-alice"
 	const bobID = "uuid-bob"
 
-	// Bill with Alice and Bob (both have user_ids)
+	// Bill where Alice is a participant
 	bill1 := &models.Bill{
 		Title:    "Dinner",
 		Total:    22.0,
@@ -742,7 +742,7 @@ func TestListBillsByParticipant(t *testing.T) {
 		t.Fatalf("CreateBill 1 failed: %v", err)
 	}
 
-	// Bill with only Bob
+	// Bill where Bob is the only participant (Alice not involved at all)
 	bill2 := &models.Bill{
 		Title:    "Bob Only",
 		Total:    10.0,
@@ -755,7 +755,7 @@ func TestListBillsByParticipant(t *testing.T) {
 		t.Fatalf("CreateBill 2 failed: %v", err)
 	}
 
-	// Another bill with Alice
+	// Bill where Alice is a solo participant
 	bill3 := &models.Bill{
 		Title:    "Alice Solo",
 		Total:    5.0,
@@ -768,17 +768,32 @@ func TestListBillsByParticipant(t *testing.T) {
 		t.Fatalf("CreateBill 3 failed: %v", err)
 	}
 
-	t.Run("returns only bills for participant user_id", func(t *testing.T) {
-		bills, err := store.ListBillsByParticipant(ctx, aliceID)
+	// Bill where Alice is the creator but NOT a participant
+	bill4 := &models.Bill{
+		Title:     "Alice Created, Bob Pays",
+		Total:     15.0,
+		Subtotal:  15.0,
+		CreatorID: aliceID,
+		Participants: []models.BillParticipant{
+			bpWithID("Bob", bobID),
+		},
+	}
+	if err := store.CreateBill(ctx, bill4); err != nil {
+		t.Fatalf("CreateBill 4 failed: %v", err)
+	}
+
+	t.Run("returns bills where user is participant", func(t *testing.T) {
+		bills, err := store.ListBillsByUser(ctx, aliceID)
 		if err != nil {
-			t.Fatalf("ListBillsByParticipant failed: %v", err)
+			t.Fatalf("ListBillsByUser failed: %v", err)
 		}
 
-		if len(bills) != 2 {
-			t.Fatalf("expected 2 bills for Alice, got %d", len(bills))
+		// Alice should see bill1 (participant), bill3 (participant), bill4 (creator)
+		if len(bills) != 3 {
+			t.Fatalf("expected 3 bills for Alice, got %d", len(bills))
 		}
 
-		billIDs := map[string]bool{bill1.ID: false, bill3.ID: false}
+		billIDs := map[string]bool{bill1.ID: false, bill3.ID: false, bill4.ID: false}
 		for _, b := range bills {
 			if _, ok := billIDs[b.ID]; ok {
 				billIDs[b.ID] = true
@@ -792,15 +807,37 @@ func TestListBillsByParticipant(t *testing.T) {
 
 		for _, b := range bills {
 			if b.ID == bill2.ID {
-				t.Error("Bob-only bill should not appear in Alice's bills")
+				t.Error("Bob-only bill (no Alice) should not appear in Alice's bills")
 			}
 		}
 	})
 
-	t.Run("returns empty slice for nonexistent user_id", func(t *testing.T) {
-		bills, err := store.ListBillsByParticipant(ctx, "nonexistent-uuid")
+	t.Run("creator-only bill appears without participant entry", func(t *testing.T) {
+		bills, err := store.ListBillsByUser(ctx, aliceID)
 		if err != nil {
-			t.Fatalf("ListBillsByParticipant failed: %v", err)
+			t.Fatalf("ListBillsByUser failed: %v", err)
+		}
+		var found bool
+		for _, b := range bills {
+			if b.ID == bill4.ID {
+				found = true
+				// Alice should not appear in the participants list of this bill
+				for _, p := range b.Participants {
+					if p.UserID == aliceID {
+						t.Error("Alice should not be a participant on bill4, only creator")
+					}
+				}
+			}
+		}
+		if !found {
+			t.Error("creator-only bill4 not found in Alice's bills")
+		}
+	})
+
+	t.Run("returns empty slice for nonexistent user_id", func(t *testing.T) {
+		bills, err := store.ListBillsByUser(ctx, "nonexistent-uuid")
+		if err != nil {
+			t.Fatalf("ListBillsByUser failed: %v", err)
 		}
 		if len(bills) != 0 {
 			t.Errorf("expected 0 bills for nonexistent uuid, got %d", len(bills))
@@ -808,9 +845,9 @@ func TestListBillsByParticipant(t *testing.T) {
 	})
 
 	t.Run("participants are populated on returned bills", func(t *testing.T) {
-		bills, err := store.ListBillsByParticipant(ctx, aliceID)
+		bills, err := store.ListBillsByUser(ctx, aliceID)
 		if err != nil {
-			t.Fatalf("ListBillsByParticipant failed: %v", err)
+			t.Fatalf("ListBillsByUser failed: %v", err)
 		}
 		for _, b := range bills {
 			if len(b.Participants) == 0 {

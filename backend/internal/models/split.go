@@ -17,6 +17,7 @@ type Bill struct {
 	CreatedAt    int64
 	GroupID      string
 	PayerID      string
+	CreatorID    string
 }
 
 // Item represents a single line item on a bill.

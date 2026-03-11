@@ -48,6 +48,11 @@ func isParticipant(userID string, participants []models.BillParticipant) bool {
 	return false
 }
 
+// hasAccess returns true if the user is the creator or a participant of the bill.
+func hasAccess(userID string, bill *models.Bill) bool {
+	return bill.CreatorID == userID || isParticipant(userID, bill.Participants)
+}
+
 // participantDisplayNames extracts just the display names (for calculator input).
 func participantDisplayNames(participants []models.BillParticipant) []string {
 	names := make([]string, len(participants))
@@ -193,10 +198,6 @@ func (s *SplitService) CreateBill(ctx context.Context, req *connect.Request[pb.C
 
 	participants := pbToModelParticipants(req.Msg.Participants)
 
-	if !isParticipant(userID, participants) {
-		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("you must be a participant to create this bill"))
-	}
-
 	if err := validateRegisteredParticipants(ctx, s.store, userID, participants); err != nil {
 		return nil, err
 	}
@@ -222,6 +223,7 @@ func (s *SplitService) CreateBill(ctx context.Context, req *connect.Request[pb.C
 		Total:        req.Msg.Total,
 		Subtotal:     req.Msg.Subtotal,
 		Participants: participants,
+		CreatorID:    userID,
 	}
 	if req.Msg.GetGroupId() != "" {
 		bill.GroupID = req.Msg.GetGroupId()
@@ -293,7 +295,7 @@ func (s *SplitService) GetBill(ctx context.Context, req *connect.Request[pb.GetB
 		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
 
-	if !isParticipant(userID, bill.Participants) {
+	if !hasAccess(userID, bill) {
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("you must be a participant to view this bill"))
 	}
 
@@ -377,7 +379,7 @@ func (s *SplitService) UpdateBill(ctx context.Context, req *connect.Request[pb.U
 		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
 
-	if !isParticipant(userID, existingBill.Participants) {
+	if !hasAccess(userID, existingBill) {
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("you must be a participant to update this bill"))
 	}
 
@@ -483,7 +485,7 @@ func (s *SplitService) DeleteBill(ctx context.Context, req *connect.Request[pb.D
 		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
 
-	if !isParticipant(userID, existingBill.Participants) {
+	if !hasAccess(userID, existingBill) {
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("you must be a participant to delete this bill"))
 	}
 
@@ -502,7 +504,7 @@ func (s *SplitService) ListMyBills(ctx context.Context, req *connect.Request[pb.
 		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("authentication required"))
 	}
 
-	bills, err := s.store.ListBillsByParticipant(ctx, userID)
+	bills, err := s.store.ListBillsByUser(ctx, userID)
 	if err != nil {
 		slog.Error("ListMyBills failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)

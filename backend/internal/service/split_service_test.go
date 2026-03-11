@@ -774,6 +774,52 @@ func TestDeleteBill_NotFound(t *testing.T) {
 	}
 }
 
+func TestCreateBill_NonParticipantCreator(t *testing.T) {
+	client, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Alice creates a bill between two guests — she is not a participant
+	createResp, err := client.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:        "Friends Dinner",
+		Items:        []*pb.Item{{Description: "Pizza", Amount: 30, ParticipantIds: []string{"Bob", "Charlie"}}},
+		Total:        33,
+		Subtotal:     30,
+		Participants: []*pb.BillParticipant{guestBP("Bob"), guestBP("Charlie")},
+	}))
+	if err != nil {
+		t.Fatalf("CreateBill failed: %v", err)
+	}
+	billID := createResp.Msg.BillId
+
+	// Alice (creator) can get the bill even though she's not a participant
+	getResp, err := client.GetBill(context.Background(), connect.NewRequest(&pb.GetBillRequest{BillId: billID}))
+	if err != nil {
+		t.Fatalf("GetBill failed for creator: %v", err)
+	}
+	if len(getResp.Msg.Participants) != 2 {
+		t.Errorf("expected 2 participants, got %d", len(getResp.Msg.Participants))
+	}
+
+	// Alice can update the bill
+	_, err = client.UpdateBill(context.Background(), connect.NewRequest(&pb.UpdateBillRequest{
+		BillId:       billID,
+		Title:        "Friends Dinner Updated",
+		Items:        []*pb.Item{{Description: "Pizza", Amount: 30, ParticipantIds: []string{"Bob", "Charlie"}}},
+		Total:        33,
+		Subtotal:     30,
+		Participants: []*pb.BillParticipant{guestBP("Bob"), guestBP("Charlie")},
+	}))
+	if err != nil {
+		t.Fatalf("UpdateBill failed for creator: %v", err)
+	}
+
+	// Alice can delete the bill
+	_, err = client.DeleteBill(context.Background(), connect.NewRequest(&pb.DeleteBillRequest{BillId: billID}))
+	if err != nil {
+		t.Fatalf("DeleteBill failed for creator: %v", err)
+	}
+}
+
 func TestCreateBill_AutoAddsParticipantsToGroup(t *testing.T) {
 	splitClient, groupClient, cleanup := setupTestServerWithGroupService(t)
 	defer cleanup()
@@ -912,13 +958,13 @@ func TestListMyBills(t *testing.T) {
 		t.Fatalf("CreateBill 2 failed: %v", err)
 	}
 
-	// Alice must be a participant (auth check) — so she appears in all 3
+	// Alice is creator but not a participant — should still appear in ListMyBills
 	_, err = splitClient.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
 		Title:        "Bob Bill",
 		Items:        []*pb.Item{{Description: "Beer", Amount: 10, ParticipantIds: []string{"Bob"}}},
 		Total:        10,
 		Subtotal:     10,
-		Participants: []*pb.BillParticipant{aliceBP(), guestBP("Bob")},
+		Participants: []*pb.BillParticipant{guestBP("Bob")},
 	}))
 	if err != nil {
 		t.Fatalf("CreateBill 3 failed: %v", err)

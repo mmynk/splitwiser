@@ -31,9 +31,9 @@ type Store interface {
 	// Returns an empty slice if the group has no bills.
 	ListBillsByGroup(ctx context.Context, groupID string) ([]*models.Bill, error)
 
-	// ListBillsByParticipant retrieves all bills where the given user is a participant.
+	// ListBillsByUser retrieves all bills where the given user is the creator or a participant.
 	// Returns an empty slice if the user has no bills.
-	ListBillsByParticipant(ctx context.Context, participantID string) ([]*models.Bill, error)
+	ListBillsByUser(ctx context.Context, userID string) ([]*models.Bill, error)
 
 	// CreateGroup persists a new group.
 	// The group.ID field will be populated by the store.

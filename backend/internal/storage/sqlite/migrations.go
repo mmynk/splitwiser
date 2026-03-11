@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS bills (
     created_at INTEGER NOT NULL,
     group_id TEXT,
     payer_id TEXT,
+    creator_id TEXT,
     FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE SET NULL
 );
 

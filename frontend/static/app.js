@@ -47,7 +47,7 @@ const payerSelect = document.getElementById('payer-select');
 document.addEventListener('DOMContentLoaded', () => {
   currentUser = getCurrentUser();
   displayUserInfo();
-  addParticipant('');
+  addParticipant(currentUser?.display_name || '', currentUser?.id || null);
   addParticipant('');
   updateTaxDisplay();
   loadGroups();
