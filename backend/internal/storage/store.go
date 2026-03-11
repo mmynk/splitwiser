@@ -112,6 +112,9 @@ type Store interface {
 	// Returns a not-found error if no row exists.
 	GetFriendshipBetween(ctx context.Context, userIDA, userIDB string) (*models.Friendship, error)
 
+	// SearchFriends finds accepted friends matching a partial display name query.
+	SearchFriends(ctx context.Context, callerID string, query string) ([]*models.User, error)
+
 	// Close releases any resources held by the store.
 	Close() error
 }

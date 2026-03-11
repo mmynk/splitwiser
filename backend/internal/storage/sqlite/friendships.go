@@ -169,6 +169,36 @@ func (s *SQLiteStore) AreFriends(ctx context.Context, userIDA, userIDB string) (
 	return count > 0, nil
 }
 
+// SearchFriends finds accepted friends matching a partial display_name query.
+func (s *SQLiteStore) SearchFriends(ctx context.Context, callerID string, query string) ([]*models.User, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT u.id, u.display_name
+		FROM users u
+		JOIN friendships f ON (
+			(f.requester_id = ? AND f.addressee_id = u.id) OR
+			(f.addressee_id = ? AND f.requester_id = u.id)
+		)
+		WHERE f.status = 'accepted'
+		  AND u.display_name LIKE ?
+		LIMIT 10`,
+		callerID, callerID, "%"+query+"%",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search friends: %w", err)
+	}
+	defer rows.Close()
+
+	var users []*models.User
+	for rows.Next() {
+		u := &models.User{}
+		if err := rows.Scan(&u.ID, &u.DisplayName); err != nil {
+			return nil, fmt.Errorf("failed to scan friend: %w", err)
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
 // GetFriends returns all accepted friends of a user as User objects.
 func (s *SQLiteStore) GetFriends(ctx context.Context, userID string) ([]*models.User, error) {
 	rows, err := s.db.QueryContext(ctx,

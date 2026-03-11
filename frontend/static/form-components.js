@@ -150,7 +150,7 @@ class BillForm {
     this._searchTimeout = setTimeout(async () => {
       try {
         const token = localStorage.getItem('auth_token');
-        const resp = await fetch('/splitwiser.v1.SplitService/SearchUsers', {
+        const resp = await fetch('/splitwiser.v1.FriendService/SearchFriends', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({ query })
@@ -207,7 +207,6 @@ class BillForm {
                   data-user-id="${escapeHtml(u.userId)}"
                   data-display-name="${escapeHtml(u.displayName)}">
               <strong>${escapeHtml(u.displayName)}</strong>
-              <small>${escapeHtml(u.email)}</small>
             </div>`
           ).join('');
           dropdown.classList.remove('hidden');

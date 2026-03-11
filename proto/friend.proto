@@ -20,6 +20,9 @@ service FriendService {
 
   // Remove an accepted friend (unfriend).
   rpc RemoveFriend(RemoveFriendRequest) returns (RemoveFriendResponse);
+
+  // Search among accepted friends by partial display name.
+  rpc SearchFriends(SearchFriendsRequest) returns (SearchFriendsResponse);
 }
 
 message FriendRequest {
@@ -74,3 +77,16 @@ message RemoveFriendRequest {
 }
 
 message RemoveFriendResponse {}
+
+message SearchFriendsRequest {
+  string query = 1;  // partial display name match
+}
+
+message FriendSearchResult {
+  string user_id = 1;
+  string display_name = 2;
+}
+
+message SearchFriendsResponse {
+  repeated FriendSearchResult users = 1;
+}

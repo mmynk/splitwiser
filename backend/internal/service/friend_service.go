@@ -207,6 +207,34 @@ func (s *FriendService) RemoveFriend(ctx context.Context, req *connect.Request[p
 	return connect.NewResponse(&pb.RemoveFriendResponse{}), nil
 }
 
+// SearchFriends searches accepted friends by partial display name.
+func (s *FriendService) SearchFriends(ctx context.Context, req *connect.Request[pb.SearchFriendsRequest]) (*connect.Response[pb.SearchFriendsResponse], error) {
+	callerID := middleware.GetUserID(ctx)
+	if callerID == "" {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("authentication required"))
+	}
+
+	query := req.Msg.Query
+	if len(query) < 2 {
+		return connect.NewResponse(&pb.SearchFriendsResponse{}), nil
+	}
+
+	users, err := s.store.SearchFriends(ctx, callerID, query)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	pbUsers := make([]*pb.FriendSearchResult, len(users))
+	for i, u := range users {
+		pbUsers[i] = &pb.FriendSearchResult{
+			UserId:      u.ID,
+			DisplayName: u.DisplayName,
+		}
+	}
+
+	return connect.NewResponse(&pb.SearchFriendsResponse{Users: pbUsers}), nil
+}
+
 // friendshipToProto converts a Friendship model to proto, hydrating display names from userMap.
 func friendshipToProto(f *models.Friendship, userMap map[string]*models.User) *pb.FriendRequest {
 	requesterName := f.RequesterID

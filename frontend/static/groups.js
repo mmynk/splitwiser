@@ -88,7 +88,7 @@ function searchUsers(query, callback) {
   if (!query || query.length < 2) { callback([]); return; }
   _searchTimeout = setTimeout(async () => {
     try {
-      const resp = await authenticatedFetch('/splitwiser.v1.SplitService/SearchUsers', {
+      const resp = await authenticatedFetch('/splitwiser.v1.FriendService/SearchFriends', {
         method: 'POST',
         body: JSON.stringify({ query })
       });
@@ -114,7 +114,6 @@ function attachSearch(input, memberId, memberArray, renderFn) {
               data-user-id="${escapeHtml(u.userId)}"
               data-display-name="${escapeHtml(u.displayName)}">
           <strong>${escapeHtml(u.displayName)}</strong>
-          <small>${escapeHtml(u.email)}</small>
         </div>`
       ).join('');
       dropdown.classList.remove('hidden');
