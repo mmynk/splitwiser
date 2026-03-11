@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Friends - Splitwiser</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="container">
+    <header>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div>
+          <h1>Splitwiser</h1>
+        </div>
+        <div id="user-info"></div>
+      </div>
+      <p>Manage your circle of friends.</p>
+    </header>
+
+    <nav class="tab-nav">
+      <a href="/">Bills</a>
+      <a href="/groups.html">Groups</a>
+      <a href="/friends.html" class="active">Friends</a>
+    </nav>
+
+    <!-- Incoming Requests -->
+    <section id="incoming-section" class="hidden">
+      <h2>Incoming Requests</h2>
+      <div id="incoming-list"></div>
+    </section>
+
+    <!-- Add Friends -->
+    <section>
+      <h2>Add Friends</h2>
+      <label>
+        Search by name or email
+        <input type="text" id="friend-search" placeholder="Search users...">
+      </label>
+      <div id="search-results"></div>
+    </section>
+
+    <!-- My Friends -->
+    <section>
+      <h2>My Friends</h2>
+      <div id="friends-list">
+        <p class="loading">Loading friends...</p>
+      </div>
+    </section>
+
+    <!-- Error Display -->
+    <div id="error" class="hidden"></div>
+  </main>
+
+  <script type="module" src="friends.js"></script>
+</body>
+</html>
