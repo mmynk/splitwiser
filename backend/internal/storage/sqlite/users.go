@@ -136,30 +136,21 @@ func (s *SQLiteStore) GetUsersByIDs(ctx context.Context, ids []string) (map[stri
 	return users, nil
 }
 
-// SearchUsers finds users whose display_name or email contains the query string.
-func (s *SQLiteStore) SearchUsers(ctx context.Context, query string, limit int) ([]*models.User, error) {
-	pattern := "%" + query + "%"
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, email, display_name FROM users
-		WHERE display_name LIKE ? OR email LIKE ?
-		ORDER BY display_name
-		LIMIT ?`,
-		pattern, pattern, limit,
-	)
+// SearchUsers finds a user by exact email address, excluding the caller.
+// Returns nil, nil when no matching user is found.
+func (s *SQLiteStore) SearchUsers(ctx context.Context, email string, callerID string) (*models.User, error) {
+	u := &models.User{}
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id, display_name FROM users WHERE email = ? AND id != ?`,
+		email, callerID,
+	).Scan(&u.ID, &u.DisplayName)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to search users: %w", err)
 	}
-	defer rows.Close()
-
-	var users []*models.User
-	for rows.Next() {
-		u := &models.User{}
-		if err := rows.Scan(&u.ID, &u.Email, &u.DisplayName); err != nil {
-			return nil, fmt.Errorf("failed to scan user: %w", err)
-		}
-		users = append(users, u)
-	}
-	return users, rows.Err()
+	return u, nil
 }
 
 // repeatPlaceholder returns a string of ", ?" repeated n times.

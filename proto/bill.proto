@@ -140,18 +140,14 @@ message DeleteBillRequest {
 
 message DeleteBillResponse {}
 
-// Search for registered users by name or email
+// Search for a registered user by exact email address
 message SearchUsersRequest {
-  string query = 1;
-  // When true, return all matching users. When false (default), return only friends.
-  // Set to true only for the "add friend" flow.
-  bool include_non_friends = 2;
+  string query = 1;  // exact email address to look up
 }
 
 message UserSearchResult {
   string user_id = 1;
   string display_name = 2;
-  string email = 3;
 }
 
 message SearchUsersResponse {

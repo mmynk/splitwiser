@@ -585,52 +585,31 @@ func (s *SplitService) ListBillsByGroup(ctx context.Context, req *connect.Reques
 	}), nil
 }
 
-// SearchUsers finds registered users by name or email prefix (min 2 chars).
+// SearchUsers finds a registered user by exact email address (excluding the caller).
 func (s *SplitService) SearchUsers(ctx context.Context, req *connect.Request[pb.SearchUsersRequest]) (*connect.Response[pb.SearchUsersResponse], error) {
 	userID := middleware.GetUserID(ctx)
 	if userID == "" {
 		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("authentication required"))
 	}
 
-	query := req.Msg.Query
-	if len(query) < 2 {
+	email := req.Msg.Query
+	if len(email) < 2 {
 		return connect.NewResponse(&pb.SearchUsersResponse{}), nil
 	}
 
-	users, err := s.store.SearchUsers(ctx, query, 10)
+	user, err := s.store.SearchUsers(ctx, email, userID)
 	if err != nil {
 		slog.Error("SearchUsers failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	// By default, scope results to friends only. Pass include_non_friends=true for the "add friend" flow.
-	if !req.Msg.IncludeNonFriends {
-		friends, err := s.store.GetFriends(ctx, userID)
-		if err != nil {
-			slog.Error("SearchUsers: failed to fetch friends", "error", err)
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
-		friendSet := make(map[string]struct{}, len(friends))
-		for _, f := range friends {
-			friendSet[f.ID] = struct{}{}
-		}
-		var filtered []*models.User
-		for _, u := range users {
-			if _, ok := friendSet[u.ID]; ok {
-				filtered = append(filtered, u)
-			}
-		}
-		users = filtered
+	if user == nil {
+		return connect.NewResponse(&pb.SearchUsersResponse{}), nil
 	}
 
-	results := make([]*pb.UserSearchResult, len(users))
-	for i, u := range users {
-		results[i] = &pb.UserSearchResult{
-			UserId:      u.ID,
-			DisplayName: u.DisplayName,
-			Email:       u.Email,
-		}
-	}
-
-	return connect.NewResponse(&pb.SearchUsersResponse{Users: results}), nil
+	return connect.NewResponse(&pb.SearchUsersResponse{
+		Users: []*pb.UserSearchResult{
+			{UserId: user.ID, DisplayName: user.DisplayName},
+		},
+	}), nil
 }

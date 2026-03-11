@@ -298,11 +298,30 @@ func TestCreateGroup_NonFriendMember_Rejected(t *testing.T) {
 	}
 }
 
-func TestSearchUsers_DefaultLimitedToFriends(t *testing.T) {
+func TestSearchUsers_ExactEmail_ReturnsUser(t *testing.T) {
 	splitClient, _, _, _, cleanup := setupTestServerWithFriendService(t)
 	defer cleanup()
 
-	// Bob is in DB but not Alice's friend — should not appear in default search
+	// Exact email for Bob (not a friend) — should still return a result for the "add friend" flow
+	resp, err := splitClient.SearchUsers(context.Background(), connect.NewRequest(&pb.SearchUsersRequest{
+		Query: "bob@test.com",
+	}))
+	if err != nil {
+		t.Fatalf("SearchUsers failed: %v", err)
+	}
+	if len(resp.Msg.Users) != 1 {
+		t.Errorf("Expected 1 result for exact email, got %d", len(resp.Msg.Users))
+	}
+	if len(resp.Msg.Users) > 0 && resp.Msg.Users[0].UserId != testBobID {
+		t.Errorf("Expected Bob's UUID, got %s", resp.Msg.Users[0].UserId)
+	}
+}
+
+func TestSearchUsers_PartialName_NoResults(t *testing.T) {
+	splitClient, _, _, _, cleanup := setupTestServerWithFriendService(t)
+	defer cleanup()
+
+	// Name query (not an email) → no results; exact email required
 	resp, err := splitClient.SearchUsers(context.Background(), connect.NewRequest(&pb.SearchUsersRequest{
 		Query: "Bob",
 	}))
@@ -310,22 +329,6 @@ func TestSearchUsers_DefaultLimitedToFriends(t *testing.T) {
 		t.Fatalf("SearchUsers failed: %v", err)
 	}
 	if len(resp.Msg.Users) != 0 {
-		t.Errorf("Expected 0 results when Bob is not a friend, got %d", len(resp.Msg.Users))
-	}
-}
-
-func TestSearchUsers_IncludeNonFriends_ReturnsAll(t *testing.T) {
-	splitClient, _, _, _, cleanup := setupTestServerWithFriendService(t)
-	defer cleanup()
-
-	resp, err := splitClient.SearchUsers(context.Background(), connect.NewRequest(&pb.SearchUsersRequest{
-		Query:             "Bob",
-		IncludeNonFriends: true,
-	}))
-	if err != nil {
-		t.Fatalf("SearchUsers with IncludeNonFriends failed: %v", err)
-	}
-	if len(resp.Msg.Users) != 1 {
-		t.Errorf("Expected 1 result with IncludeNonFriends=true, got %d", len(resp.Msg.Users))
+		t.Errorf("Expected 0 results for name query, got %d", len(resp.Msg.Users))
 	}
 }

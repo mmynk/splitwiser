@@ -100,6 +100,7 @@ func setupTestServer(t *testing.T) (protoconnect.SplitServiceClient, func()) {
 	return splitClient, cleanup
 }
 
+
 func TestCalculateSplit_EqualSplit(t *testing.T) {
 	client, cleanup := setupTestServer(t)
 	defer cleanup()
@@ -957,29 +958,74 @@ func TestListMyBills(t *testing.T) {
 }
 
 func TestSearchUsers(t *testing.T) {
-	client, cleanup := setupTestServer(t)
+	// setupTestServerWithFriendService already creates Alice (auth user) and Bob
+	client, _, _, _, cleanup := setupTestServerWithFriendService(t)
 	defer cleanup()
 
-	// Search for "ali" (should match Alice); use IncludeNonFriends since Alice is the caller,
-	// not her own friend, and the default mode filters to friends only.
 	resp, err := client.SearchUsers(context.Background(), connect.NewRequest(&pb.SearchUsersRequest{
-		Query:             "ali",
-		IncludeNonFriends: true,
+		Query: "bob@test.com",
 	}))
 	if err != nil {
 		t.Fatalf("SearchUsers failed: %v", err)
 	}
-
 	if len(resp.Msg.Users) != 1 {
-		t.Errorf("expected 1 result for 'ali', got %d", len(resp.Msg.Users))
+		t.Errorf("expected 1 result for exact email, got %d", len(resp.Msg.Users))
 	}
 	if len(resp.Msg.Users) > 0 {
-		if resp.Msg.Users[0].DisplayName != "Alice" {
-			t.Errorf("expected 'Alice', got '%s'", resp.Msg.Users[0].DisplayName)
+		if resp.Msg.Users[0].DisplayName != "Bob" {
+			t.Errorf("expected 'Bob', got '%s'", resp.Msg.Users[0].DisplayName)
 		}
-		if resp.Msg.Users[0].UserId != testUserID {
-			t.Errorf("expected UUID '%s', got '%s'", testUserID, resp.Msg.Users[0].UserId)
+		if resp.Msg.Users[0].UserId != testBobID {
+			t.Errorf("expected bob's UUID, got '%s'", resp.Msg.Users[0].UserId)
 		}
+	}
+}
+
+func TestSearchUsers_SelfExcluded(t *testing.T) {
+	client, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Searching own email → empty (self excluded)
+	resp, err := client.SearchUsers(context.Background(), connect.NewRequest(&pb.SearchUsersRequest{
+		Query: "alice@test.com",
+	}))
+	if err != nil {
+		t.Fatalf("SearchUsers failed: %v", err)
+	}
+	if len(resp.Msg.Users) != 0 {
+		t.Errorf("expected 0 results when searching own email, got %d", len(resp.Msg.Users))
+	}
+}
+
+func TestSearchUsers_PartialNoMatch(t *testing.T) {
+	client, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Partial email → no results (exact match required)
+	resp, err := client.SearchUsers(context.Background(), connect.NewRequest(&pb.SearchUsersRequest{
+		Query: "alice@",
+	}))
+	if err != nil {
+		t.Fatalf("SearchUsers failed: %v", err)
+	}
+	if len(resp.Msg.Users) != 0 {
+		t.Errorf("expected 0 results for partial email, got %d", len(resp.Msg.Users))
+	}
+}
+
+func TestSearchUsers_NotFound(t *testing.T) {
+	client, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Non-existent email → empty
+	resp, err := client.SearchUsers(context.Background(), connect.NewRequest(&pb.SearchUsersRequest{
+		Query: "nobody@test.com",
+	}))
+	if err != nil {
+		t.Fatalf("SearchUsers failed: %v", err)
+	}
+	if len(resp.Msg.Users) != 0 {
+		t.Errorf("expected 0 results for unknown email, got %d", len(resp.Msg.Users))
 	}
 }
 

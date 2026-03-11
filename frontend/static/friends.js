@@ -152,7 +152,7 @@ async function triggerSearch(query) {
   try {
     const resp = await authenticatedFetch('/splitwiser.v1.SplitService/SearchUsers', {
       method: 'POST',
-      body: JSON.stringify({ query, includeNonFriends: true })
+      body: JSON.stringify({ query })
     });
     if (!resp.ok) { searchResults.innerHTML = ''; return; }
     const data = await resp.json();
@@ -188,7 +188,6 @@ function renderSearchResults(users) {
       <div class="result-card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-sm);">
         <div>
           <strong>${escapeHtml(u.displayName || '')}</strong>
-          ${u.email ? `<small style="color: var(--pico-muted-color); margin-left: 0.5rem;">${escapeHtml(u.email)}</small>` : ''}
         </div>
         ${actionBtn}
       </div>`;
