@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://splitwiser.mmynk.com/sitemap.xml

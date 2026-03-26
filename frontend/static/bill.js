@@ -148,7 +148,17 @@ function displayBill(bill) {
   billContentEl.classList.remove('hidden');
 
   // Title and date
-  billTitleEl.textContent = bill.title || 'Bill';
+  const billTitle = bill.title || 'Bill';
+  billTitleEl.textContent = billTitle;
+
+  // Update page title and OG tags for sharing
+  document.title = `${billTitle} - Splitwiser`;
+  document.querySelector('meta[property="og:title"]')?.setAttribute('content', `${billTitle} - Splitwiser`);
+  const participantNames = (bill.participants || []).map(p => p.displayName || p).join(', ');
+  const ogDesc = participantNames
+    ? `Split bill between ${participantNames}. Total: $${(bill.total || 0).toFixed(2)}.`
+    : `View this bill on Splitwiser. Total: $${(bill.total || 0).toFixed(2)}.`;
+  document.querySelector('meta[property="og:description"]')?.setAttribute('content', ogDesc);
   if (bill.createdAt) {
     const date = new Date(bill.createdAt * 1000);
     billDateEl.textContent = date.toLocaleDateString('en-US', {

@@ -1,9 +1,6 @@
 // Splitwiser - Main Application Logic
 
-import { requireAuth, displayUserInfo, authenticatedFetch, getCurrentUser } from './auth-utils.js';
-
-// Require authentication
-requireAuth();
+import { isLoggedIn, displayUserInfo, authenticatedFetch, getCurrentUser } from './auth-utils.js';
 
 // State
 let participants = []; // {id, displayName, userId}
@@ -45,6 +42,19 @@ const payerSelect = document.getElementById('payer-select');
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+  const landingSection = document.getElementById('landing-section');
+  const appNav = document.getElementById('app-nav');
+
+  if (!isLoggedIn()) {
+    // Show landing page for unauthenticated users / search crawlers
+    return;
+  }
+
+  // Authenticated: hide landing, show app UI
+  landingSection.classList.add('hidden');
+  appNav.style.display = '';
+  document.getElementById('my-bills-section').classList.remove('hidden');
+
   currentUser = getCurrentUser();
   displayUserInfo();
   addParticipant(currentUser?.display_name || '', currentUser?.id || null);
