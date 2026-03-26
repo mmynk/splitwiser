@@ -666,3 +666,29 @@ section {
     flex-direction: column;
   }
 }
+
+/* GitHub footer */
+.footer {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  font-size: 0.8rem;
+}
+
+.footer a {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: rgba(0, 0, 0, 0.25);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.footer a:hover {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+@media (prefers-color-scheme: dark) {
+  .footer a { color: rgba(255, 255, 255, 0.25); }
+  .footer a:hover { color: rgba(255, 255, 255, 0.6); }
+}
