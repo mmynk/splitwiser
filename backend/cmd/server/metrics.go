@@ -17,14 +17,21 @@ import (
 // The managed Prometheus scraper (fly-metrics.net) runs inside this network,
 // so the Grafana dashboard continues to work. All external requests return 403.
 // In local dev (APP_ENV != production), all requests are allowed.
-func flyNetworkOnly(next http.Handler) http.Handler {
+// Admins can also authenticate via "Authorization: Bearer <token>" using METRICS_TOKEN.
+func flyNetworkOnly(adminToken string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if os.Getenv("APP_ENV") == "production" {
 			ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-			if !strings.HasPrefix(ip, "fdaa") {
-				http.Error(w, "forbidden", http.StatusForbidden)
+			if strings.HasPrefix(ip, "fdaa") || ip == "127.0.0.1" || ip == "::1" {
+				next.ServeHTTP(w, r)
 				return
 			}
+			if adminToken != "" && r.Header.Get("Authorization") == "Bearer "+adminToken {
+				next.ServeHTTP(w, r)
+				return
+			}
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
 		}
 		next.ServeHTTP(w, r)
 	})

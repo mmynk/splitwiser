@@ -98,7 +98,9 @@ func main() {
 	})
 
 	// Prometheus metrics endpoint — restricted to Fly.io private network in production
-	mux.Handle("/metrics", flyNetworkOnly(promhttp.Handler()))
+	// Set METRICS_TOKEN secret for admin access via: Authorization: Bearer <token>
+	metricsToken := getEnv("METRICS_TOKEN", "")
+	mux.Handle("/metrics", flyNetworkOnly(metricsToken, promhttp.Handler()))
 
 	// Register AuthService with optional auth so GetCurrentUser can read the JWT,
 	// while Register/Login/Logout remain accessible without a token.
