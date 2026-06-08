@@ -1,6 +1,8 @@
 <script lang="ts">
   import Router, { replace, type RouteDetailLoaded } from 'svelte-spa-router';
   import { isLoggedIn } from '$lib/stores/auth';
+  import Nav from '$lib/components/Nav.svelte';
+  import Toast from '$lib/components/Toast.svelte';
   import Login from './routes/Login.svelte';
   import Home from './routes/Home.svelte';
   import Bill from './routes/Bill.svelte';
@@ -29,4 +31,6 @@
   }
 </script>
 
+<Nav />
 <Router {routes} on:routeLoaded={routeLoaded} />
+<Toast />
