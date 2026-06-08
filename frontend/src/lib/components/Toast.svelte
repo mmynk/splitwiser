@@ -4,9 +4,9 @@
   import { X } from 'lucide-svelte';
 
   const KIND_CLASSES: Record<ToastKind, string> = {
-    info: 'bg-white ring-slate-200 text-slate-800',
-    success: 'bg-emerald-50 ring-emerald-200 text-emerald-800',
-    error: 'bg-red-50 ring-red-200 text-red-800',
+    info: 'bg-surface-elevated ring-border text-text',
+    success: 'bg-success-soft ring-emerald-200 text-success',
+    error: 'bg-danger-soft ring-red-200 text-danger',
   };
 </script>
 
@@ -24,7 +24,7 @@
       <div class="flex-1 text-sm">{t.message}</div>
       <button
         type="button"
-        class="rounded p-0.5 text-slate-500 hover:bg-black/5"
+        class="rounded p-0.5 text-text-muted hover:bg-black/5"
         aria-label="Dismiss notification"
         onclick={() => toasts.dismiss(t.id)}
       >

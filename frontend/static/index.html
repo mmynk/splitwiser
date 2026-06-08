@@ -2,12 +2,27 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // Apply theme before first paint to avoid a light→dark flash for users
+      // whose stored preference disagrees with the system preference.
+      try {
+        var t = localStorage.getItem('theme');
+        if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
+      } catch (_) {}
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Splitwiser</title>
     <meta name="description" content="Split bills fairly with friends." />
-    <script type="module" crossorigin src="./assets/index-RYRhZDcw.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-DM2FF_V1.css">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@14..144,400..600,30..50,0..1&family=Inter+Tight:wght@400;500;600;700&display=swap"
+    />
+    <script type="module" crossorigin src="./assets/index-CS0PJsBp.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-deZRne8Y.css">
   </head>
   <body>
     <div id="app"></div>

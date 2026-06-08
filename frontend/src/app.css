@@ -1,12 +1,116 @@
 @import 'tailwindcss';
 
+@variant dark (&:where(.dark, .dark *));
+
 @theme {
-  --color-brand-50: #eff6ff;
-  --color-brand-100: #dbeafe;
-  --color-brand-500: #3b82f6;
-  --color-brand-600: #2563eb;
-  --color-brand-700: #1d4ed8;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Type --------------------------------------------------------- */
+  --font-sans: 'Inter Tight', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Fraunces', ui-serif, Georgia, 'Times New Roman', serif;
+  --font-money: 'Fraunces', ui-serif, Georgia, serif;
+  --font-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+
+  /* Color — Light (default) -------------------------------------- */
+  --color-primary: #b45c3a;
+  --color-primary-hover: #9e4e30;
+  --color-primary-foreground: #ffffff;
+  --color-primary-soft: #f4e3d8;
+
+  --color-surface: #faf7f2;
+  --color-surface-elevated: #ffffff;
+  --color-surface-sunken: #f2ede5;
+
+  --color-text: #1a1714;
+  --color-text-muted: #6b635b;
+  --color-text-subtle: #9a9087;
+
+  --color-border: #e8e1d7;
+  --color-border-strong: #d4c9b8;
+
+  --color-success: #0e7c7b;
+  --color-success-soft: #e0f0ef;
+  --color-danger: #a93838;
+  --color-danger-soft: #f6e2e0;
+  --color-warning: #c58a22;
+  --color-warning-soft: #f6ecd6;
+
+  /* Radii -------------------------------------------------------- */
+  --radius-input: 6px;
+  --radius-card: 10px;
+  --radius-pill: 9999px;
+
+  /* Shadows (warm-tinted, not grey) ------------------------------ */
+  --shadow-pop: 0 1px 2px rgba(26, 23, 20, 0.04), 0 4px 12px rgba(180, 92, 58, 0.10);
+  --shadow-modal: 0 10px 40px rgba(26, 23, 20, 0.18);
+}
+
+/* Dark-mode tokens, applied in two cases:
+   1. data-theme="dark" set explicitly by the toggle or the FOUC script
+   2. no explicit theme set AND OS prefers dark */
+:root[data-theme='dark'],
+:root:not([data-theme]) {
+  /* Nothing — light defaults apply. */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-primary: #d4825e;
+    --color-primary-hover: #e0916e;
+    --color-primary-foreground: #1a1714;
+    --color-primary-soft: #3a261b;
+
+    --color-surface: #1a1612;
+    --color-surface-elevated: #221d17;
+    --color-surface-sunken: #13100d;
+
+    --color-text: #f2ede5;
+    --color-text-muted: #a99f92;
+    --color-text-subtle: #6e665c;
+
+    --color-border: #322a22;
+    --color-border-strong: #453b30;
+
+    --color-success: #3db8b6;
+    --color-success-soft: #1a2e2d;
+    --color-danger: #d66b6b;
+    --color-danger-soft: #3a1f1f;
+    --color-warning: #e0a848;
+    --color-warning-soft: #2d2515;
+
+    --shadow-pop: 0 1px 2px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.4);
+    --shadow-modal: 0 12px 48px rgba(0, 0, 0, 0.6);
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --color-primary: #d4825e;
+  --color-primary-hover: #e0916e;
+  --color-primary-foreground: #1a1714;
+  --color-primary-soft: #3a261b;
+
+  --color-surface: #1a1612;
+  --color-surface-elevated: #221d17;
+  --color-surface-sunken: #13100d;
+
+  --color-text: #f2ede5;
+  --color-text-muted: #a99f92;
+  --color-text-subtle: #6e665c;
+
+  --color-border: #322a22;
+  --color-border-strong: #453b30;
+
+  --color-success: #3db8b6;
+  --color-success-soft: #1a2e2d;
+  --color-danger: #d66b6b;
+  --color-danger-soft: #3a1f1f;
+  --color-warning: #e0a848;
+  --color-warning-soft: #2d2515;
+
+  --shadow-pop: 0 1px 2px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-modal: 0 12px 48px rgba(0, 0, 0, 0.6);
+
+  color-scheme: dark;
 }
 
 html,
@@ -16,6 +120,51 @@ body,
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  background: var(--color-surface);
+  color: var(--color-text);
   font-family: var(--font-sans);
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2 {
+  font-family: var(--font-serif);
+  font-feature-settings: 'ss01';
+  letter-spacing: -0.01em;
+}
+
+/* Tabular-numeral helper. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+/* Money typography — Fraunces, tabular, medium weight. */
+.money {
+  font-family: var(--font-money);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+  font-weight: 500;
+  font-variation-settings: 'SOFT' 30;
+}
+
+/* Display wordmark: Fraunces with the WONK swashes. Used for the
+   Splitwiser wordmark and big editorial moments. */
+.display-wonk {
+  font-family: var(--font-serif);
+  font-variation-settings: 'opsz' 144, 'SOFT' 50, 'WONK' 1;
+  letter-spacing: -0.01em;
+}
+
+::selection {
+  background: var(--color-primary-soft);
+  color: var(--color-text);
+}
+
+/* Focus ring — visible and on-brand. Do not set border-radius here;
+   it would mutate the focused element's own corner radius. */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }

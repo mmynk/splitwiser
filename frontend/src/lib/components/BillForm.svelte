@@ -281,7 +281,7 @@
   <!-- Total -->
   <div>
     <label class="flex flex-col gap-1 text-sm">
-      <span class="font-medium text-slate-700">Total (with tax)</span>
+      <span class="font-medium text-text">Total (with tax)</span>
       <input
         type="number"
         step="0.01"
@@ -289,7 +289,7 @@
         placeholder="0.00"
         bind:value={totalRaw}
         required
-        class="rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+        class="rounded-md border border-border px-3 py-2 outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
       />
     </label>
   </div>
@@ -297,17 +297,17 @@
   <!-- Participants -->
   <section class="flex flex-col gap-2">
     <div class="flex items-baseline justify-between">
-      <h3 class="text-base font-semibold text-slate-900">Participants</h3>
-      <span class="text-xs text-slate-500">Press Enter to add another</span>
+      <h3 class="text-base font-semibold text-text">Participants</h3>
+      <span class="text-xs text-text-muted">Press Enter to add another</span>
     </div>
 
     {#if showGroupSelector && groups.length > 0}
       <label class="flex flex-col gap-1 text-sm">
-        <span class="text-slate-600">Load from group</span>
+        <span class="text-text-muted">Load from group</span>
         <select
           bind:value={groupId}
           onchange={handleGroupChange}
-          class="rounded-md border border-slate-300 bg-white px-3 py-2 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+          class="rounded-md border border-border bg-surface-elevated px-3 py-2 outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
         >
           <option value="">Select a group…</option>
           {#each groups as g (g.id)}
@@ -326,14 +326,14 @@
               placeholder={`Person ${i + 1}`}
               excludeIds={linkedUserIds.filter((id) => id !== p.userId)}
               autofocus={!p.displayName && i === participants.length - 1}
-              inputClass="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              inputClass="w-full rounded-md border border-border px-3 py-2 pr-8 outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
               onInput={(v) => updateParticipantName(p.id, v)}
               onSelect={(u) => linkParticipant(p.id, u)}
               onEnter={() => addParticipantRow()}
             />
             {#if p.userId}
               <span
-                class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-emerald-600"
+                class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-success"
                 title="Registered user linked"
               >
                 <BadgeCheck size={16} />
@@ -345,7 +345,7 @@
             aria-label="Remove participant"
             disabled={participants.length <= 1}
             onclick={() => removeParticipantRow(p.id)}
-            class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-text-muted hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Trash2 size={16} />
           </button>
@@ -356,7 +356,7 @@
     <button
       type="button"
       onclick={() => addParticipantRow()}
-      class="mt-1 inline-flex items-center gap-1 self-start rounded-md border border-dashed border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+      class="mt-1 inline-flex items-center gap-1 self-start rounded-md border border-dashed border-border px-3 py-1.5 text-sm font-medium text-text-muted hover:bg-surface-sunken"
     >
       <Plus size={14} /> Add participant
     </button>
@@ -366,10 +366,10 @@
   {#if payerOptions.length > 0}
     <section class="flex flex-col gap-1">
       <label class="flex flex-col gap-1 text-sm">
-        <span class="font-medium text-slate-700">Who paid this bill?</span>
+        <span class="font-medium text-text">Who paid this bill?</span>
         <select
           bind:value={payerName}
-          class="rounded-md border border-slate-300 bg-white px-3 py-2 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+          class="rounded-md border border-border bg-surface-elevated px-3 py-2 outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
         >
           {#each payerOptions as name}
             <option value={name}>{name}</option>
@@ -382,32 +382,32 @@
   <!-- Items -->
   <section class="flex flex-col gap-2">
     <div class="flex items-baseline justify-between">
-      <h3 class="text-base font-semibold text-slate-900">
-        Items <span class="text-xs font-normal text-slate-500">(optional)</span>
+      <h3 class="text-base font-semibold text-text">
+        Items <span class="text-xs font-normal text-text-muted">(optional)</span>
       </h3>
-      <span class="text-xs text-slate-500">Leave empty for equal split</span>
+      <span class="text-xs text-text-muted">Leave empty for equal split</span>
     </div>
 
     {#if showSubtotal}
       <label class="flex flex-col gap-1 text-sm">
-        <span class="text-slate-600">Subtotal (before tax)</span>
+        <span class="text-text-muted">Subtotal (before tax)</span>
         <input
           type="number"
           step="0.01"
           min="0"
           placeholder="0.00"
           bind:value={subtotalRaw}
-          class="rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+          class="rounded-md border border-border px-3 py-2 outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
         />
       </label>
-      <p class="text-sm text-slate-600">
+      <p class="text-sm text-text-muted">
         Tax &amp; fees: <strong class="tabular-nums">${taxAmount.toFixed(2)}</strong>
       </p>
     {/if}
 
     <div class="bf-items flex flex-col gap-3">
       {#each items as item (item.id)}
-        <div class="bf-item-row rounded-md border border-slate-200 bg-white p-3">
+        <div class="bf-item-row rounded-md border border-border bg-surface-elevated p-3">
           <div class="flex flex-wrap items-center gap-2">
             <input
               type="text"
@@ -415,7 +415,7 @@
               data-field="description"
               placeholder="Item description"
               onkeydown={handleItemKeydown}
-              class="flex-1 min-w-[10rem] rounded-md border border-slate-300 px-3 py-1.5 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              class="flex-1 min-w-[10rem] rounded-md border border-border px-3 py-1.5 outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
             />
             <input
               type="number"
@@ -425,13 +425,13 @@
               data-field="amount"
               placeholder="0.00"
               onkeydown={handleItemKeydown}
-              class="w-28 rounded-md border border-slate-300 px-3 py-1.5 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              class="w-28 rounded-md border border-border px-3 py-1.5 outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
             />
             <button
               type="button"
               aria-label="Remove item"
               onclick={() => removeItemRow(item.id)}
-              class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50"
+              class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-text-muted hover:bg-surface-sunken"
             >
               <Trash2 size={16} />
             </button>
@@ -439,7 +439,7 @@
 
           <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1">
             {#if validParticipants.length === 0}
-              <span class="text-xs text-slate-500">Add participants first</span>
+              <span class="text-xs text-text-muted">Add participants first</span>
             {:else}
               {#each validParticipants as p (p.id)}
                 <label class="inline-flex items-center gap-1 text-sm">
@@ -447,7 +447,7 @@
                     type="checkbox"
                     checked={item.participantNames.includes(p.displayName)}
                     onchange={() => toggleAssignment(item.id, p.displayName)}
-                    class="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                    class="rounded border-border text-primary focus:ring-primary"
                   />
                   <span>{p.displayName}</span>
                 </label>
@@ -461,7 +461,7 @@
     <button
       type="button"
       onclick={() => addItemRow()}
-      class="mt-1 inline-flex items-center gap-1 self-start rounded-md border border-dashed border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+      class="mt-1 inline-flex items-center gap-1 self-start rounded-md border border-dashed border-border px-3 py-1.5 text-sm font-medium text-text-muted hover:bg-surface-sunken"
     >
       <Plus size={14} /> Add item
     </button>

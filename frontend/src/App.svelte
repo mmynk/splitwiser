@@ -9,6 +9,7 @@
   import Groups from './routes/Groups.svelte';
   import Group from './routes/Group.svelte';
   import Friends from './routes/Friends.svelte';
+  import StyleGuide from './routes/StyleGuide.svelte';
 
   const routes = {
     '/': Home,
@@ -17,15 +18,18 @@
     '/groups': Groups,
     '/group/:id': Group,
     '/friends': Friends,
+    '/_styles': StyleGuide,
     '*': Login,
   };
+
+  const PUBLIC_PATHS = new Set(['/login', '/_styles']);
 
   function routeLoaded(event: { detail: RouteDetailLoaded }) {
     const path = event.detail.location;
     const authed = isLoggedIn();
     if (path === '/login' && authed) {
       replace('/');
-    } else if (path !== '/login' && !authed) {
+    } else if (!PUBLIC_PATHS.has(path) && !authed) {
       replace('/login');
     }
   }

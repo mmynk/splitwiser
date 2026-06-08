@@ -134,9 +134,9 @@ Rules:
   }
 
   function describeAmount(net: number): { dir: string; color: string } {
-    if (net > 0) return { dir: 'owes you', color: 'text-emerald-700' };
+    if (net > 0) return { dir: 'owes you', color: 'text-success' };
     if (net < 0) return { dir: 'you owe', color: 'text-rose-700' };
-    return { dir: 'settled', color: 'text-slate-500' };
+    return { dir: 'settled', color: 'text-text-muted' };
   }
 
   function togglePerson(displayName: string): void {
@@ -306,28 +306,28 @@ Rules:
   {#if balancesLoading}
     <section class="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {#each [1, 2] as _}
-        <div class="h-20 animate-pulse rounded-lg bg-white ring-1 ring-slate-200"></div>
+        <div class="h-20 animate-pulse rounded-lg bg-surface-elevated ring-1 ring-border"></div>
       {/each}
     </section>
   {:else if hasBalanceData}
     <section class="flex flex-col gap-4">
       <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div class="rounded-lg bg-white p-4 ring-1 ring-slate-200">
-          <div class="text-xs uppercase tracking-wide text-slate-500">You owe</div>
+        <div class="rounded-lg bg-surface-elevated p-4 ring-1 ring-border">
+          <div class="text-xs uppercase tracking-wide text-text-muted">You owe</div>
           <div class="mt-1 text-2xl font-semibold tabular-nums text-rose-700">
             {formatMoney(balances?.totalYouOwe)}
           </div>
         </div>
-        <div class="rounded-lg bg-white p-4 ring-1 ring-slate-200">
-          <div class="text-xs uppercase tracking-wide text-slate-500">You're owed</div>
-          <div class="mt-1 text-2xl font-semibold tabular-nums text-emerald-700">
+        <div class="rounded-lg bg-surface-elevated p-4 ring-1 ring-border">
+          <div class="text-xs uppercase tracking-wide text-text-muted">You're owed</div>
+          <div class="mt-1 text-2xl font-semibold tabular-nums text-success">
             {formatMoney(balances?.totalOwedToYou)}
           </div>
         </div>
       </div>
 
       {#if sortedPersonBalances.length > 0}
-        <ul class="divide-y divide-slate-200 overflow-hidden rounded-lg bg-white ring-1 ring-slate-200">
+        <ul class="divide-y divide-border overflow-hidden rounded-lg bg-surface-elevated ring-1 ring-border">
           {#each sortedPersonBalances as person (person.displayName)}
             {@const net = person.netAmount ?? 0}
             {@const meta = describeAmount(net)}
@@ -343,7 +343,7 @@ Rules:
                     aria-label={expanded ? 'Collapse' : 'Expand'}
                     aria-expanded={expanded}
                     onclick={() => togglePerson(person.displayName)}
-                    class="text-slate-400 transition-transform hover:text-slate-600"
+                    class="text-text-subtle transition-transform hover:text-text-muted"
                     class:rotate-90={expanded}
                   >
                     <ChevronRight size={16} />
@@ -352,8 +352,8 @@ Rules:
                   <span class="inline-block w-4"></span>
                 {/if}
                 <div class="flex flex-1 flex-wrap items-baseline gap-x-3">
-                  <span class="font-medium text-slate-900">{person.displayName}</span>
-                  <span class="text-sm text-slate-500">{meta.dir}</span>
+                  <span class="font-medium text-text">{person.displayName}</span>
+                  <span class="text-sm text-text-muted">{meta.dir}</span>
                   <span class="tabular-nums font-semibold {meta.color}">
                     {formatMoney(Math.abs(net))}
                   </span>
@@ -362,7 +362,7 @@ Rules:
                   <button
                     type="button"
                     onclick={() => handleSettleUp(person)}
-                    class="rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800 hover:bg-emerald-100"
+                    class="rounded-md border border-success/30 bg-success-soft px-2.5 py-1 text-xs font-medium text-success hover:bg-success-soft"
                   >
                     Settle up
                   </button>
@@ -370,7 +370,7 @@ Rules:
               </div>
 
               {#if expandable && expanded}
-                <ul class="border-t border-slate-100 bg-slate-50/60 px-4 py-2 text-sm" transition:slide={{ duration: 150 }}>
+                <ul class="border-t border-border bg-surface-sunken/60 px-4 py-2 text-sm" transition:slide={{ duration: 150 }}>
                   {#each groupBalances as gb (gb.groupId)}
                     {@const gbNet = gb.netAmount ?? 0}
                     {@const gbMeta = describeAmount(gbNet)}
@@ -380,9 +380,9 @@ Rules:
                     <li>
                       <a
                         href={`#/group/${gb.groupId}${settleQs}`}
-                        class="flex items-center justify-between rounded px-2 py-1 hover:bg-white"
+                        class="flex items-center justify-between rounded px-2 py-1 hover:bg-surface-elevated"
                       >
-                        <span class="text-slate-700">{gb.groupName}</span>
+                        <span class="text-text">{gb.groupName}</span>
                         <span class="tabular-nums {gbMeta.color}">
                           {gbMeta.dir} {formatMoney(Math.abs(gbNet))}
                         </span>
@@ -401,12 +401,12 @@ Rules:
   <!-- My Bills -->
   <section class="flex flex-col gap-3">
     <div class="flex items-center justify-between">
-      <h2 class="text-xl font-semibold text-slate-900">My Bills</h2>
+      <h2 class="text-xl font-semibold text-text">My Bills</h2>
       {#if !formOpen}
         <button
           type="button"
           onclick={openForm}
-          class="inline-flex items-center gap-1 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700"
+          class="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover"
         >
           <Plus size={14} /> New Bill
         </button>
@@ -414,52 +414,52 @@ Rules:
     </div>
 
     {#if billsLoading}
-      <div class="overflow-hidden rounded-lg bg-white ring-1 ring-slate-200">
+      <div class="overflow-hidden rounded-lg bg-surface-elevated ring-1 ring-border">
         {#each [1, 2, 3] as _}
-          <div class="h-12 animate-pulse border-b border-slate-100 last:border-b-0"></div>
+          <div class="h-12 animate-pulse border-b border-border last:border-b-0"></div>
         {/each}
       </div>
     {:else if bills.length === 0}
-      <div class="flex flex-col items-center gap-2 rounded-lg bg-white px-6 py-10 text-center ring-1 ring-slate-200">
-        <Receipt size={28} class="text-slate-400" />
-        <p class="text-slate-600">No bills yet.</p>
+      <div class="flex flex-col items-center gap-2 rounded-lg bg-surface-elevated px-6 py-10 text-center ring-1 ring-border">
+        <Receipt size={28} class="text-text-subtle" />
+        <p class="text-text-muted">No bills yet.</p>
         <button
           type="button"
           onclick={openForm}
-          class="mt-1 inline-flex items-center gap-1 rounded-md border border-brand-300 bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-700 hover:bg-brand-100"
+          class="mt-1 inline-flex items-center gap-1 rounded-md border border-primary bg-primary-soft px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary-soft"
         >
           <Plus size={14} /> Create your first bill
         </button>
       </div>
     {:else}
-      <div class="overflow-hidden rounded-lg bg-white ring-1 ring-slate-200">
-        <div class="hidden border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs font-medium uppercase tracking-wide text-slate-500 sm:grid sm:grid-cols-[1fr_1fr_auto_auto_auto] sm:gap-4">
+      <div class="overflow-hidden rounded-lg bg-surface-elevated ring-1 ring-border">
+        <div class="hidden border-b border-border bg-surface-sunken px-4 py-2 text-xs font-medium uppercase tracking-wide text-text-muted sm:grid sm:grid-cols-[1fr_1fr_auto_auto_auto] sm:gap-4">
           <span>Bill</span>
           <span>Group</span>
           <span class="text-right">Total</span>
           <span class="text-right">Participants</span>
           <span class="text-right">Date</span>
         </div>
-        <ul class="divide-y divide-slate-100">
+        <ul class="divide-y divide-border">
           {#each bills as bill (bill.billId)}
             <li>
               <a
                 href={`#/bill/${bill.billId}`}
-                class="grid grid-cols-1 gap-1 px-4 py-3 hover:bg-slate-50 sm:grid-cols-[1fr_1fr_auto_auto_auto] sm:items-center sm:gap-4"
+                class="grid grid-cols-1 gap-1 px-4 py-3 hover:bg-surface-sunken sm:grid-cols-[1fr_1fr_auto_auto_auto] sm:items-center sm:gap-4"
               >
-                <span class="font-medium text-slate-900">{bill.title || 'Untitled'}</span>
-                <span class="text-sm text-slate-600">
+                <span class="font-medium text-text">{bill.title || 'Untitled'}</span>
+                <span class="text-sm text-text-muted">
                   {#if bill.groupName}
                     {bill.groupName}
                   {:else}
-                    <span class="text-slate-400">—</span>
+                    <span class="text-text-subtle">—</span>
                   {/if}
                 </span>
                 <span class="text-sm tabular-nums sm:text-right">{formatMoney(bill.total)}</span>
-                <span class="text-sm tabular-nums text-slate-600 sm:text-right">
+                <span class="text-sm tabular-nums text-text-muted sm:text-right">
                   {bill.participantCount ?? 0}
                 </span>
-                <span class="text-sm text-slate-500 sm:text-right">{formatDate(bill.createdAt)}</span>
+                <span class="text-sm text-text-muted sm:text-right">{formatDate(bill.createdAt)}</span>
               </a>
             </li>
           {/each}
@@ -471,23 +471,23 @@ Rules:
   <!-- New / Edit Bill Form -->
   {#if formOpen}
     <section
-      class="rounded-lg bg-white p-5 ring-1 ring-slate-200"
+      class="rounded-lg bg-surface-elevated p-5 ring-1 ring-border"
       transition:slide={{ duration: 200 }}
     >
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <h2 class="text-xl font-semibold text-slate-900">Bill Details</h2>
+        <h2 class="text-xl font-semibold text-text">Bill Details</h2>
         <div class="flex items-center gap-2">
           <button
             type="button"
             onclick={openImport}
-            class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            class="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium text-text hover:bg-surface-sunken"
           >
             <ClipboardPaste size={14} /> Import JSON
           </button>
           <button
             type="button"
             onclick={closeForm}
-            class="rounded-md px-2.5 py-1.5 text-sm font-medium text-slate-500 hover:bg-slate-100"
+            class="rounded-md px-2.5 py-1.5 text-sm font-medium text-text-muted hover:bg-surface-sunken"
           >
             Cancel
           </button>
@@ -496,16 +496,16 @@ Rules:
 
       <div class="mt-4 flex flex-col gap-6">
         <label class="flex flex-col gap-1 text-sm">
-          <span class="font-medium text-slate-700">
-            Bill name <span class="text-slate-400">(optional)</span>
+          <span class="font-medium text-text">
+            Bill name <span class="text-text-subtle">(optional)</span>
           </span>
           <input
             type="text"
             bind:value={billTitle}
             placeholder="e.g. Team Lunch, Grocery Run"
-            class="rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            class="rounded-md border border-border px-3 py-2 outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
           />
-          <small class="text-slate-500">Leave empty for an auto-generated name.</small>
+          <small class="text-text-muted">Leave empty for an auto-generated name.</small>
         </label>
 
         <BillForm bind:this={billForm} {groups} currentUser={$currentUser} />
@@ -521,7 +521,7 @@ Rules:
             type="button"
             onclick={handleCalculate}
             disabled={calculating || saving}
-            class="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
+            class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60"
           >
             {calculating ? 'Calculating…' : 'Calculate Split'}
           </button>
@@ -529,7 +529,7 @@ Rules:
             type="button"
             onclick={handleSave}
             disabled={calculating || saving}
-            class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+            class="rounded-md border border-border bg-surface-elevated px-4 py-2 text-sm font-medium text-text hover:bg-surface-sunken disabled:opacity-60"
           >
             {saving ? 'Saving…' : 'Save & Share'}
           </button>
@@ -541,7 +541,7 @@ Rules:
   <!-- Split Results -->
   {#if splitResult}
     <section class="flex flex-col gap-3" transition:fade={{ duration: 120 }}>
-      <h2 class="text-xl font-semibold text-slate-900">Split Results</h2>
+      <h2 class="text-xl font-semibold text-text">Split Results</h2>
       <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {#each splitResult.participantNames as name}
           {@const raw = splitResult.splits[name] ?? {}}
@@ -549,24 +549,24 @@ Rules:
           {@const taxT = raw.tax ?? 0}
           {@const totalT = raw.total ?? 0}
           {@const personItems = raw.items ?? []}
-          <div class="rounded-lg bg-white p-4 ring-1 ring-slate-200">
+          <div class="rounded-lg bg-surface-elevated p-4 ring-1 ring-border">
             <div class="flex items-baseline justify-between">
-              <h3 class="font-medium text-slate-900">{name}</h3>
-              <span class="text-lg font-semibold tabular-nums text-slate-900">
+              <h3 class="font-medium text-text">{name}</h3>
+              <span class="text-lg font-semibold tabular-nums text-text">
                 {formatMoney(totalT)}
               </span>
             </div>
             {#if personItems.length > 0}
               <ul class="mt-2 flex flex-col gap-1 text-sm">
                 {#each personItems as it}
-                  <li class="flex justify-between text-slate-600">
+                  <li class="flex justify-between text-text-muted">
                     <span>{it.description}</span>
                     <span class="tabular-nums">{formatMoney(it.amount)}</span>
                   </li>
                 {/each}
               </ul>
             {/if}
-            <div class="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-500">
+            <div class="mt-3 border-t border-border pt-2 text-xs text-text-muted">
               <div class="flex justify-between"><span>Subtotal</span><span class="tabular-nums">{formatMoney(subT)}</span></div>
               <div class="flex justify-between"><span>Tax</span><span class="tabular-nums">{formatMoney(taxT)}</span></div>
             </div>
@@ -580,19 +580,19 @@ Rules:
 <!-- Import JSON modal -->
 <Modal open={importOpen} title="Import from JSON" onClose={closeImport} maxWidth="max-w-2xl">
   <div class="flex flex-col gap-4">
-    <details class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2" bind:open={promptDetailsOpen}>
-      <summary class="cursor-pointer text-sm font-medium text-slate-700">
+    <details class="rounded-md border border-border bg-surface-sunken px-3 py-2" bind:open={promptDetailsOpen}>
+      <summary class="cursor-pointer text-sm font-medium text-text">
         Get AI prompt template
       </summary>
       <div class="mt-2 flex flex-col gap-2">
-        <p class="text-xs text-slate-500">
+        <p class="text-xs text-text-muted">
           Copy this prompt and paste it into Claude or ChatGPT along with your receipt photo or text:
         </p>
-        <pre class="max-h-56 overflow-auto whitespace-pre-wrap rounded bg-white p-2 text-xs text-slate-700 ring-1 ring-slate-200">{PROMPT_TEMPLATE}</pre>
+        <pre class="max-h-56 overflow-auto whitespace-pre-wrap rounded bg-surface-elevated p-2 text-xs text-text ring-1 ring-border">{PROMPT_TEMPLATE}</pre>
         <button
           type="button"
           onclick={copyPrompt}
-          class="inline-flex w-fit items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-white"
+          class="inline-flex w-fit items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-text hover:bg-surface-elevated"
         >
           {#if promptCopied}<Check size={12} /> Copied!{:else}<Copy size={12} /> Copy prompt{/if}
         </button>
@@ -600,7 +600,7 @@ Rules:
     </details>
 
     <label class="flex flex-col gap-1 text-sm">
-      <span class="font-medium text-slate-700">Upload .json file</span>
+      <span class="font-medium text-text">Upload .json file</span>
       <input
         type="file"
         accept=".json,application/json"
@@ -610,12 +610,12 @@ Rules:
     </label>
 
     <label class="flex flex-col gap-1 text-sm">
-      <span class="font-medium text-slate-700">Or paste JSON directly</span>
+      <span class="font-medium text-text">Or paste JSON directly</span>
       <textarea
         rows="8"
         bind:value={importText}
         placeholder={'{"title": "Dinner", "total": 45.50, "participants": ["Alice", "Bob"]}'}
-        class="rounded-md border border-slate-300 px-3 py-2 font-mono text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+        class="rounded-md border border-border px-3 py-2 font-mono text-xs outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
       ></textarea>
     </label>
 
@@ -631,14 +631,14 @@ Rules:
       <button
         type="button"
         onclick={closeImport}
-        class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+        class="rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-sm text-text hover:bg-surface-sunken"
       >
         Cancel
       </button>
       <button
         type="button"
         onclick={confirmImport}
-        class="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700"
+        class="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover"
       >
         Import
       </button>

@@ -1,8 +1,13 @@
 <script lang="ts">
   import { replace } from 'svelte-spa-router';
+  import { fly } from 'svelte/transition';
   import { login } from '$lib/stores/auth';
   import { loginApi, registerApi } from '$lib/api/auth';
   import { ApiError } from '$lib/api/client';
+  import { rise } from '$lib/motion';
+  import Button from '$lib/components/ui/Button.svelte';
+  import Input from '$lib/components/ui/Input.svelte';
+  import Card from '$lib/components/ui/Card.svelte';
 
   let activeTab: 'login' | 'register' = $state('login');
   let error = $state('');
@@ -19,6 +24,10 @@
     if (submitting) return;
     activeTab = tab;
     error = '';
+    // Prevent the opposite tab's typed password from being submitted
+    // by accident if the user toggles between the forms.
+    loginPassword = '';
+    registerPassword = '';
   }
 
   function clearError() {
@@ -44,7 +53,7 @@
     event.preventDefault();
     error = '';
     if (registerPassword.length < 8) {
-      error = 'Password must be at least 8 characters long';
+      error = 'Password needs at least 8 characters.';
       return;
     }
     submitting = true;
@@ -57,138 +66,148 @@
       login(data.token, data.user);
       replace('/');
     } catch (e) {
-      error = e instanceof ApiError ? e.message : 'Registration failed. Please try again.';
+      error = e instanceof ApiError ? e.message : 'Could not create the account. Try again.';
     } finally {
       submitting = false;
     }
   }
 </script>
 
-<main class="mx-auto flex min-h-screen max-w-md flex-col px-4 py-10">
+<main class="mx-auto flex min-h-screen max-w-md flex-col justify-center px-5 py-10">
   <header class="mb-8 text-center">
-    <h1 class="text-3xl font-bold text-slate-900">Splitwiser</h1>
-    <p class="mt-1 text-slate-600">Split bills fairly with friends</p>
+    <h1 class="display-wonk text-4xl font-semibold text-text" style="letter-spacing: -0.02em;">
+      Splitwiser
+    </h1>
+    <p class="mt-2 text-[0.9375rem] text-text-muted">
+      Split bills fairly. Settle up without the awkwardness.
+    </p>
   </header>
 
-  <div class="mb-6 grid grid-cols-2 gap-2 rounded-lg bg-white p-1 shadow-sm ring-1 ring-slate-200">
+  <div
+    class="mb-5 grid grid-cols-2 gap-1 rounded-input bg-surface-sunken p-1 border border-border"
+    role="tablist"
+    aria-label="Account"
+  >
     <button
       type="button"
+      role="tab"
+      aria-selected={activeTab === 'login'}
       disabled={submitting}
-      class="rounded-md py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60"
-      class:bg-brand-600={activeTab === 'login'}
-      class:text-white={activeTab === 'login'}
-      class:text-slate-600={activeTab !== 'login'}
+      class={[
+        'rounded-[4px] py-1.5 text-[0.8125rem] font-medium transition-colors',
+        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+        'disabled:cursor-not-allowed disabled:opacity-55',
+        activeTab === 'login'
+          ? 'bg-surface-elevated text-text shadow-pop'
+          : 'text-text-muted hover:text-text',
+      ]}
       onclick={() => switchTab('login')}
     >
-      Login
+      Log in
     </button>
     <button
       type="button"
+      role="tab"
+      aria-selected={activeTab === 'register'}
       disabled={submitting}
-      class="rounded-md py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60"
-      class:bg-brand-600={activeTab === 'register'}
-      class:text-white={activeTab === 'register'}
-      class:text-slate-600={activeTab !== 'register'}
+      class={[
+        'rounded-[4px] py-1.5 text-[0.8125rem] font-medium transition-colors',
+        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+        'disabled:cursor-not-allowed disabled:opacity-55',
+        activeTab === 'register'
+          ? 'bg-surface-elevated text-text shadow-pop'
+          : 'text-text-muted hover:text-text',
+      ]}
       onclick={() => switchTab('register')}
     >
-      Register
+      Sign up
     </button>
   </div>
 
   {#if error}
     <div
       role="alert"
-      class="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+      transition:fly={rise}
+      class="mb-4 rounded-input border border-danger/30 bg-danger-soft px-3 py-2 text-[0.875rem] text-danger"
     >
       {error}
     </div>
   {/if}
 
-  <div class="rounded-lg bg-white p-6 shadow-sm ring-1 ring-slate-200">
+  <Card padding="lg">
     {#if activeTab === 'login'}
-      <h2 class="mb-4 text-xl font-semibold">Welcome Back</h2>
-      <form onsubmit={handleLogin} class="flex flex-col gap-4">
-        <label class="flex flex-col gap-1 text-sm">
-          <span class="font-medium text-slate-700">Email</span>
-          <input
+      <div in:fly={rise}>
+        <h2 class="mb-5 text-xl">Welcome back</h2>
+        <form onsubmit={handleLogin} class="flex flex-col gap-4">
+          <Input
+            label="Email"
             type="email"
             bind:value={loginEmail}
             oninput={clearError}
             required
             autocomplete="email"
-            placeholder="your@email.com"
-            class="rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            placeholder="you@example.com"
           />
-        </label>
-        <label class="flex flex-col gap-1 text-sm">
-          <span class="font-medium text-slate-700">Password</span>
-          <input
+          <Input
+            label="Password"
             type="password"
             bind:value={loginPassword}
             oninput={clearError}
             required
             autocomplete="current-password"
-            placeholder="Enter your password"
-            class="rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            placeholder="Your password"
           />
-        </label>
-        <button
-          type="submit"
-          disabled={submitting}
-          class="mt-2 rounded-md bg-brand-600 px-4 py-2 font-medium text-white transition hover:bg-brand-700 disabled:opacity-60"
-        >
-          {submitting ? 'Logging in…' : 'Login'}
-        </button>
-      </form>
+          <div class="mt-1">
+            <Button type="submit" loading={submitting} fullWidth>
+              {submitting ? 'Logging in…' : 'Log in'}
+            </Button>
+          </div>
+        </form>
+      </div>
     {:else}
-      <h2 class="mb-4 text-xl font-semibold">Create Account</h2>
-      <form onsubmit={handleRegister} class="flex flex-col gap-4">
-        <label class="flex flex-col gap-1 text-sm">
-          <span class="font-medium text-slate-700">Display Name</span>
-          <input
+      <div in:fly={rise}>
+        <h2 class="mb-5 text-xl">Make an account</h2>
+        <form onsubmit={handleRegister} class="flex flex-col gap-4">
+          <Input
+            label="Display name"
+            hint="How friends will see you."
             type="text"
             bind:value={registerName}
             oninput={clearError}
             required
             autocomplete="name"
-            placeholder="Your Name"
-            class="rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            placeholder="Your name"
           />
-          <small class="text-slate-500">This is how you'll appear to other users.</small>
-        </label>
-        <label class="flex flex-col gap-1 text-sm">
-          <span class="font-medium text-slate-700">Email</span>
-          <input
+          <Input
+            label="Email"
             type="email"
             bind:value={registerEmail}
             oninput={clearError}
             required
             autocomplete="email"
-            placeholder="your@email.com"
-            class="rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            placeholder="you@example.com"
           />
-        </label>
-        <label class="flex flex-col gap-1 text-sm">
-          <span class="font-medium text-slate-700">Password</span>
-          <input
+          <Input
+            label="Password"
+            hint="At least 8 characters."
             type="password"
             bind:value={registerPassword}
             oninput={clearError}
             required
             autocomplete="new-password"
-            placeholder="At least 8 characters"
-            class="rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            placeholder="Pick something strong"
           />
-          <small class="text-slate-500">Must be at least 8 characters long.</small>
-        </label>
-        <button
-          type="submit"
-          disabled={submitting}
-          class="mt-2 rounded-md bg-brand-600 px-4 py-2 font-medium text-white transition hover:bg-brand-700 disabled:opacity-60"
-        >
-          {submitting ? 'Creating account…' : 'Create Account'}
-        </button>
-      </form>
+          <div class="mt-1">
+            <Button type="submit" loading={submitting} fullWidth>
+              {submitting ? 'Creating account…' : 'Create account'}
+            </Button>
+          </div>
+        </form>
+      </div>
     {/if}
-  </div>
+  </Card>
+
+  <p class="mt-6 text-center text-[0.75rem] text-text-subtle">
+    Free, open source, and a little bit warmer than the rest.
+  </p>
 </main>

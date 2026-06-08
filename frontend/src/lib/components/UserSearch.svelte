@@ -173,7 +173,7 @@
     {disabled}
     value={value}
     autocomplete="off"
-    class={inputClass || 'w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100'}
+    class={inputClass || 'w-full rounded-md border border-border px-3 py-2 outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft'}
     oninput={handleInput}
     onkeydown={handleKeydown}
     onblur={handleBlur}
@@ -182,11 +182,11 @@
 
   {#if open && searched}
     <ul
-      class="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg"
+      class="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-y-auto rounded-md border border-border bg-surface-elevated shadow-lg"
       role="listbox"
     >
       {#if results.length === 0}
-        <li class="px-3 py-2 text-sm text-slate-500">No matches</li>
+        <li class="px-3 py-2 text-sm text-text-muted">No matches</li>
       {:else}
         {#each results as user, i (user.userId)}
           <li>
@@ -195,15 +195,15 @@
               role="option"
               aria-selected={i === activeIndex}
               class="block w-full px-3 py-2 text-left text-sm"
-              class:bg-brand-50={i === activeIndex}
-              class:hover:bg-slate-100={i !== activeIndex}
+              class:bg-primary-soft={i === activeIndex}
+              class:hover:bg-surface-sunken={i !== activeIndex}
               onmousedown={(e) => {
                 e.preventDefault();
                 pick(user);
               }}
               onmouseenter={() => (activeIndex = i)}
             >
-              <strong class="font-medium text-slate-900">{user.displayName}</strong>
+              <strong class="font-medium text-text">{user.displayName}</strong>
             </button>
           </li>
         {/each}

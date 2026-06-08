@@ -53,7 +53,7 @@
       type="button"
       tabindex="-1"
       aria-label="Close modal"
-      class="absolute inset-0 cursor-default bg-slate-900/40"
+      class="absolute inset-0 cursor-default bg-text/55"
       onclick={handleOverlayClick}
     ></button>
 
@@ -64,16 +64,16 @@
       aria-labelledby={title ? headingId : undefined}
       aria-label={title ? undefined : 'Dialog'}
       tabindex="-1"
-      class="relative z-10 flex w-full {maxWidth} max-h-[90vh] flex-col overflow-hidden rounded-lg bg-white shadow-xl outline-none ring-1 ring-slate-200"
+      class="relative z-10 flex w-full {maxWidth} max-h-[90vh] flex-col overflow-hidden rounded-lg bg-surface-elevated shadow-xl outline-none ring-1 ring-border"
       transition:scale={{ duration: 150, start: 0.96 }}
     >
       {#if title}
-        <header class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-          <h2 id={headingId} class="text-base font-semibold text-slate-900">{title}</h2>
+        <header class="flex items-center justify-between border-b border-border px-4 py-3">
+          <h2 id={headingId} class="text-base font-semibold text-text">{title}</h2>
           <button
             type="button"
             aria-label="Close"
-            class="rounded p-1 text-slate-500 hover:bg-slate-100"
+            class="rounded p-1 text-text-muted hover:bg-surface-sunken"
             onclick={onClose}
           >
             <X size={16} />
@@ -86,7 +86,7 @@
       </div>
 
       {#if footer}
-        <footer class="border-t border-slate-200 px-4 py-3">
+        <footer class="border-t border-border px-4 py-3">
           {@render footer()}
         </footer>
       {/if}
