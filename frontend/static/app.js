@@ -39,6 +39,15 @@ const groupSelector = document.getElementById('group-selector');
 const groupSelect = document.getElementById('group-select');
 const payerSection = document.getElementById('payer-section');
 const payerSelect = document.getElementById('payer-select');
+const importModal = document.getElementById('import-modal');
+const importJsonTextarea = document.getElementById('import-json-textarea');
+const importFileInput = document.getElementById('import-file-input');
+const importErrorEl = document.getElementById('import-error');
+const importJsonBtn = document.getElementById('import-json-btn');
+const importConfirmBtn = document.getElementById('import-confirm-btn');
+const importCancelBtn = document.getElementById('import-cancel-btn');
+const copyPromptBtn = document.getElementById('copy-prompt-btn');
+const promptTemplateText = document.getElementById('prompt-template-text');
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -824,6 +833,122 @@ function showError(message) {
 function hideError() {
   errorEl.classList.add('hidden');
 }
+
+// Import from JSON
+function showImportError(msg) {
+  importErrorEl.textContent = msg;
+  importErrorEl.classList.remove('hidden');
+}
+
+function hideImportError() {
+  importErrorEl.classList.add('hidden');
+}
+
+function importBillData(data) {
+  const normalized = validateImportData(data);
+
+  participants = [];
+  items = [];
+
+  totalInput.value = normalized.total.toFixed(2);
+  subtotalInput.value = normalized.subtotal.toFixed(2);
+
+  normalized.participants.forEach(name => {
+    participants.push({ id: Date.now() + Math.random(), displayName: name, userId: null });
+  });
+
+  normalized.items.forEach(item => {
+    items.push({
+      id: Date.now() + Math.random(),
+      description: item.description,
+      amount: item.amount,
+      participants: [...normalized.participants],
+    });
+  });
+
+  renderParticipants();
+  renderItems();
+  updateTaxDisplay();
+}
+
+function onEscapeKey(e) {
+  if (e.key === 'Escape') closeImportModal();
+}
+
+function openImportModal() {
+  importJsonTextarea.value = '';
+  importFileInput.value = '';
+  hideImportError();
+  importModal.classList.remove('hidden');
+  document.addEventListener('keydown', onEscapeKey);
+  importJsonTextarea.focus();
+}
+
+function closeImportModal() {
+  importModal.classList.add('hidden');
+  document.removeEventListener('keydown', onEscapeKey);
+}
+
+importJsonBtn.addEventListener('click', openImportModal);
+importCancelBtn.addEventListener('click', closeImportModal);
+
+importModal.addEventListener('click', (e) => {
+  if (e.target === importModal) closeImportModal();
+});
+
+importFileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    importJsonTextarea.value = evt.target.result;
+    e.target.value = '';
+    hideImportError();
+  };
+  reader.onerror = () => showImportError('Failed to read file.');
+  reader.readAsText(file);
+});
+
+copyPromptBtn.addEventListener('click', async () => {
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(promptTemplateText.textContent);
+    copied = true;
+  } catch {
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(promptTemplateText);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    copied = document.execCommand('copy');
+    sel.removeAllRanges();
+  }
+  if (copied) {
+    copyPromptBtn.textContent = 'Copied!';
+    setTimeout(() => { copyPromptBtn.textContent = 'Copy Prompt'; }, 2000);
+  }
+});
+
+importConfirmBtn.addEventListener('click', () => {
+  const raw = importJsonTextarea.value.trim();
+  if (!raw) {
+    showImportError('Please paste JSON or upload a file.');
+    return;
+  }
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (e) {
+    showImportError(`Invalid JSON: ${e.message}`);
+    return;
+  }
+  try {
+    importBillData(data);
+    closeImportModal();
+  } catch (err) {
+    showImportError(err);
+  }
+});
 
 // Utility
 function escapeHtml(text) {

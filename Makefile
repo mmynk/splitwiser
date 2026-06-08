@@ -21,6 +21,9 @@ backend-run: proto
 backend-test:
 	cd backend && go test ./... -v
 
+frontend-test:
+	bun frontend/test/import-validator.test.js
+
 # Frontend is now static HTML/JS/CSS served by the backend
 # No build step needed - just edit files in frontend/static/
 
@@ -40,7 +43,7 @@ install: backend-deps proto
 	@echo "Setup complete!"
 
 # Run all tests
-test: backend-test
+test: backend-test frontend-test
 
 # Cleanup
 clean:

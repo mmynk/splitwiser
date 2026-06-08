@@ -134,7 +134,10 @@
     <form id="bill-form" class="hidden">
       <!-- Bill Details -->
       <section>
-        <h2>Bill Details</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--pico-spacing);">
+          <h2 style="margin-bottom: 0;">Bill Details</h2>
+          <button type="button" id="import-json-btn" class="secondary outline" style="margin-bottom: 0;">Import JSON</button>
+        </div>
         <label>
           Bill Name <small>(optional - auto-generated if empty)</small>
           <input type="text" id="bill-title" placeholder="e.g., Team Lunch, Grocery Run">
@@ -203,6 +206,51 @@
     <div id="error" class="hidden"></div>
   </main>
 
+  <div id="import-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
+    <div class="modal-dialog">
+      <h2 id="import-modal-title">Import from JSON</h2>
+      <details>
+        <summary>Get AI prompt template</summary>
+        <div class="prompt-template-block">
+          <p class="hint">Copy this prompt and paste it into Claude or ChatGPT along with your receipt photo or text:</p>
+          <pre id="prompt-template-text">Convert this receipt to JSON with this exact structure:
+{
+  "title": "short restaurant or store name",
+  "total": 00.00,
+  "subtotal": 00.00,
+  "participants": ["Person1", "Person2"],
+  "items": [
+    { "description": "Item name", "amount": 00.00 },
+    { "description": "Another item", "amount": 00.00 }
+  ]
+}
+
+Rules:
+- total is the final amount including tax and tip
+- subtotal is the pre-tax amount (omit if unknown)
+- participants is the list of everyone splitting this bill
+- Omit items array if you just want an equal split
+- Return only valid JSON, no explanation</pre>
+          <button type="button" id="copy-prompt-btn" class="secondary outline">Copy Prompt</button>
+        </div>
+      </details>
+      <label>
+        Upload .json file
+        <input type="file" id="import-file-input" accept=".json,application/json">
+      </label>
+      <label>
+        Or paste JSON directly
+        <textarea id="import-json-textarea" rows="8" placeholder='{"title": "Dinner", "total": 45.50, "participants": ["Alice", "Bob"]}'></textarea>
+      </label>
+      <div id="import-error" class="import-error hidden"></div>
+      <div class="modal-actions">
+        <button type="button" id="import-confirm-btn">Import</button>
+        <button type="button" id="import-cancel-btn" class="secondary outline">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="import-validator.js"></script>
   <script type="module" src="app.js"></script>
 </body>
 </html>
