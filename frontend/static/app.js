@@ -196,6 +196,28 @@ async function loadMyBills() {
   }
 }
 
+async function settleUpWithPerson(toUserId, displayName) {
+  if (!confirm(`Settle up all debts with ${displayName}? This will create settlement records across every group you share with them.`)) return;
+
+  try {
+    const response = await authenticatedFetch('/splitwiser.v1.GroupService/SettleUpWithPerson', {
+      method: 'POST',
+      body: JSON.stringify({ toUserId })
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      alert(`Failed to settle up: ${err.message || response.statusText}`);
+      return;
+    }
+
+    await loadMyBalances();
+  } catch (err) {
+    console.error('Settle up failed:', err);
+    alert('Failed to settle up. Please try again.');
+  }
+}
+
 async function loadMyBalances() {
   try {
     const response = await authenticatedFetch('/splitwiser.v1.GroupService/GetMyBalances', {
@@ -245,12 +267,7 @@ function renderBalanceSummary(data) {
     const colorClass = net === 0 ? 'neutral' : (isPositive ? 'positive' : 'negative');
     const groupBalances = person.groupBalances || [];
     const hasMultipleGroups = groupBalances.length > 1;
-
-    // Single-group negative debtor: add inline Settle up link
-    const isSingleGroupDebtor = net < 0 && Math.abs(net) > 0 && groupBalances.length === 1 && currentUser;
-    const settleUpLink = isSingleGroupDebtor
-      ? `<a href="/group.html?id=${escapeHtml(groupBalances[0].groupId)}&settleFrom=${encodeURIComponent(currentUser.displayName)}&settleTo=${encodeURIComponent(person.displayName)}&amount=${absAmount}" class="settle-up-btn">Settle up</a>`
-      : '';
+    const canSettle = Math.abs(net) > 0.005 && person.userId;
 
     return `
       <div class="person-balance-row ${colorClass}" ${hasMultipleGroups ? 'data-expandable' : ''}>
@@ -258,7 +275,7 @@ function renderBalanceSummary(data) {
           <span class="person-name">${escapeHtml(person.displayName)}</span>
           <span class="person-direction">${direction}</span>
           <span class="person-amount">$${absAmount}</span>
-          ${settleUpLink}
+          ${canSettle ? `<button class="settle-up-btn" data-user-id="${escapeHtml(person.userId)}" data-display-name="${escapeHtml(person.displayName)}">Settle up</button>` : ''}
           ${hasMultipleGroups ? '<span class="expand-icon">&#9654;</span>' : ''}
         </div>
         ${groupBalances.length > 0 ? `
@@ -268,7 +285,6 @@ function renderBalanceSummary(data) {
               const gbAbs = Math.abs(gbNet).toFixed(2);
               const gbDir = gbNet > 0 ? 'owes you' : 'you owe';
               const gbColor = gbNet === 0 ? 'neutral' : (gbNet > 0 ? 'positive' : 'negative');
-              // Multi-group: augment negative links with settle params
               const settleParams = gbNet < 0 && Math.abs(gbNet) > 0 && currentUser
                 ? `&settleFrom=${encodeURIComponent(currentUser.displayName)}&settleTo=${encodeURIComponent(person.displayName)}&amount=${gbAbs}`
                 : '';
@@ -287,11 +303,20 @@ function renderBalanceSummary(data) {
 
   // Expand/collapse for multi-group persons
   personBalancesList.querySelectorAll('[data-expandable]').forEach(row => {
-    row.querySelector('.person-balance-main').addEventListener('click', () => {
+    row.querySelector('.person-balance-main').addEventListener('click', e => {
+      if (e.target.closest('.settle-up-btn')) return;
       const breakdown = row.querySelector('.person-group-breakdown');
       const icon = row.querySelector('.expand-icon');
       breakdown.classList.toggle('hidden');
       icon.classList.toggle('expanded');
+    });
+  });
+
+  // Settle up buttons
+  personBalancesList.querySelectorAll('.settle-up-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      settleUpWithPerson(btn.dataset.userId, btn.dataset.displayName);
     });
   });
 }

@@ -192,7 +192,7 @@ func TestRespondToFriendRequest_AcceptsSuccessfully(t *testing.T) {
 		Subtotal: 100,
 		Participants: []*pb.BillParticipant{
 			aliceBP(),
-			{DisplayName: "Bob", UserId: func() *string { s := testBobID; return &s }()},
+			{DisplayName: "Bob", UserId: strPtr(testBobID)},
 		},
 	}))
 	if err != nil {
@@ -245,7 +245,7 @@ func TestCreateBill_NonFriendRegisteredUser_Rejected(t *testing.T) {
 		Subtotal: 100,
 		Participants: []*pb.BillParticipant{
 			aliceBP(),
-			{DisplayName: "Bob", UserId: func() *string { s := testBobID; return &s }()},
+			{DisplayName: "Bob", UserId: strPtr(testBobID)},
 		},
 	}))
 	if err == nil {
@@ -286,7 +286,7 @@ func TestCreateGroup_NonFriendMember_Rejected(t *testing.T) {
 	_, err := groupClient.CreateGroup(context.Background(), connect.NewRequest(&pb.CreateGroupRequest{
 		Name: "Test Group",
 		Members: []*pb.GroupMember{
-			{DisplayName: "Bob", UserId: func() *string { s := testBobID; return &s }()},
+			{DisplayName: "Bob", UserId: strPtr(testBobID)},
 		},
 	}))
 	if err == nil {

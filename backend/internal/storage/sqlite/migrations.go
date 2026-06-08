@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS participants (
 
 CREATE TABLE IF NOT EXISTS settlements (
     id TEXT PRIMARY KEY,
-    group_id TEXT NOT NULL,
+    group_id TEXT,
     from_user_id TEXT NOT NULL,
     to_user_id TEXT NOT NULL,
     amount REAL NOT NULL,
@@ -84,6 +84,7 @@ CREATE INDEX IF NOT EXISTS idx_group_members_group_id ON group_members(group_id)
 CREATE INDEX IF NOT EXISTS idx_group_members_user_id ON group_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_bills_group_id ON bills(group_id);
 CREATE INDEX IF NOT EXISTS idx_settlements_group_id ON settlements(group_id);
+CREATE INDEX IF NOT EXISTS idx_settlements_user ON settlements(from_user_id, to_user_id) WHERE group_id IS NULL;
 
 CREATE TABLE IF NOT EXISTS friendships (
     id TEXT PRIMARY KEY,
@@ -102,6 +103,39 @@ CREATE INDEX IF NOT EXISTS idx_friendships_addressee ON friendships(addressee_id
 
 // runMigrations executes the schema setup.
 func runMigrations(db *sql.DB) error {
+	if err := migrateSettlementsNullableGroupID(db); err != nil {
+		return err
+	}
 	_, err := db.Exec(schema)
+	return err
+}
+
+// migrateSettlementsNullableGroupID makes settlements.group_id nullable on existing databases.
+// SQLite cannot ALTER column constraints, so we recreate the table. No-op if already nullable.
+func migrateSettlementsNullableGroupID(db *sql.DB) error {
+	var notNull int
+	err := db.QueryRow(`SELECT "notnull" FROM pragma_table_info('settlements') WHERE name = 'group_id'`).Scan(&notNull)
+	if err != nil || notNull == 0 {
+		return nil // table doesn't exist yet, or group_id is already nullable
+	}
+
+	_, err = db.Exec(`
+		CREATE TABLE settlements_new (
+			id TEXT PRIMARY KEY,
+			group_id TEXT,
+			from_user_id TEXT NOT NULL,
+			to_user_id TEXT NOT NULL,
+			amount REAL NOT NULL,
+			created_at INTEGER NOT NULL,
+			created_by TEXT NOT NULL,
+			note TEXT,
+			FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE
+		);
+		INSERT INTO settlements_new SELECT * FROM settlements;
+		DROP TABLE settlements;
+		ALTER TABLE settlements_new RENAME TO settlements;
+		CREATE INDEX IF NOT EXISTS idx_settlements_group_id ON settlements(group_id);
+		CREATE INDEX IF NOT EXISTS idx_settlements_user ON settlements(from_user_id, to_user_id) WHERE group_id IS NULL;
+	`)
 	return err
 }

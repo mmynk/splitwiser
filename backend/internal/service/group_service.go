@@ -342,11 +342,20 @@ func (s *GroupService) GetMyBalances(ctx context.Context, req *connect.Request[p
 	// Key: other person's display name
 	type personAgg struct {
 		netAmount     float64
+		userID        string // empty for guests
 		groupBalances []*pb.PersonGroupBalance
 	}
 	perPerson := make(map[string]*personAgg)
 
 	for _, group := range groups {
+		// Build name→userID map for this group's registered members.
+		memberUserID := make(map[string]string)
+		for _, m := range group.Members {
+			if m.UserID != "" {
+				memberUserID[m.DisplayName] = m.UserID
+			}
+		}
+
 		_, debtEdges, err := s.computeGroupBalances(ctx, group.ID)
 		if err != nil {
 			slog.Error("GetMyBalances failed - balance calc error", "group_id", group.ID, "error", err)
@@ -358,11 +367,9 @@ func (s *GroupService) GetMyBalances(ctx context.Context, req *connect.Request[p
 			var amount float64 // positive = they owe me, negative = I owe them
 
 			if edge.From == myName {
-				// I owe someone
 				otherName = edge.To
 				amount = -edge.Amount
 			} else if edge.To == myName {
-				// Someone owes me
 				otherName = edge.From
 				amount = edge.Amount
 			} else {
@@ -371,8 +378,11 @@ func (s *GroupService) GetMyBalances(ctx context.Context, req *connect.Request[p
 
 			agg, ok := perPerson[otherName]
 			if !ok {
-				agg = &personAgg{}
+				agg = &personAgg{userID: memberUserID[otherName]}
 				perPerson[otherName] = agg
+			}
+			if agg.userID == "" {
+				agg.userID = memberUserID[otherName]
 			}
 			agg.netAmount += amount
 			agg.groupBalances = append(agg.groupBalances, &pb.PersonGroupBalance{
@@ -381,6 +391,30 @@ func (s *GroupService) GetMyBalances(ctx context.Context, req *connect.Request[p
 				NetAmount: amount,
 			})
 		}
+	}
+
+	// Fold in direct (null-group) settlements — these adjust per-person net amounts
+	// without belonging to any specific group balance.
+	directSettlements, err := s.store.ListDirectSettlementsByUser(ctx, myName)
+	if err != nil {
+		slog.Error("GetMyBalances failed - could not list direct settlements", "error", err)
+	}
+	for _, ds := range directSettlements {
+		var otherName string
+		var amount float64
+		if ds.FromUserID == myName {
+			otherName = ds.ToUserID
+			amount = ds.Amount
+		} else {
+			otherName = ds.FromUserID
+			amount = -ds.Amount
+		}
+		agg, ok := perPerson[otherName]
+		if !ok {
+			agg = &personAgg{}
+			perPerson[otherName] = agg
+		}
+		agg.netAmount += amount
 	}
 
 	var totalYouOwe, totalOwedToYou float64
@@ -395,11 +429,15 @@ func (s *GroupService) GetMyBalances(ctx context.Context, req *connect.Request[p
 				totalYouOwe += -gb.NetAmount
 			}
 		}
-		personBalances = append(personBalances, &pb.PersonBalance{
+		pbPerson := &pb.PersonBalance{
 			DisplayName:   name,
 			NetAmount:     agg.netAmount,
 			GroupBalances: agg.groupBalances,
-		})
+		}
+		if agg.userID != "" {
+			pbPerson.UserId = &agg.userID
+		}
+		personBalances = append(personBalances, pbPerson)
 	}
 
 	return connect.NewResponse(&pb.GetMyBalancesResponse{
@@ -458,7 +496,7 @@ func (s *GroupService) RecordSettlement(ctx context.Context, req *connect.Reques
 	}
 
 	settlement := &models.Settlement{
-		GroupID:    groupID,
+		GroupID:    &groupID,
 		FromUserID: fromUserID,
 		ToUserID:   toUserID,
 		Amount:     amount,
@@ -518,18 +556,7 @@ func (s *GroupService) ListSettlements(ctx context.Context, req *connect.Request
 
 	pbSettlements := make([]*pb.Settlement, len(settlements))
 	for i, settlement := range settlements {
-		pbSettlements[i] = &pb.Settlement{
-			Id:         settlement.ID,
-			GroupId:    settlement.GroupID,
-			FromUserId: settlement.FromUserID,
-			ToUserId:   settlement.ToUserID,
-			Amount:     settlement.Amount,
-			CreatedAt:  settlement.CreatedAt,
-			CreatedBy:  settlement.CreatedBy,
-			Note:       settlement.Note,
-			FromName:   settlement.FromUserID,
-			ToName:     settlement.ToUserID,
-		}
+		pbSettlements[i] = settlementToProto(settlement)
 	}
 
 	return connect.NewResponse(&pb.ListSettlementsResponse{
@@ -555,15 +582,23 @@ func (s *GroupService) DeleteSettlement(ctx context.Context, req *connect.Reques
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("settlement not found"))
 	}
 
-	group, err := s.store.GetGroup(ctx, settlement.GroupID)
-	if err != nil {
-		slog.Error("DeleteSettlement failed - group not found", "group_id", settlement.GroupID, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("group not found"))
-	}
-
 	deletorDisplayName := s.resolveDisplayName(ctx, userID)
-	if !isMemberByName(deletorDisplayName, group.Members) {
-		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("not a member of this group"))
+
+	if settlement.GroupID != nil {
+		// Group settlement: verify caller is a member of that group.
+		group, err := s.store.GetGroup(ctx, *settlement.GroupID)
+		if err != nil {
+			slog.Error("DeleteSettlement failed - group not found", "group_id", *settlement.GroupID, "error", err)
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("group not found"))
+		}
+		if !isMemberByName(deletorDisplayName, group.Members) {
+			return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("not a member of this group"))
+		}
+	} else {
+		// Direct settlement: only the creator can delete it.
+		if settlement.CreatedBy != deletorDisplayName {
+			return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("only the creator can delete a direct settlement"))
+		}
 	}
 
 	if err := s.store.DeleteSettlement(ctx, settlementID); err != nil {
@@ -572,4 +607,112 @@ func (s *GroupService) DeleteSettlement(ctx context.Context, req *connect.Reques
 	}
 
 	return connect.NewResponse(&pb.DeleteSettlementResponse{}), nil
+}
+
+// SettleUpWithPerson creates settlement records across all groups where the auth user
+// and the target user have outstanding debts, zeroing their balance in each group.
+func (s *GroupService) SettleUpWithPerson(ctx context.Context, req *connect.Request[pb.SettleUpWithPersonRequest]) (*connect.Response[pb.SettleUpWithPersonResponse], error) {
+	userID := middleware.GetUserID(ctx)
+	if userID == "" {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("authentication required"))
+	}
+
+	toUserID := req.Msg.GetToUserId()
+	if toUserID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("to_user_id required"))
+	}
+	if toUserID == userID {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("cannot settle up with yourself"))
+	}
+
+	targetUsers, err := s.store.GetUsersByIDs(ctx, []string{toUserID})
+	if err != nil || targetUsers[toUserID] == nil {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("user not found"))
+	}
+
+	myGroups, err := s.store.ListGroupsByUser(ctx, userID)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	myName := s.resolveDisplayName(ctx, userID)
+	var created []*pb.Settlement
+
+	for _, group := range myGroups {
+		// Find target's display name in this group — skip if not a registered member.
+		var targetNameInGroup string
+		var myNameInGroup string
+		for _, m := range group.Members {
+			if m.UserID == toUserID {
+				targetNameInGroup = m.DisplayName
+			}
+			if m.UserID == userID {
+				myNameInGroup = m.DisplayName
+			}
+		}
+		if targetNameInGroup == "" {
+			continue
+		}
+		if myNameInGroup == "" {
+			myNameInGroup = myName
+		}
+
+		_, debtEdges, err := s.computeGroupBalances(ctx, group.ID)
+		if err != nil {
+			slog.Error("SettleUpWithPerson balance calc error", "group_id", group.ID, "error", err)
+			continue
+		}
+
+		for _, edge := range debtEdges {
+			var fromName, toName string
+			var amount float64
+
+			if edge.From == myNameInGroup && edge.To == targetNameInGroup {
+				fromName, toName, amount = myNameInGroup, targetNameInGroup, edge.Amount
+			} else if edge.From == targetNameInGroup && edge.To == myNameInGroup {
+				fromName, toName, amount = targetNameInGroup, myNameInGroup, edge.Amount
+			} else {
+				continue
+			}
+
+			groupID := group.ID
+			settlement := &models.Settlement{
+				GroupID:    &groupID,
+				FromUserID: fromName,
+				ToUserID:   toName,
+				Amount:     amount,
+				CreatedBy:  myName,
+			}
+			if err := s.store.CreateSettlement(ctx, settlement); err != nil {
+				slog.Error("SettleUpWithPerson failed to create settlement", "group_id", group.ID, "error", err)
+				return nil, connect.NewError(connect.CodeInternal, err)
+			}
+			created = append(created, settlementToProto(settlement))
+			break
+		}
+	}
+
+	if len(created) == 0 {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("no outstanding debt found with this person"))
+	}
+
+	return connect.NewResponse(&pb.SettleUpWithPersonResponse{
+		Settlements: created,
+	}), nil
+}
+
+// settlementToProto converts a models.Settlement to its proto representation.
+func settlementToProto(s *models.Settlement) *pb.Settlement {
+	return &pb.Settlement{
+		Id:         s.ID,
+		GroupId:    s.GroupID,
+		FromUserId: s.FromUserID,
+		ToUserId:   s.ToUserID,
+		Amount:     s.Amount,
+		CreatedAt:  s.CreatedAt,
+		CreatedBy:  s.CreatedBy,
+		Note:       s.Note,
+		FromName:   s.FromUserID,
+		ToName:     s.ToUserID,
+	}
 }

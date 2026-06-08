@@ -9,6 +9,9 @@ import (
 	"github.com/mmynk/splitwiser/internal/models"
 )
 
+// strPtr returns a pointer to s.
+func strPtr(s string) *string { return &s }
+
 // bp is a helper to build []models.BillParticipant from display names (no user_id).
 func bp(names ...string) []models.BillParticipant {
 	out := make([]models.BillParticipant, len(names))
@@ -910,7 +913,7 @@ func TestSettlementStorage(t *testing.T) {
 
 	t.Run("CreateSettlement generates ID and timestamp", func(t *testing.T) {
 		settlement := &models.Settlement{
-			GroupID:    group.ID,
+			GroupID:    strPtr(group.ID),
 			FromUserID: bobUser.ID,
 			ToUserID:   aliceUser.ID,
 			Amount:     50.0,
@@ -933,7 +936,7 @@ func TestSettlementStorage(t *testing.T) {
 
 	t.Run("GetSettlement retrieves complete settlement", func(t *testing.T) {
 		original := &models.Settlement{
-			GroupID:    group.ID,
+			GroupID:    strPtr(group.ID),
 			FromUserID: aliceUser.ID,
 			ToUserID:   bobUser.ID,
 			Amount:     25.0,
@@ -990,14 +993,14 @@ func TestSettlementStorage(t *testing.T) {
 		}
 
 		store.CreateSettlement(ctx, &models.Settlement{
-			GroupID:    group2.ID,
+			GroupID:    strPtr(group2.ID),
 			FromUserID: charlieUser.ID,
 			ToUserID:   aliceUser.ID,
 			Amount:     10.0,
 			CreatedBy:  charlieUser.ID,
 		})
 		store.CreateSettlement(ctx, &models.Settlement{
-			GroupID:    group2.ID,
+			GroupID:    strPtr(group2.ID),
 			FromUserID: charlieUser.ID,
 			ToUserID:   aliceUser.ID,
 			Amount:     20.0,
@@ -1016,7 +1019,7 @@ func TestSettlementStorage(t *testing.T) {
 
 	t.Run("DeleteSettlement removes settlement", func(t *testing.T) {
 		settlement := &models.Settlement{
-			GroupID:    group.ID,
+			GroupID:    strPtr(group.ID),
 			FromUserID: bobUser.ID,
 			ToUserID:   aliceUser.ID,
 			Amount:     15.0,
@@ -1050,7 +1053,7 @@ func TestSettlementStorage(t *testing.T) {
 		}
 
 		settlement := &models.Settlement{
-			GroupID:    cascadeGroup.ID,
+			GroupID:    strPtr(cascadeGroup.ID),
 			FromUserID: bobUser.ID,
 			ToUserID:   aliceUser.ID,
 			Amount:     100.0,

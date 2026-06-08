@@ -94,6 +94,9 @@ func setupTestServerWithGroupService(t *testing.T) (protoconnect.SplitServiceCli
 	return splitClient, groupClient, cleanup
 }
 
+// strPtr returns a pointer to s, for use in proto optional string fields.
+func strPtr(s string) *string { return &s }
+
 // setupTestServer creates a split-only test server.
 func setupTestServer(t *testing.T) (protoconnect.SplitServiceClient, func()) {
 	splitClient, _, cleanup := setupTestServerWithGroupService(t)

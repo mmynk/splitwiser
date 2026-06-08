@@ -630,8 +630,8 @@ func TestRecordSettlement(t *testing.T) {
 	if settlementResp.Msg.Settlement.Id == "" {
 		t.Error("expected non-empty settlement ID")
 	}
-	if settlementResp.Msg.Settlement.GroupId != groupId {
-		t.Errorf("group_id: expected %s, got %s", groupId, settlementResp.Msg.Settlement.GroupId)
+	if settlementResp.Msg.Settlement.GetGroupId() != groupId {
+		t.Errorf("group_id: expected %s, got %s", groupId, settlementResp.Msg.Settlement.GetGroupId())
 	}
 	if settlementResp.Msg.Settlement.FromUserId != "Bob" {
 		t.Errorf("from_user_id: expected 'Bob', got '%s'", settlementResp.Msg.Settlement.FromUserId)

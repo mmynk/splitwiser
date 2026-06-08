@@ -70,6 +70,10 @@ type Store interface {
 	// Returns an empty slice if the group has no settlements.
 	ListSettlementsByGroup(ctx context.Context, groupID string) ([]*models.Settlement, error)
 
+	// ListDirectSettlementsByUser retrieves settlements with no group (cross-group settle ups)
+	// where the given display name is the payer or payee.
+	ListDirectSettlementsByUser(ctx context.Context, displayName string) ([]*models.Settlement, error)
+
 	// DeleteSettlement removes a settlement by its ID.
 	// Returns an error if the settlement is not found.
 	DeleteSettlement(ctx context.Context, settlementID string) error

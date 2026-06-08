@@ -5,8 +5,8 @@ type Settlement struct {
 	// ID is the unique identifier for the settlement (UUID format).
 	ID string
 
-	// GroupID is the group this settlement belongs to.
-	GroupID string
+	// GroupID is the group this settlement belongs to. Nil for direct (cross-group) settlements.
+	GroupID *string
 
 	// FromUserID is the user who paid (debtor settling up).
 	FromUserID string
