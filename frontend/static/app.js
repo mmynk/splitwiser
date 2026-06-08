@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   currentUser = getCurrentUser();
   displayUserInfo();
-  addParticipant(currentUser?.display_name || '', currentUser?.id || null);
+  addParticipant(currentUser?.displayName || '', currentUser?.id || null);
   addParticipant('');
   updateTaxDisplay();
   loadGroups();
@@ -240,7 +240,7 @@ function renderBalanceSummary(data) {
     // Single-group negative debtor: add inline Settle up link
     const isSingleGroupDebtor = net < 0 && Math.abs(net) > 0 && groupBalances.length === 1 && currentUser;
     const settleUpLink = isSingleGroupDebtor
-      ? `<a href="/group.html?id=${escapeHtml(groupBalances[0].groupId)}&settleFrom=${encodeURIComponent(currentUser.display_name)}&settleTo=${encodeURIComponent(person.displayName)}&amount=${absAmount}" class="settle-up-btn">Settle up</a>`
+      ? `<a href="/group.html?id=${escapeHtml(groupBalances[0].groupId)}&settleFrom=${encodeURIComponent(currentUser.displayName)}&settleTo=${encodeURIComponent(person.displayName)}&amount=${absAmount}" class="settle-up-btn">Settle up</a>`
       : '';
 
     return `
@@ -261,7 +261,7 @@ function renderBalanceSummary(data) {
               const gbColor = gbNet === 0 ? 'neutral' : (gbNet > 0 ? 'positive' : 'negative');
               // Multi-group: augment negative links with settle params
               const settleParams = gbNet < 0 && Math.abs(gbNet) > 0 && currentUser
-                ? `&settleFrom=${encodeURIComponent(currentUser.display_name)}&settleTo=${encodeURIComponent(person.displayName)}&amount=${gbAbs}`
+                ? `&settleFrom=${encodeURIComponent(currentUser.displayName)}&settleTo=${encodeURIComponent(person.displayName)}&amount=${gbAbs}`
                 : '';
               return `
                 <a href="/group.html?id=${escapeHtml(gb.groupId)}${settleParams}" class="group-balance-link ${gbColor}">

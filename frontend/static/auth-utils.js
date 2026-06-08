@@ -88,7 +88,7 @@ export function displayUserInfo(containerId = 'user-info') {
 
   container.innerHTML = `
     <div style="display: flex; align-items: center; gap: 1rem;">
-      <span>👤 ${user.display_name || user.email}</span>
+      <span>👤 ${user.displayName || user.email}</span>
       <button type="button" onclick="window.authUtils.logout()" class="secondary outline" style="margin: 0; padding: 0.5rem 1rem;">
         Logout
       </button>
