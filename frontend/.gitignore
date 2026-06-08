@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.svelte-kit/
+*.tsbuildinfo
+
+# Vite build output (static/assets/ and static/index.html) is tracked in git so the
+# Docker build (which COPYs frontend/static/ verbatim) doesn't require a build step.

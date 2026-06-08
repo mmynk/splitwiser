@@ -1,4 +1,4 @@
-.PHONY: proto backend frontend test clean install dev docker-build docker-run docker-up docker-down
+.PHONY: proto backend frontend test clean install dev docker-build docker-run docker-up docker-down frontend-deps frontend-build frontend-dev
 
 # Generate Protocol Buffers with Connect
 proto:
@@ -24,22 +24,23 @@ backend-test:
 frontend-test:
 	bun frontend/test/import-validator.test.js
 
-# Frontend is now static HTML/JS/CSS served by the backend
-# No build step needed - just edit files in frontend/static/
+# Frontend (Svelte + Vite + TypeScript SPA, outputs to frontend/static/)
+frontend-deps:
+	cd frontend && bun install
+
+frontend-build: frontend-deps
+	cd frontend && bun run build
+
+frontend-dev: frontend-deps
+	cd frontend && bun run dev
 
 # Development - runs backend which serves both API and static frontend
 dev: backend-run
 
 dev-backend: backend-run
 
-# Frontend-only dev server (useful for frontend-only changes without full backend)
-dev-frontend:
-	@echo "Serving frontend at http://localhost:3000"
-	@echo "Note: API calls will fail without backend running"
-	cd frontend/static && python3 -m http.server 3000
-
 # Install dependencies
-install: backend-deps proto
+install: backend-deps proto frontend-deps
 	@echo "Setup complete!"
 
 # Run all tests

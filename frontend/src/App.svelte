@@ -1,0 +1,32 @@
+<script lang="ts">
+  import Router, { replace, type RouteDetailLoaded } from 'svelte-spa-router';
+  import { isLoggedIn } from '$lib/stores/auth';
+  import Login from './routes/Login.svelte';
+  import Home from './routes/Home.svelte';
+  import Bill from './routes/Bill.svelte';
+  import Groups from './routes/Groups.svelte';
+  import Group from './routes/Group.svelte';
+  import Friends from './routes/Friends.svelte';
+
+  const routes = {
+    '/': Home,
+    '/login': Login,
+    '/bill/:id': Bill,
+    '/groups': Groups,
+    '/group/:id': Group,
+    '/friends': Friends,
+    '*': Login,
+  };
+
+  function routeLoaded(event: { detail: RouteDetailLoaded }) {
+    const path = event.detail.location;
+    const authed = isLoggedIn();
+    if (path === '/login' && authed) {
+      replace('/');
+    } else if (path !== '/login' && !authed) {
+      replace('/login');
+    }
+  }
+</script>
+
+<Router {routes} on:routeLoaded={routeLoaded} />
