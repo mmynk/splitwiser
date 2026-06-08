@@ -1,8 +1,15 @@
-const assert = require('assert');
-const { validateImportData } = require('../static/import-validator.js');
+import assert from 'node:assert';
+import { validateImportData } from '../src/lib/util/importValidator.ts';
 
-const tests = [];
-function test(name, fn) { tests.push({ name, fn }); }
+interface TestCase {
+  name: string;
+  fn: () => void;
+}
+
+const tests: TestCase[] = [];
+function test(name: string, fn: () => void): void {
+  tests.push({ name, fn });
+}
 
 // Happy paths
 test('minimal valid data', () => {
@@ -115,34 +122,36 @@ test('throws when a participant is an empty string', () => {
 test('throws when item amount is missing', () => {
   assert.throws(
     () => validateImportData({ total: 10, participants: ['Alice'], items: [{ description: 'Pizza' }] }),
-    /amount/
+    /amount/,
   );
 });
 
 test('throws when item amount is NaN', () => {
   assert.throws(
     () => validateImportData({ total: 10, participants: ['Alice'], items: [{ description: 'Pizza', amount: 'free' }] }),
-    /amount/
+    /amount/,
   );
 });
 
 test('throws when an item is not an object', () => {
   assert.throws(
     () => validateImportData({ total: 10, participants: ['Alice'], items: ['Pizza'] }),
-    /object/
+    /object/,
   );
 });
 
 // Run
-let passed = 0, failed = 0;
+let passed = 0;
+let failed = 0;
 for (const { name, fn } of tests) {
   try {
     fn();
     console.log(`✓ ${name}`);
     passed++;
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
     console.log(`✗ ${name}`);
-    console.log(`  ${e.message}`);
+    console.log(`  ${msg}`);
     failed++;
   }
 }

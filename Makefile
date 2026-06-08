@@ -22,7 +22,7 @@ backend-test:
 	cd backend && go test ./... -v
 
 frontend-test:
-	bun frontend/test/import-validator.test.js
+	bun frontend/test/import-validator.test.ts
 
 # Frontend (Svelte + Vite + TypeScript SPA, outputs to frontend/static/)
 frontend-deps:
