@@ -1,9 +1,9 @@
 module github.com/mmynk/splitwiser
 
-go 1.24.0
+go 1.25.0
 
 require (
-	connectrpc.com/connect v1.19.1
+	connectrpc.com/connect v1.20.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
 	github.com/lmittmann/tint v1.1.3

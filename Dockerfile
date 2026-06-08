@@ -1,12 +1,13 @@
 # Build stage
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
 # Install protoc and plugins for proto generation
+# Versions pinned to match go.mod (connectrpc.com/connect v1.20.0, google.golang.org/protobuf v1.36.11)
 RUN apk add --no-cache protobuf protobuf-dev
-RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-RUN go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+RUN go install connectrpc.com/connect/cmd/protoc-gen-connect-go@v1.20.0
 
 # Copy go mod files first for caching
 COPY backend/go.mod backend/go.sum ./backend/
@@ -24,7 +25,7 @@ COPY backend/ ./backend/
 RUN cd backend && CGO_ENABLED=0 GOOS=linux go build -o /app/server ./cmd/server
 
 # Runtime stage
-FROM alpine:latest
+FROM alpine:3.22
 
 WORKDIR /app
 
