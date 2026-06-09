@@ -473,24 +473,42 @@ Rules:
         </div>
         <ul class="divide-y divide-border">
           {#each bills as bill (bill.billId)}
+            {@const people = bill.participantCount ?? 0}
             <li>
               <a
                 href={`#/bill/${bill.billId}`}
-                class="grid grid-cols-1 gap-1 px-4 py-3 transition-colors hover:bg-surface-sunken sm:grid-cols-[1fr_1fr_auto_auto_auto] sm:items-center sm:gap-4"
+                class="block px-4 py-3 transition-colors hover:bg-surface-sunken"
               >
-                <span class="font-medium text-text">{bill.title || 'Untitled'}</span>
-                <span class="text-[0.8125rem] text-text-muted">
-                  {#if bill.groupName}
-                    {bill.groupName}
-                  {:else}
-                    <span class="text-text-subtle">—</span>
-                  {/if}
-                </span>
-                <span class="text-[0.875rem] tabular-nums sm:text-right">{formatMoney(bill.total)}</span>
-                <span class="text-[0.875rem] tabular-nums text-text-muted sm:text-right">
-                  {bill.participantCount ?? 0}
-                </span>
-                <span class="text-[0.8125rem] text-text-muted sm:text-right">{formatDate(bill.createdAt)}</span>
+                <div class="flex flex-col gap-1 sm:hidden">
+                  <div class="flex items-baseline justify-between gap-3">
+                    <span class="font-medium text-text">{bill.title || 'Untitled'}</span>
+                    <span class="text-[0.875rem] tabular-nums text-text">{formatMoney(bill.total)}</span>
+                  </div>
+                  <div class="flex flex-wrap items-baseline gap-x-2 text-[0.8125rem] text-text-muted">
+                    {#if bill.groupName}
+                      <span>{bill.groupName}</span>
+                    {:else}
+                      <span class="text-text-subtle">no group</span>
+                    {/if}
+                    <span aria-hidden="true">·</span>
+                    <span>{people} {people === 1 ? 'person' : 'people'}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{formatDate(bill.createdAt)}</span>
+                  </div>
+                </div>
+                <div class="hidden sm:grid sm:grid-cols-[1fr_1fr_auto_auto_auto] sm:items-center sm:gap-4">
+                  <span class="font-medium text-text">{bill.title || 'Untitled'}</span>
+                  <span class="text-[0.8125rem] text-text-muted">
+                    {#if bill.groupName}
+                      {bill.groupName}
+                    {:else}
+                      <span class="text-text-subtle">—</span>
+                    {/if}
+                  </span>
+                  <span class="text-right text-[0.875rem] tabular-nums">{formatMoney(bill.total)}</span>
+                  <span class="text-right text-[0.875rem] tabular-nums text-text-muted">{people}</span>
+                  <span class="text-right text-[0.8125rem] text-text-muted">{formatDate(bill.createdAt)}</span>
+                </div>
               </a>
             </li>
           {/each}

@@ -402,29 +402,50 @@
         <ul class="divide-y divide-border">
           {#each debtMatrix as debt ((debt.fromUserId || debt.fromName) + '->' + (debt.toUserId || debt.toName))}
             {@const amount = debt.amount ?? 0}
-            <li
-              animate:flip={{ duration: durFast }}
-              class="grid grid-cols-1 gap-1 px-4 py-3 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-center sm:gap-4"
-            >
-              <span class="font-medium text-text">{debt.fromName || debt.fromUserId}</span>
-              <span class="text-text">{debt.toName || debt.toUserId}</span>
-              <span class="text-[0.875rem] tabular-nums text-text sm:text-right">
-                {formatMoney(amount)}
-              </span>
-              <span class="sm:text-right">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onclick={() =>
-                    openSettlement({
-                      from: debt.fromName || debt.fromUserId,
-                      to: debt.toName || debt.toUserId,
-                      amount: amount.toFixed(2),
-                    })}
-                >
-                  <HandCoins size={12} strokeWidth={1.75} /> Settle
-                </Button>
-              </span>
+            <li animate:flip={{ duration: durFast }} class="px-4 py-3">
+              <div class="flex flex-col gap-2 sm:hidden">
+                <div class="flex items-baseline justify-between gap-3">
+                  <span class="font-medium text-text">
+                    {debt.fromName || debt.fromUserId} → {debt.toName || debt.toUserId}
+                  </span>
+                  <span class="text-[0.875rem] tabular-nums text-text">{formatMoney(amount)}</span>
+                </div>
+                <div class="flex justify-end">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onclick={() =>
+                      openSettlement({
+                        from: debt.fromName || debt.fromUserId,
+                        to: debt.toName || debt.toUserId,
+                        amount: amount.toFixed(2),
+                      })}
+                  >
+                    <HandCoins size={12} strokeWidth={1.75} /> Settle
+                  </Button>
+                </div>
+              </div>
+              <div class="hidden sm:grid sm:grid-cols-[1fr_1fr_auto_auto] sm:items-center sm:gap-4">
+                <span class="font-medium text-text">{debt.fromName || debt.fromUserId}</span>
+                <span class="text-text">{debt.toName || debt.toUserId}</span>
+                <span class="text-right text-[0.875rem] tabular-nums text-text">
+                  {formatMoney(amount)}
+                </span>
+                <span class="text-right">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onclick={() =>
+                      openSettlement({
+                        from: debt.fromName || debt.fromUserId,
+                        to: debt.toName || debt.toUserId,
+                        amount: amount.toFixed(2),
+                      })}
+                  >
+                    <HandCoins size={12} strokeWidth={1.75} /> Settle
+                  </Button>
+                </span>
+              </div>
             </li>
           {/each}
         </ul>
@@ -460,27 +481,53 @@
         <ul class="divide-y divide-border">
           {#each settlements as s (s.id)}
             {@const amount = s.amount ?? 0}
-            <li
-              class="grid grid-cols-1 gap-1 px-4 py-3 text-[0.875rem] sm:grid-cols-[1fr_1fr_auto_2fr_auto_auto] sm:items-center sm:gap-4"
-            >
-              <span class="font-medium text-text">{s.fromName || s.fromUserId}</span>
-              <span class="text-text">{s.toName || s.toUserId}</span>
-              <span class="tabular-nums text-text sm:text-right">{formatMoney(amount)}</span>
-              <span class="text-text-muted">
-                {#if s.note}{s.note}{:else}<em class="text-text-subtle">—</em>{/if}
-              </span>
-              <span class="text-[0.75rem] text-text-muted sm:text-right">{formatDate(s.createdAt)}</span>
-              <span class="sm:text-right">
-                <IconButton
-                  ariaLabel="Delete settlement"
-                  title="Delete"
-                  size="sm"
-                  variant="danger"
-                  onclick={() => handleDeleteSettlement(s)}
-                >
-                  <Trash2 size={14} strokeWidth={1.75} />
-                </IconButton>
-              </span>
+            <li class="px-4 py-3 text-[0.875rem]">
+              <div class="flex flex-col gap-1 sm:hidden">
+                <div class="flex items-baseline justify-between gap-3">
+                  <span class="font-medium text-text">
+                    {s.fromName || s.fromUserId} → {s.toName || s.toUserId}
+                  </span>
+                  <div class="flex items-center gap-2">
+                    <span class="tabular-nums text-text">{formatMoney(amount)}</span>
+                    <IconButton
+                      ariaLabel="Delete settlement"
+                      title="Delete"
+                      size="sm"
+                      variant="danger"
+                      onclick={() => handleDeleteSettlement(s)}
+                    >
+                      <Trash2 size={14} strokeWidth={1.75} />
+                    </IconButton>
+                  </div>
+                </div>
+                <div class="flex flex-wrap items-baseline gap-x-2 text-[0.75rem] text-text-muted">
+                  <span>{formatDate(s.createdAt)}</span>
+                  {#if s.note}
+                    <span aria-hidden="true">·</span>
+                    <span>{s.note}</span>
+                  {/if}
+                </div>
+              </div>
+              <div class="hidden sm:grid sm:grid-cols-[1fr_1fr_auto_2fr_auto_auto] sm:items-center sm:gap-4">
+                <span class="font-medium text-text">{s.fromName || s.fromUserId}</span>
+                <span class="text-text">{s.toName || s.toUserId}</span>
+                <span class="text-right tabular-nums text-text">{formatMoney(amount)}</span>
+                <span class="text-text-muted">
+                  {#if s.note}{s.note}{:else}<em class="text-text-subtle">—</em>{/if}
+                </span>
+                <span class="text-right text-[0.75rem] text-text-muted">{formatDate(s.createdAt)}</span>
+                <span class="text-right">
+                  <IconButton
+                    ariaLabel="Delete settlement"
+                    title="Delete"
+                    size="sm"
+                    variant="danger"
+                    onclick={() => handleDeleteSettlement(s)}
+                  >
+                    <Trash2 size={14} strokeWidth={1.75} />
+                  </IconButton>
+                </span>
+              </div>
             </li>
           {/each}
         </ul>
@@ -519,32 +566,64 @@
         </div>
         <ul class="divide-y divide-border">
           {#each bills as bill (bill.billId)}
-            <li
-              class="grid grid-cols-1 gap-1 px-4 py-3 text-[0.875rem] sm:grid-cols-[1fr_auto_1fr_auto_auto] sm:items-center sm:gap-4"
-            >
-              <a
-                use:link
-                href={`/bill/${bill.billId}`}
-                class="font-medium text-text transition-colors hover:text-primary"
-              >
-                {bill.title || 'Untitled'}
-              </a>
-              <span class="tabular-nums text-text sm:text-right">{formatMoney(bill.total)}</span>
-              <span class="text-text-muted">
-                {#if bill.payerId}{bill.payerId}{:else}<em class="text-text-subtle">Not recorded</em>{/if}
-              </span>
-              <span class="text-[0.75rem] text-text-muted sm:text-right">{formatDate(bill.createdAt)}</span>
-              <span class="sm:text-right">
-                <IconButton
-                  ariaLabel="Delete bill"
-                  title="Delete"
-                  size="sm"
-                  variant="danger"
-                  onclick={() => handleDeleteBill(bill)}
+            <li class="px-4 py-3 text-[0.875rem]">
+              <div class="flex flex-col gap-1 sm:hidden">
+                <div class="flex items-baseline justify-between gap-3">
+                  <a
+                    use:link
+                    href={`/bill/${bill.billId}`}
+                    class="font-medium text-text transition-colors hover:text-primary"
+                  >
+                    {bill.title || 'Untitled'}
+                  </a>
+                  <div class="flex items-center gap-2">
+                    <span class="tabular-nums text-text">{formatMoney(bill.total)}</span>
+                    <IconButton
+                      ariaLabel="Delete bill"
+                      title="Delete"
+                      size="sm"
+                      variant="danger"
+                      onclick={() => handleDeleteBill(bill)}
+                    >
+                      <Trash2 size={14} strokeWidth={1.75} />
+                    </IconButton>
+                  </div>
+                </div>
+                <div class="flex flex-wrap items-baseline gap-x-2 text-[0.75rem] text-text-muted">
+                  {#if bill.payerId}
+                    <span>Paid by {bill.payerId}</span>
+                  {:else}
+                    <em class="text-text-subtle">Payer not recorded</em>
+                  {/if}
+                  <span aria-hidden="true">·</span>
+                  <span>{formatDate(bill.createdAt)}</span>
+                </div>
+              </div>
+              <div class="hidden sm:grid sm:grid-cols-[1fr_auto_1fr_auto_auto] sm:items-center sm:gap-4">
+                <a
+                  use:link
+                  href={`/bill/${bill.billId}`}
+                  class="font-medium text-text transition-colors hover:text-primary"
                 >
-                  <Trash2 size={14} strokeWidth={1.75} />
-                </IconButton>
-              </span>
+                  {bill.title || 'Untitled'}
+                </a>
+                <span class="text-right tabular-nums text-text">{formatMoney(bill.total)}</span>
+                <span class="text-text-muted">
+                  {#if bill.payerId}{bill.payerId}{:else}<em class="text-text-subtle">Not recorded</em>{/if}
+                </span>
+                <span class="text-right text-[0.75rem] text-text-muted">{formatDate(bill.createdAt)}</span>
+                <span class="text-right">
+                  <IconButton
+                    ariaLabel="Delete bill"
+                    title="Delete"
+                    size="sm"
+                    variant="danger"
+                    onclick={() => handleDeleteBill(bill)}
+                  >
+                    <Trash2 size={14} strokeWidth={1.75} />
+                  </IconButton>
+                </span>
+              </div>
             </li>
           {/each}
         </ul>
