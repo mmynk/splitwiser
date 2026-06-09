@@ -51,3 +51,7 @@ export async function apiPost<TReq = unknown, TRes = unknown>(
 
   return (await response.json()) as TRes;
 }
+
+export function apiMessage(err: unknown, fallback: string): string {
+  return err instanceof ApiError ? err.message : fallback;
+}
