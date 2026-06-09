@@ -18,13 +18,8 @@ backend/pkg/proto/
 *.md
 scratch/
 
-# Old frontend (Next.js remnants)
-frontend/src/
+# Frontend deps (installed fresh in Docker)
 frontend/node_modules/
-frontend/package.json
-frontend/tsconfig.json
-frontend/next.config.ts
-frontend/bun.lockb
 frontend/.next/
 
 # Docker
