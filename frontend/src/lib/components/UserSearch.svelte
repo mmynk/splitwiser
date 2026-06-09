@@ -2,10 +2,12 @@
   import { onMount, onDestroy } from 'svelte';
   import { searchFriends } from '$lib/api/friends';
   import { searchUsers as searchAllUsers } from '$lib/api/split';
+  import { currentUser } from '$lib/stores/auth';
 
   export interface UserPick {
     userId: string;
     displayName: string;
+    self?: boolean;
   }
 
   interface Props {
@@ -82,9 +84,20 @@
         const r = global ? await searchAllUsers(q) : await searchFriends(q);
         if (requestId !== latestRequestId) return;
         const users = r.users ?? [];
-        results = users
+        const filtered: UserPick[] = users
           .filter((u) => !excludeIds.includes(u.userId))
           .map((u) => ({ userId: u.userId, displayName: u.displayName }));
+        const me = $currentUser;
+        if (
+          me &&
+          me.displayName &&
+          !excludeIds.includes(me.id) &&
+          me.displayName.toLowerCase().includes(q.toLowerCase()) &&
+          !filtered.some((u) => u.userId === me.id)
+        ) {
+          filtered.unshift({ userId: me.id, displayName: me.displayName, self: true });
+        }
+        results = filtered;
         searched = true;
         open = true;
         activeIndex = results.length > 0 ? 0 : -1;
@@ -204,6 +217,11 @@
               onmouseenter={() => (activeIndex = i)}
             >
               <strong class="font-medium text-text">{user.displayName}</strong>
+              {#if user.self}
+                <span class="ml-2 inline-flex items-center rounded-pill bg-primary-soft px-2 py-0.5 align-middle text-[0.7rem] font-medium text-primary">
+                  you
+                </span>
+              {/if}
             </button>
           </li>
         {/each}
