@@ -435,6 +435,42 @@ func (s *SQLiteStore) ListBillsByUser(ctx context.Context, userID string) ([]*mo
 	return bills, nil
 }
 
+// ListDirectBillsByUser retrieves bills with no group where the user is creator or participant.
+func (s *SQLiteStore) ListDirectBillsByUser(ctx context.Context, userID string) ([]*models.Bill, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT b.id, b.title, b.total, b.subtotal, b.payer_id, b.group_id, b.created_at
+		FROM bills b
+		WHERE b.group_id IS NULL
+		  AND (b.creator_id = ?
+		       OR b.id IN (SELECT p.bill_id FROM participants p WHERE p.user_id = ?))
+		ORDER BY b.created_at DESC`,
+		userID, userID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list direct bills: %w", err)
+	}
+	defer rows.Close()
+
+	var bills []*models.Bill
+	for rows.Next() {
+		bill := &models.Bill{}
+		var payerID sql.NullString
+		var groupID sql.NullString
+		if err := rows.Scan(&bill.ID, &bill.Title, &bill.Total, &bill.Subtotal, &payerID, &groupID, &bill.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan bill: %w", err)
+		}
+		if payerID.Valid {
+			bill.PayerID = payerID.String
+		}
+		bills = append(bills, bill)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate bills: %w", err)
+	}
+
+	return bills, nil
+}
+
 // getParticipants is a helper that fetches participants for a bill.
 func (s *SQLiteStore) getParticipants(ctx context.Context, billID string) ([]models.BillParticipant, error) {
 	rows, err := s.db.QueryContext(ctx,

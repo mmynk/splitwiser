@@ -1093,3 +1093,49 @@ func TestGetMyBalances_WithSettlements(t *testing.T) {
 		t.Errorf("total_you_owe: expected 0, got %f", resp.Msg.TotalYouOwe)
 	}
 }
+
+func TestGetMyBalances_DirectBill(t *testing.T) {
+	groupClient, splitClient, cleanup := setupGroupTestServer(t)
+	defer cleanup()
+
+	// Create a bill with no group — Alice paid $100 for Alice and Bob
+	alicePayer := "Alice"
+	_, err := splitClient.CreateBill(context.Background(), connect.NewRequest(&pb.CreateBillRequest{
+		Title:        "Direct Dinner",
+		Total:        100,
+		Subtotal:     100,
+		Participants: []*pb.BillParticipant{aliceBP(), guestBP("Bob")},
+		PayerId:      &alicePayer,
+		// GroupId intentionally omitted
+	}))
+	if err != nil {
+		t.Fatalf("CreateBill failed: %v", err)
+	}
+
+	resp, err := groupClient.GetMyBalances(context.Background(), connect.NewRequest(&pb.GetMyBalancesRequest{}))
+	if err != nil {
+		t.Fatalf("GetMyBalances failed: %v", err)
+	}
+
+	// Bob owes Alice $50
+	if resp.Msg.TotalOwedToYou != 50 {
+		t.Errorf("total_owed_to_you: expected 50, got %f", resp.Msg.TotalOwedToYou)
+	}
+	if resp.Msg.TotalYouOwe != 0 {
+		t.Errorf("total_you_owe: expected 0, got %f", resp.Msg.TotalYouOwe)
+	}
+	if len(resp.Msg.PersonBalances) != 1 {
+		t.Fatalf("expected 1 person balance, got %d", len(resp.Msg.PersonBalances))
+	}
+	bob := resp.Msg.PersonBalances[0]
+	if bob.DisplayName != "Bob" {
+		t.Errorf("expected Bob, got %s", bob.DisplayName)
+	}
+	if bob.NetAmount != 50 {
+		t.Errorf("Bob net_amount: expected 50, got %f", bob.NetAmount)
+	}
+	// Direct bills have no group breakdown
+	if len(bob.GroupBalances) != 0 {
+		t.Errorf("expected 0 group balances for direct bill, got %d", len(bob.GroupBalances))
+	}
+}

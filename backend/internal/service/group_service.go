@@ -341,8 +341,9 @@ func (s *GroupService) GetMyBalances(ctx context.Context, req *connect.Request[p
 	// Aggregate per-person balances across all groups.
 	// Key: other person's display name
 	type personAgg struct {
-		netAmount     float64
-		userID        string // empty for guests
+		netAmount    float64
+		directAmount float64 // net from no-group bills; tracked separately for totals
+		userID       string  // empty for guests
 		groupBalances []*pb.PersonGroupBalance
 	}
 	perPerson := make(map[string]*personAgg)
@@ -393,6 +394,69 @@ func (s *GroupService) GetMyBalances(ctx context.Context, req *connect.Request[p
 		}
 	}
 
+	// Fold in direct (no-group) bills — compute debt edges just like group bills.
+	directSummaries, err := s.store.ListDirectBillsByUser(ctx, userID)
+	if err != nil {
+		slog.Error("GetMyBalances failed - could not list direct bills", "error", err)
+	} else {
+		nameToUserID := make(map[string]string)
+		var directBills []calculator.BillForBalance
+		for _, summary := range directSummaries {
+			bill, err := s.store.GetBill(ctx, summary.ID)
+			if err != nil {
+				continue
+			}
+			for _, p := range bill.Participants {
+				if p.UserID != "" {
+					nameToUserID[p.DisplayName] = p.UserID
+				}
+			}
+			items := make([]calculator.Item, len(bill.Items))
+			for i, item := range bill.Items {
+				items[i] = calculator.Item{
+					Description:  item.Description,
+					Amount:       item.Amount,
+					Participants: item.Participants,
+				}
+			}
+			directBills = append(directBills, calculator.BillForBalance{
+				Total:        bill.Total,
+				Subtotal:     bill.Subtotal,
+				PayerID:      bill.PayerID,
+				Items:        items,
+				Participants: participantDisplayNames(bill.Participants),
+			})
+		}
+		if len(directBills) > 0 {
+			_, directEdges, err := calculator.CalculateGroupBalances(directBills, nil)
+			if err == nil {
+				for _, edge := range directEdges {
+					var otherName string
+					var amount float64
+					if edge.From == myName {
+						otherName = edge.To
+						amount = -edge.Amount
+					} else if edge.To == myName {
+						otherName = edge.From
+						amount = edge.Amount
+					} else {
+						continue
+					}
+					agg, ok := perPerson[otherName]
+					if !ok {
+						agg = &personAgg{userID: nameToUserID[otherName]}
+						perPerson[otherName] = agg
+					}
+					if agg.userID == "" {
+						agg.userID = nameToUserID[otherName]
+					}
+					agg.netAmount += amount
+					agg.directAmount += amount
+				}
+			}
+		}
+	}
+
 	// Fold in direct (null-group) settlements — these adjust per-person net amounts
 	// without belonging to any specific group balance.
 	directSettlements, err := s.store.ListDirectSettlementsByUser(ctx, myName)
@@ -420,14 +484,19 @@ func (s *GroupService) GetMyBalances(ctx context.Context, req *connect.Request[p
 	var totalYouOwe, totalOwedToYou float64
 	personBalances := make([]*pb.PersonBalance, 0, len(perPerson))
 	for name, agg := range perPerson {
-		// Compute totals from individual group balances (don't let cross-group
-		// debts with the same person cancel each other in the summary).
+		// Per-group amounts: don't cancel cross-group debts with the same person.
 		for _, gb := range agg.groupBalances {
 			if gb.NetAmount > 0 {
 				totalOwedToYou += gb.NetAmount
 			} else if gb.NetAmount < 0 {
 				totalYouOwe += -gb.NetAmount
 			}
+		}
+		// Direct (no-group) bill contribution uses net since there's no group breakdown.
+		if agg.directAmount > 0 {
+			totalOwedToYou += agg.directAmount
+		} else if agg.directAmount < 0 {
+			totalYouOwe += -agg.directAmount
 		}
 		pbPerson := &pb.PersonBalance{
 			DisplayName:   name,

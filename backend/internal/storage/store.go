@@ -35,6 +35,10 @@ type Store interface {
 	// Returns an empty slice if the user has no bills.
 	ListBillsByUser(ctx context.Context, userID string) ([]*models.Bill, error)
 
+	// ListDirectBillsByUser retrieves bills with no group where the user is creator or participant.
+	// Returns lightweight summaries (no items/participants); callers use GetBill for full details.
+	ListDirectBillsByUser(ctx context.Context, userID string) ([]*models.Bill, error)
+
 	// CreateGroup persists a new group.
 	// The group.ID field will be populated by the store.
 	CreateGroup(ctx context.Context, group *models.Group) error
