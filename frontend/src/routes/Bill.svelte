@@ -227,18 +227,18 @@
 
       {#if !editMode}
         <div class="flex flex-wrap gap-2">
-          <Button variant="secondary" size="sm" onclick={copySummary}>
+          <Button variant="secondary" size="sm" onclick={copySummary} ariaLabel={copied ? 'Copied' : 'Copy summary'}>
             {#if copied}
-              <Check size={14} strokeWidth={1.75} /> Copied
+              <Check size={14} strokeWidth={1.75} /> <span class="hidden sm:inline">Copied</span>
             {:else}
-              <Copy size={14} strokeWidth={1.75} /> Copy summary
+              <Copy size={14} strokeWidth={1.75} /> <span class="hidden sm:inline">Copy summary</span>
             {/if}
           </Button>
-          <Button variant="secondary" size="sm" onclick={enterEdit}>
-            <Pencil size={14} strokeWidth={1.75} /> Edit
+          <Button variant="secondary" size="sm" onclick={enterEdit} ariaLabel="Edit">
+            <Pencil size={14} strokeWidth={1.75} /> <span class="hidden sm:inline">Edit</span>
           </Button>
-          <Button variant="danger" size="sm" onclick={confirmDelete} loading={deleting}>
-            <Trash2 size={14} strokeWidth={1.75} /> {deleting ? 'Deleting…' : 'Delete'}
+          <Button variant="danger" size="sm" onclick={confirmDelete} loading={deleting} ariaLabel="Delete">
+            <Trash2 size={14} strokeWidth={1.75} /> <span class="hidden sm:inline">{deleting ? 'Deleting…' : 'Delete'}</span>
           </Button>
         </div>
       {/if}
@@ -287,19 +287,40 @@
         </div>
       </section>
     {:else}
-      <section class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Card padding="sm">
-          <div class="text-[0.6875rem] uppercase tracking-wider text-text-muted">Subtotal</div>
-          <div class="mt-1"><Amount value={bill.subtotal ?? bill.total ?? 0} size="lg" /></div>
-        </Card>
-        <Card padding="sm">
-          <div class="text-[0.6875rem] uppercase tracking-wider text-text-muted">Tax &amp; fees</div>
-          <div class="mt-1"><Amount value={(bill.total ?? 0) - (bill.subtotal ?? bill.total ?? 0)} size="lg" /></div>
-        </Card>
-        <Card padding="sm">
-          <div class="text-[0.6875rem] uppercase tracking-wider text-text-muted">Total</div>
-          <div class="mt-1"><Amount value={bill.total ?? 0} size="xl" /></div>
-        </Card>
+      {@const subtotalVal = bill.subtotal ?? bill.total ?? 0}
+      {@const taxVal = (bill.total ?? 0) - (bill.subtotal ?? bill.total ?? 0)}
+      {@const totalVal = bill.total ?? 0}
+      <section>
+        <div class="sm:hidden">
+          <Card padding="sm">
+            <div class="flex items-baseline justify-between">
+              <span class="text-[0.875rem] text-text-muted">Subtotal</span>
+              <Amount value={subtotalVal} size="md" />
+            </div>
+            <div class="mt-1 flex items-baseline justify-between">
+              <span class="text-[0.875rem] text-text-muted">Tax &amp; fees</span>
+              <Amount value={taxVal} size="md" />
+            </div>
+            <div class="mt-2 flex items-baseline justify-between border-t border-border pt-2">
+              <span class="font-medium text-text">Total</span>
+              <Amount value={totalVal} size="lg" />
+            </div>
+          </Card>
+        </div>
+        <div class="hidden gap-3 sm:grid sm:grid-cols-3">
+          <Card padding="sm">
+            <div class="text-[0.6875rem] uppercase tracking-wider text-text-muted">Subtotal</div>
+            <div class="mt-1"><Amount value={subtotalVal} size="lg" /></div>
+          </Card>
+          <Card padding="sm">
+            <div class="text-[0.6875rem] uppercase tracking-wider text-text-muted">Tax &amp; fees</div>
+            <div class="mt-1"><Amount value={taxVal} size="lg" /></div>
+          </Card>
+          <Card padding="sm">
+            <div class="text-[0.6875rem] uppercase tracking-wider text-text-muted">Total</div>
+            <div class="mt-1"><Amount value={totalVal} size="xl" /></div>
+          </Card>
+        </div>
       </section>
 
       {#if (bill.items ?? []).length > 0}
