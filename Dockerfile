@@ -1,4 +1,12 @@
-# Build stage
+# Frontend build stage
+FROM oven/bun:1-alpine AS frontend-builder
+WORKDIR /app
+COPY frontend/package.json frontend/bun.lock ./
+RUN bun install --frozen-lockfile
+COPY frontend/ ./
+RUN bun run build
+
+# Backend build stage
 FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
@@ -35,8 +43,8 @@ RUN adduser -D -u 1000 splitwiser
 # Copy binary
 COPY --from=builder /app/server /app/server
 
-# Copy static files
-COPY frontend/static/ /app/frontend/static/
+# Copy static files (built by frontend-builder stage)
+COPY --from=frontend-builder /app/static/ /app/frontend/static/
 
 # Create data directory and set permissions
 RUN mkdir -p /app/data && chown -R splitwiser:splitwiser /app
