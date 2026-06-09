@@ -365,7 +365,7 @@
       </EmptyState>
     {:else if balanceView === 'total'}
       <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {#each memberBalances as bal (bal.userId)}
+        {#each memberBalances as bal (bal.userId || bal.displayName)}
           {@const net = bal.netBalance ?? 0}
           {@const paid = bal.totalPaid ?? 0}
           {@const owed = bal.totalOwed ?? 0}
@@ -400,7 +400,7 @@
           <span class="text-right">Action</span>
         </div>
         <ul class="divide-y divide-border">
-          {#each debtMatrix as debt (debt.fromUserId + '->' + debt.toUserId)}
+          {#each debtMatrix as debt ((debt.fromUserId || debt.fromName) + '->' + (debt.toUserId || debt.toName))}
             {@const amount = debt.amount ?? 0}
             <li
               animate:flip={{ duration: durFast }}
