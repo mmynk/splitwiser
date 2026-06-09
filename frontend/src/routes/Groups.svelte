@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { fade, slide } from 'svelte/transition';
+  import { slide } from 'svelte/transition';
+  import { flip } from 'svelte/animate';
   import { link } from 'svelte-spa-router';
   import {
     Plus,
@@ -16,9 +17,17 @@
   import type { BillSummary, Group, GroupMember } from '$lib/api/types';
   import { currentUser } from '$lib/stores/auth';
   import { toasts } from '$lib/stores/toast';
+  import { confirmAction } from '$lib/stores/confirm';
   import { apiMessage } from '$lib/api/client';
   import { formatDate, formatMoney } from '$lib/util/format';
+  import { dur, durFast, ease } from '$lib/motion';
   import UserSearch, { type UserPick } from '$lib/components/UserSearch.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
+  import IconButton from '$lib/components/ui/IconButton.svelte';
+  import Skeleton from '$lib/components/ui/Skeleton.svelte';
+  import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import Badge from '$lib/components/ui/Badge.svelte';
+  import Alert from '$lib/components/ui/Alert.svelte';
 
   interface MemberRow {
     id: string;
@@ -189,7 +198,13 @@
   }
 
   async function handleDeleteGroup(group: Group): Promise<void> {
-    if (!confirm(`Delete "${group.name}"? This cannot be undone.`)) return;
+    const ok = await confirmAction({
+      title: `Delete "${group.name}"?`,
+      body: "Members, bills, and settlements stay; the group itself goes. Can't be undone.",
+      confirmLabel: 'Delete group',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       await deleteGroup(group.id);
       toasts.success('Group deleted.');
@@ -234,39 +249,29 @@
   let removableCount = $derived(members.filter((m) => !m.isCreator).length);
 </script>
 
-<main class="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6">
+<main class="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6">
   <section class="flex flex-wrap items-center justify-between gap-3">
     <div>
-      <h1 class="text-2xl font-semibold text-text">Groups</h1>
-      <p class="text-sm text-text-muted">Reusable lists of people you split bills with.</p>
+      <h1 class="font-serif text-2xl font-semibold text-text">Groups</h1>
+      <p class="text-[0.875rem] text-text-muted">Reusable lists of people you split bills with.</p>
     </div>
     {#if mode.kind === 'closed'}
-      <button
-        type="button"
-        onclick={openCreate}
-        class="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover"
-      >
-        <Plus size={14} /> New Group
-      </button>
+      <Button variant="primary" size="sm" onclick={openCreate}>
+        <Plus size={14} strokeWidth={1.75} /> New group
+      </Button>
     {/if}
   </section>
 
   {#if mode.kind !== 'closed'}
     <section
-      class="rounded-lg bg-surface-elevated p-5 ring-1 ring-border"
-      transition:slide={{ duration: 200 }}
+      class="rounded-card border border-border bg-surface-elevated p-5"
+      transition:slide={{ duration: dur, easing: ease }}
     >
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <h2 class="text-lg font-semibold text-text">
-          {mode.kind === 'create' ? 'New Group' : 'Edit Group'}
+        <h2 class="font-serif text-lg font-semibold text-text">
+          {mode.kind === 'create' ? 'New group' : 'Edit group'}
         </h2>
-        <button
-          type="button"
-          onclick={closeForm}
-          class="rounded-md px-2.5 py-1.5 text-sm font-medium text-text-muted hover:bg-surface-sunken"
-        >
-          Cancel
-        </button>
+        <Button variant="ghost" size="sm" onclick={closeForm}>Cancel</Button>
       </div>
 
       <form class="mt-4 flex flex-col gap-5" onsubmit={submitForm}>
@@ -353,37 +358,20 @@
         </div>
 
         {#if formError}
-          <div
-            role="alert"
-            class="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"
-            transition:fade={{ duration: 100 }}
-          >
-            {formError}
-          </div>
+          <Alert>{formError}</Alert>
         {/if}
 
         <div class="flex flex-wrap gap-2">
-          <button
-            type="submit"
-            disabled={saving}
-            class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60"
-          >
+          <Button type="submit" loading={saving}>
             {saving
               ? mode.kind === 'create'
                 ? 'Creating…'
                 : 'Saving…'
               : mode.kind === 'create'
-                ? 'Create Group'
-                : 'Save Changes'}
-          </button>
-          <button
-            type="button"
-            onclick={closeForm}
-            disabled={saving}
-            class="rounded-md border border-border bg-surface-elevated px-4 py-2 text-sm font-medium text-text hover:bg-surface-sunken disabled:opacity-60"
-          >
-            Cancel
-          </button>
+                ? 'Create group'
+                : 'Save changes'}
+          </Button>
+          <Button variant="secondary" onclick={closeForm} disabled={saving}>Cancel</Button>
         </div>
       </form>
     </section>
@@ -393,33 +381,31 @@
     {#if groupsLoading}
       <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {#each Array(4) as _, i (i)}
-          <div class="h-28 animate-pulse rounded-lg bg-surface-elevated ring-1 ring-border"></div>
+          <Skeleton height="h-28" rounded="card" />
         {/each}
       </div>
     {:else if groups.length === 0}
-      <div
-        class="flex flex-col items-center gap-2 rounded-lg bg-surface-elevated px-6 py-10 text-center ring-1 ring-border"
+      <EmptyState
+        icon={Users}
+        title="No groups yet."
+        hint="Make one for the people you split with most."
       >
-        <Users size={28} class="text-text-subtle" />
-        <p class="text-text-muted">No groups yet — create one to start sharing bills.</p>
         {#if mode.kind === 'closed'}
-          <button
-            type="button"
-            onclick={openCreate}
-            class="mt-1 inline-flex items-center gap-1 rounded-md border border-primary bg-primary-soft px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary-soft"
-          >
-            <Plus size={14} /> New Group
-          </button>
+          <Button variant="primary" size="sm" onclick={openCreate}>
+            <Plus size={14} strokeWidth={1.75} /> New group
+          </Button>
         {/if}
-      </div>
+      </EmptyState>
     {:else}
       <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {#each groups as group (group.id)}
           {@const state = billsState[group.id]}
           {@const isEditing = mode.kind === 'edit' && mode.id === group.id}
           <li
-            class="flex flex-col gap-3 rounded-lg bg-surface-elevated p-4 ring-1 ring-border"
-            class:ring-primary={isEditing}
+            animate:flip={{ duration: durFast }}
+            class="flex flex-col gap-3 rounded-card border bg-surface-elevated p-4 transition-colors"
+            class:border-primary={isEditing}
+            class:border-border={!isEditing}
           >
             <div class="flex items-start justify-between gap-2">
               <a
@@ -430,40 +416,26 @@
                 {group.name}
               </a>
               <div class="flex items-center gap-1">
-                <button
-                  type="button"
-                  onclick={() => openEdit(group)}
-                  aria-label="Edit group"
-                  title="Edit"
-                  class="rounded-md p-1.5 text-text-muted hover:bg-surface-sunken hover:text-text"
-                >
-                  <Pencil size={14} />
-                </button>
-                <button
-                  type="button"
-                  onclick={() => handleDeleteGroup(group)}
-                  aria-label="Delete group"
-                  title="Delete"
-                  class="rounded-md p-1.5 text-text-muted hover:bg-danger-soft hover:text-danger"
-                >
-                  <Trash2 size={14} />
-                </button>
+                <IconButton ariaLabel="Edit group" title="Edit" size="sm" onclick={() => openEdit(group)}>
+                  <Pencil size={14} strokeWidth={1.75} />
+                </IconButton>
+                <IconButton ariaLabel="Delete group" title="Delete" size="sm" variant="danger" onclick={() => handleDeleteGroup(group)}>
+                  <Trash2 size={14} strokeWidth={1.75} />
+                </IconButton>
               </div>
             </div>
 
-            <div class="flex flex-wrap gap-1.5 text-xs">
+            <div class="flex flex-wrap gap-1.5">
               {#each group.members ?? [] as m, i (m.userId ?? `name:${m.displayName}:${i}`)}
-                <span
-                  class="inline-flex items-center gap-1 rounded-full bg-surface-sunken px-2 py-0.5 text-text-muted"
-                >
+                <Badge tone={m.userId ? 'primary' : 'neutral'}>
                   {#if m.userId}
-                    <BadgeCheck size={11} class="text-primary" />
+                    <BadgeCheck size={11} strokeWidth={1.75} />
                   {/if}
                   {m.displayName}
-                </span>
+                </Badge>
               {/each}
               {#if (group.members ?? []).length === 0}
-                <span class="italic text-text-subtle">No members</span>
+                <span class="italic text-text-subtle text-xs">No members</span>
               {/if}
             </div>
 

@@ -14,6 +14,7 @@
     fullWidth?: boolean;
     onclick?: (e: MouseEvent) => void;
     ariaLabel?: string;
+    form?: string;
     children: Snippet;
   }
 
@@ -26,6 +27,7 @@
     fullWidth = false,
     onclick,
     ariaLabel,
+    form,
     children,
   }: Props = $props();
 
@@ -51,6 +53,7 @@
 
 <button
   {type}
+  {form}
   disabled={disabled || loading}
   onclick={onclick}
   aria-label={ariaLabel}

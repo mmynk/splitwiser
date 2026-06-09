@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { fade, slide } from 'svelte/transition';
+  import { slide } from 'svelte/transition';
+  import { flip } from 'svelte/animate';
   import { link, querystring } from 'svelte-spa-router';
   import {
     ArrowLeft,
@@ -26,9 +27,18 @@
     Settlement,
   } from '$lib/api/types';
   import { toasts } from '$lib/stores/toast';
+  import { confirmAction } from '$lib/stores/confirm';
   import { apiMessage } from '$lib/api/client';
   import { formatDate, formatMoney } from '$lib/util/format';
+  import { dur, durFast, ease } from '$lib/motion';
   import Modal from '$lib/components/Modal.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
+  import IconButton from '$lib/components/ui/IconButton.svelte';
+  import Card from '$lib/components/ui/Card.svelte';
+  import Amount from '$lib/components/ui/Amount.svelte';
+  import Skeleton from '$lib/components/ui/Skeleton.svelte';
+  import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import Alert from '$lib/components/ui/Alert.svelte';
 
   interface Props {
     params?: { id?: string };
@@ -206,18 +216,30 @@
   }
 
   async function handleDeleteBill(bill: BillSummary): Promise<void> {
-    if (!confirm(`Delete "${bill.title}"? This cannot be undone.`)) return;
+    const ok = await confirmAction({
+      title: `Delete "${bill.title || 'this bill'}"?`,
+      body: "Can't be undone.",
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       await deleteBill(bill.billId);
       toasts.success('Bill deleted.');
       await Promise.all([loadBalances(groupId), loadBills(groupId)]);
     } catch (err) {
-      toasts.error(apiMessage(err, 'Failed to delete bill.'));
+      toasts.error(apiMessage(err, 'Could not delete the bill.'));
     }
   }
 
   async function handleDeleteSettlement(s: Settlement): Promise<void> {
-    if (!confirm('Delete this settlement? This cannot be undone.')) return;
+    const ok = await confirmAction({
+      title: 'Delete this settlement?',
+      body: "Balances revert to before this payment. Can't be undone.",
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       await deleteSettlement(s.id);
       toasts.success('Settlement deleted.');
@@ -236,7 +258,7 @@
   }
   const NET_CLASS: Record<BalanceSign, string> = {
     pos: 'text-success',
-    neg: 'text-rose-700',
+    neg: 'text-danger',
     zero: 'text-text-muted',
   };
   const NET_LABEL: Record<BalanceSign, string> = {
@@ -261,32 +283,30 @@
   let debtMatrix = $derived(balances?.debtMatrix ?? []);
 </script>
 
-<main class="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6">
+<main class="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6">
   <nav class="flex items-center justify-between gap-2 text-sm">
     <a
       use:link
       href="/groups"
-      class="inline-flex items-center gap-1 text-text-muted hover:text-text"
+      class="inline-flex items-center gap-1 text-text-muted transition-colors hover:text-text"
     >
-      <ArrowLeft size={14} /> Back to Groups
+      <ArrowLeft size={14} strokeWidth={1.75} /> Back to groups
     </a>
-    <a
-      use:link
-      href={`/?group=${groupId}`}
-      class="inline-flex items-center gap-1 rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-sunken"
-    >
-      <Plus size={14} /> New Bill
+    <a use:link href={`/?group=${groupId}`}>
+      <Button variant="secondary" size="sm">
+        <Plus size={14} strokeWidth={1.75} /> New bill
+      </Button>
     </a>
   </nav>
 
   <header class="flex flex-col gap-1">
     {#if groupLoading}
-      <div class="h-8 w-48 animate-pulse rounded bg-surface-elevated ring-1 ring-border"></div>
-      <div class="mt-2 h-4 w-72 animate-pulse rounded bg-surface-elevated ring-1 ring-border"></div>
+      <Skeleton height="h-8" width="w-48" />
+      <Skeleton height="h-4" width="w-72" />
     {:else if group}
       <h1 class="display-wonk text-3xl font-semibold text-text">{group.name}</h1>
-      <div class="flex flex-wrap items-center gap-1.5 text-sm text-text-muted">
-        <Users size={14} class="text-text-subtle" />
+      <div class="flex flex-wrap items-center gap-1.5 text-[0.875rem] text-text-muted">
+        <Users size={14} strokeWidth={1.75} class="text-text-subtle" />
         {#if hasMembers}
           <span>{groupMembers.map((m) => m.displayName).filter(Boolean).join(', ')}</span>
         {:else}
@@ -301,12 +321,12 @@
   <!-- Balances -->
   <section class="flex flex-col gap-3">
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <h2 class="text-lg font-semibold text-text">Balances</h2>
+      <h2 class="font-serif text-lg font-semibold text-text">Balances</h2>
       <div
         role="tablist"
-        class="inline-flex overflow-hidden rounded-md border border-border bg-surface-elevated"
+        class="inline-flex overflow-hidden rounded-input border border-border bg-surface-elevated"
       >
-        {#each [{ key: 'total', label: 'Total Balances' }, { key: 'detailed', label: 'Detailed Debts' }] as tab, i (tab.key)}
+        {#each [{ key: 'total', label: 'Total' }, { key: 'detailed', label: 'Detailed' }] as tab, i (tab.key)}
           {@const active = balanceView === tab.key}
           <button
             type="button"
@@ -314,9 +334,9 @@
             aria-selected={active}
             onclick={() => (balanceView = tab.key as BalanceView)}
             class={[
-              'px-3 py-1.5 text-xs font-medium transition-colors',
+              'px-3 py-1.5 text-[0.75rem] font-medium transition-colors',
               i > 0 && 'border-l border-border',
-              active ? 'bg-primary text-white' : 'text-text-muted hover:bg-surface-sunken',
+              active ? 'bg-primary text-primary-foreground' : 'text-text-muted hover:bg-surface-sunken hover:text-text',
             ]}
           >
             {tab.label}
@@ -328,18 +348,21 @@
     {#if balancesLoading}
       <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {#each Array(3) as _, i (i)}
-          <div class="h-24 animate-pulse rounded-lg bg-surface-elevated ring-1 ring-border"></div>
+          <Skeleton height="h-24" rounded="card" />
         {/each}
       </div>
     {:else if memberBalances.length === 0}
-      <div
-        class="flex flex-col items-center gap-2 rounded-lg bg-surface-elevated px-6 py-8 text-center ring-1 ring-border"
+      <EmptyState
+        icon={Receipt}
+        title="Nothing to settle. Yet."
+        hint="Once a bill lands here, balances appear."
       >
-        <Receipt size={26} class="text-text-subtle" />
-        <p class="text-text-muted">
-          No bills yet. <a use:link href={`/?group=${groupId}`} class="text-primary hover:underline">Create the first bill</a>.
-        </p>
-      </div>
+        <a use:link href={`/?group=${groupId}`}>
+          <Button variant="primary" size="sm">
+            <Plus size={14} strokeWidth={1.75} /> Add the first bill
+          </Button>
+        </a>
+      </EmptyState>
     {:else if balanceView === 'total'}
       <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {#each memberBalances as bal (bal.userId)}
@@ -347,32 +370,32 @@
           {@const paid = bal.totalPaid ?? 0}
           {@const owed = bal.totalOwed ?? 0}
           {@const sign = signOf(net)}
-          <li class="rounded-lg bg-surface-elevated p-4 ring-1 ring-border">
-            <div class="flex items-baseline justify-between gap-2">
-              <h3 class="font-medium text-text">{bal.displayName || bal.userId}</h3>
-              <span class="text-xs text-text-muted">{NET_LABEL[sign]}</span>
-            </div>
-            <div class="mt-1 text-2xl font-semibold tabular-nums {NET_CLASS[sign]}">
-              {signedAmount(net)}
-            </div>
-            <div class="mt-2 grid grid-cols-2 gap-2 border-t border-border pt-2 text-xs text-text-muted">
-              <span>Paid <span class="tabular-nums text-text">{formatMoney(paid)}</span></span>
-              <span>Owes <span class="tabular-nums text-text">{formatMoney(owed)}</span></span>
-            </div>
+          <li animate:flip={{ duration: durFast }}>
+            <Card padding="sm">
+              <div class="flex items-baseline justify-between gap-2">
+                <h3 class="font-medium text-text">{bal.displayName || bal.userId}</h3>
+                <span class="text-[0.75rem] text-text-muted">{NET_LABEL[sign]}</span>
+              </div>
+              <div class="mt-1 {NET_CLASS[sign]}">
+                <Amount value={Math.abs(net)} signed={false} size="xl" animate />
+              </div>
+              <div class="mt-2 grid grid-cols-2 gap-2 border-t border-border pt-2 text-[0.75rem] text-text-muted">
+                <span>Paid <span class="tabular-nums text-text">{formatMoney(paid)}</span></span>
+                <span>Owes <span class="tabular-nums text-text">{formatMoney(owed)}</span></span>
+              </div>
+            </Card>
           </li>
         {/each}
       </ul>
     {:else if debtMatrix.length === 0}
-      <p class="rounded-md bg-surface-elevated px-4 py-3 text-sm text-text-muted ring-1 ring-border">
-        All settled up — nothing to pay off in this group.
-      </p>
+      <EmptyState title="All square. Nice." hint="No outstanding debts in this group." />
     {:else}
-      <div class="overflow-hidden rounded-lg bg-surface-elevated ring-1 ring-border">
+      <div class="overflow-hidden rounded-card border border-border bg-surface-elevated">
         <div
-          class="hidden border-b border-border bg-surface-sunken px-4 py-2 text-xs font-medium uppercase tracking-wide text-text-muted sm:grid sm:grid-cols-[1fr_1fr_auto_auto] sm:gap-4"
+          class="hidden border-b border-border bg-surface-sunken px-4 py-2 text-[0.6875rem] font-medium uppercase tracking-wider text-text-muted sm:grid sm:grid-cols-[1fr_1fr_auto_auto] sm:gap-4"
         >
           <span>Debtor</span>
-          <span>Owes To</span>
+          <span>Owes to</span>
           <span class="text-right">Amount</span>
           <span class="text-right">Action</span>
         </div>
@@ -380,26 +403,27 @@
           {#each debtMatrix as debt (debt.fromUserId + '->' + debt.toUserId)}
             {@const amount = debt.amount ?? 0}
             <li
+              animate:flip={{ duration: durFast }}
               class="grid grid-cols-1 gap-1 px-4 py-3 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-center sm:gap-4"
             >
               <span class="font-medium text-text">{debt.fromName || debt.fromUserId}</span>
               <span class="text-text">{debt.toName || debt.toUserId}</span>
-              <span class="text-sm tabular-nums text-text sm:text-right">
+              <span class="text-[0.875rem] tabular-nums text-text sm:text-right">
                 {formatMoney(amount)}
               </span>
               <span class="sm:text-right">
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onclick={() =>
                     openSettlement({
                       from: debt.fromName || debt.fromUserId,
                       to: debt.toName || debt.toUserId,
                       amount: amount.toFixed(2),
                     })}
-                  class="inline-flex items-center gap-1 rounded-md border border-success/30 bg-success-soft px-2.5 py-1 text-xs font-medium text-success hover:bg-success-soft"
                 >
-                  <HandCoins size={12} /> Settle
-                </button>
+                  <HandCoins size={12} strokeWidth={1.75} /> Settle
+                </Button>
               </span>
             </li>
           {/each}
@@ -411,29 +435,20 @@
   <!-- Settlements -->
   <section class="flex flex-col gap-3">
     <div class="flex items-center justify-between gap-2">
-      <h2 class="text-lg font-semibold text-text">Settlements</h2>
-      <button
-        type="button"
-        onclick={() => openSettlement()}
-        disabled={!hasMembers}
-        class="inline-flex items-center gap-1 rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-sunken disabled:opacity-60"
-      >
-        <Plus size={14} /> Record Settlement
-      </button>
+      <h2 class="font-serif text-lg font-semibold text-text">Settlements</h2>
+      <Button variant="secondary" size="sm" onclick={() => openSettlement()} disabled={!hasMembers}>
+        <Plus size={14} strokeWidth={1.75} /> Record settlement
+      </Button>
     </div>
 
     {#if settlementsLoading}
-      <div class="h-16 animate-pulse rounded-lg bg-surface-elevated ring-1 ring-border"></div>
+      <Skeleton height="h-16" rounded="card" />
     {:else if settlements.length === 0}
-      <p
-        class="rounded-md bg-surface-elevated px-4 py-3 text-sm italic text-text-muted ring-1 ring-border"
-      >
-        No settlements recorded yet.
-      </p>
+      <EmptyState title="No settlements logged." hint="When someone pays someone back, it shows up here." />
     {:else}
-      <div class="overflow-hidden rounded-lg bg-surface-elevated ring-1 ring-border">
+      <div class="overflow-hidden rounded-card border border-border bg-surface-elevated">
         <div
-          class="hidden border-b border-border bg-surface-sunken px-4 py-2 text-xs font-medium uppercase tracking-wide text-text-muted sm:grid sm:grid-cols-[1fr_1fr_auto_2fr_auto_auto] sm:gap-4"
+          class="hidden border-b border-border bg-surface-sunken px-4 py-2 text-[0.6875rem] font-medium uppercase tracking-wider text-text-muted sm:grid sm:grid-cols-[1fr_1fr_auto_2fr_auto_auto] sm:gap-4"
         >
           <span>From</span>
           <span>To</span>
@@ -446,7 +461,7 @@
           {#each settlements as s (s.id)}
             {@const amount = s.amount ?? 0}
             <li
-              class="grid grid-cols-1 gap-1 px-4 py-3 text-sm sm:grid-cols-[1fr_1fr_auto_2fr_auto_auto] sm:items-center sm:gap-4"
+              class="grid grid-cols-1 gap-1 px-4 py-3 text-[0.875rem] sm:grid-cols-[1fr_1fr_auto_2fr_auto_auto] sm:items-center sm:gap-4"
             >
               <span class="font-medium text-text">{s.fromName || s.fromUserId}</span>
               <span class="text-text">{s.toName || s.toUserId}</span>
@@ -454,17 +469,17 @@
               <span class="text-text-muted">
                 {#if s.note}{s.note}{:else}<em class="text-text-subtle">—</em>{/if}
               </span>
-              <span class="text-xs text-text-muted sm:text-right">{formatDate(s.createdAt)}</span>
+              <span class="text-[0.75rem] text-text-muted sm:text-right">{formatDate(s.createdAt)}</span>
               <span class="sm:text-right">
-                <button
-                  type="button"
-                  onclick={() => handleDeleteSettlement(s)}
-                  aria-label="Delete settlement"
+                <IconButton
+                  ariaLabel="Delete settlement"
                   title="Delete"
-                  class="rounded-md p-1.5 text-text-muted hover:bg-danger-soft hover:text-danger"
+                  size="sm"
+                  variant="danger"
+                  onclick={() => handleDeleteSettlement(s)}
                 >
-                  <Trash2 size={14} />
-                </button>
+                  <Trash2 size={14} strokeWidth={1.75} />
+                </IconButton>
               </span>
             </li>
           {/each}
@@ -475,36 +490,42 @@
 
   <!-- Bills -->
   <section class="flex flex-col gap-3">
-    <h2 class="text-lg font-semibold text-text">Bills</h2>
+    <h2 class="font-serif text-lg font-semibold text-text">Bills</h2>
 
     {#if billsLoading}
-      <div class="h-16 animate-pulse rounded-lg bg-surface-elevated ring-1 ring-border"></div>
+      <Skeleton height="h-16" rounded="card" />
     {:else if bills.length === 0}
-      <p
-        class="rounded-md bg-surface-elevated px-4 py-3 text-sm italic text-text-muted ring-1 ring-border"
+      <EmptyState
+        icon={Receipt}
+        title="No bills here yet."
+        hint="The first one's always the awkward one — just add it."
       >
-        No bills yet in this group.
-      </p>
+        <a use:link href={`/?group=${groupId}`}>
+          <Button variant="primary" size="sm">
+            <Plus size={14} strokeWidth={1.75} /> Add the first bill
+          </Button>
+        </a>
+      </EmptyState>
     {:else}
-      <div class="overflow-hidden rounded-lg bg-surface-elevated ring-1 ring-border">
+      <div class="overflow-hidden rounded-card border border-border bg-surface-elevated">
         <div
-          class="hidden border-b border-border bg-surface-sunken px-4 py-2 text-xs font-medium uppercase tracking-wide text-text-muted sm:grid sm:grid-cols-[1fr_auto_1fr_auto_auto] sm:gap-4"
+          class="hidden border-b border-border bg-surface-sunken px-4 py-2 text-[0.6875rem] font-medium uppercase tracking-wider text-text-muted sm:grid sm:grid-cols-[1fr_auto_1fr_auto_auto] sm:gap-4"
         >
           <span>Bill</span>
           <span class="text-right">Total</span>
-          <span>Paid By</span>
+          <span>Paid by</span>
           <span class="text-right">Date</span>
           <span></span>
         </div>
         <ul class="divide-y divide-border">
           {#each bills as bill (bill.billId)}
             <li
-              class="grid grid-cols-1 gap-1 px-4 py-3 text-sm sm:grid-cols-[1fr_auto_1fr_auto_auto] sm:items-center sm:gap-4"
+              class="grid grid-cols-1 gap-1 px-4 py-3 text-[0.875rem] sm:grid-cols-[1fr_auto_1fr_auto_auto] sm:items-center sm:gap-4"
             >
               <a
                 use:link
                 href={`/bill/${bill.billId}`}
-                class="font-medium text-text hover:text-primary"
+                class="font-medium text-text transition-colors hover:text-primary"
               >
                 {bill.title || 'Untitled'}
               </a>
@@ -512,17 +533,17 @@
               <span class="text-text-muted">
                 {#if bill.payerId}{bill.payerId}{:else}<em class="text-text-subtle">Not recorded</em>{/if}
               </span>
-              <span class="text-xs text-text-muted sm:text-right">{formatDate(bill.createdAt)}</span>
+              <span class="text-[0.75rem] text-text-muted sm:text-right">{formatDate(bill.createdAt)}</span>
               <span class="sm:text-right">
-                <button
-                  type="button"
-                  onclick={() => handleDeleteBill(bill)}
-                  aria-label="Delete bill"
+                <IconButton
+                  ariaLabel="Delete bill"
                   title="Delete"
-                  class="rounded-md p-1.5 text-text-muted hover:bg-danger-soft hover:text-danger"
+                  size="sm"
+                  variant="danger"
+                  onclick={() => handleDeleteBill(bill)}
                 >
-                  <Trash2 size={14} />
-                </button>
+                  <Trash2 size={14} strokeWidth={1.75} />
+                </IconButton>
               </span>
             </li>
           {/each}
@@ -586,33 +607,16 @@
     </label>
 
     {#if settleError}
-      <div
-        role="alert"
-        class="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"
-        transition:fade={{ duration: 100 }}
-      >
-        {settleError}
-      </div>
+      <Alert>{settleError}</Alert>
     {/if}
   </form>
 
   {#snippet footer()}
     <div class="flex justify-end gap-2">
-      <button
-        type="button"
-        onclick={closeSettlement}
-        class="rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-sm text-text hover:bg-surface-sunken"
-      >
-        Cancel
-      </button>
-      <button
-        type="submit"
-        form="settlement-form"
-        disabled={settleSaving}
-        class="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60"
-      >
-        {settleSaving ? 'Recording…' : 'Record Settlement'}
-      </button>
+      <Button variant="ghost" size="sm" onclick={closeSettlement}>Cancel</Button>
+      <Button type="submit" form="settlement-form" size="sm" loading={settleSaving}>
+        {settleSaving ? 'Recording…' : 'Record settlement'}
+      </Button>
     </div>
   {/snippet}
 </Modal>

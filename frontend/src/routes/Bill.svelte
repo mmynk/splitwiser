@@ -1,15 +1,22 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
-  import { fade, slide } from 'svelte/transition';
+  import { slide } from 'svelte/transition';
   import { Copy, Check, Pencil, Trash2, ArrowLeft } from 'lucide-svelte';
   import { getBill, updateBill, deleteBill } from '$lib/api/split';
   import { ApiError } from '$lib/api/client';
   import { toasts } from '$lib/stores/toast';
+  import { confirmAction } from '$lib/stores/confirm';
   import { currentUser } from '$lib/stores/auth';
   import { formatMoney, formatDateTime } from '$lib/util/format';
+  import { dur, durFast, ease } from '$lib/motion';
   import type { GetBillResponse } from '$lib/api/types';
   import BillForm from '$lib/components/BillForm.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
+  import Card from '$lib/components/ui/Card.svelte';
+  import Amount from '$lib/components/ui/Amount.svelte';
+  import Skeleton from '$lib/components/ui/Skeleton.svelte';
+  import Alert from '$lib/components/ui/Alert.svelte';
 
   interface Props {
     params?: { id?: string };
@@ -140,7 +147,12 @@
 
   async function confirmDelete(): Promise<void> {
     if (!bill) return;
-    const ok = confirm('Delete this bill? This cannot be undone.');
+    const ok = await confirmAction({
+      title: 'Delete this bill?',
+      body: "Can't be undone.",
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
     if (!ok) return;
     deleting = true;
     try {
@@ -149,7 +161,7 @@
       if (bill.groupId) push(`/group/${bill.groupId}`);
       else push('/');
     } catch (e) {
-      const msg = e instanceof ApiError ? e.message : 'Failed to delete bill.';
+      const msg = e instanceof ApiError ? e.message : 'Could not delete the bill.';
       toasts.error(msg);
       deleting = false;
     }
@@ -174,22 +186,21 @@
   }
 </script>
 
-<main class="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-6">
+<main class="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-6 sm:px-6">
   {#if loading}
     <div class="flex flex-col gap-3">
-      <div class="h-8 w-1/3 animate-pulse rounded bg-surface-elevated ring-1 ring-border"></div>
-      <div class="h-24 animate-pulse rounded-lg bg-surface-elevated ring-1 ring-border"></div>
-      <div class="h-48 animate-pulse rounded-lg bg-surface-elevated ring-1 ring-border"></div>
+      <Skeleton height="h-8" width="w-1/3" />
+      <Skeleton height="h-24" rounded="card" />
+      <Skeleton height="h-48" rounded="card" />
     </div>
   {:else if loadError || !bill}
-    <section class="flex flex-col items-start gap-3 rounded-lg bg-surface-elevated p-6 ring-1 ring-border">
-      <h1 class="text-2xl font-semibold text-text">Bill not found</h1>
+    <section class="flex flex-col items-start gap-3 rounded-card border border-border bg-surface-elevated p-6">
+      <h1 class="font-serif text-2xl font-semibold text-text">Bill not found</h1>
       <p class="text-text-muted">{loadError || "This bill doesn't exist or has been deleted."}</p>
-      <a
-        href="#/"
-        class="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover"
-      >
-        <ArrowLeft size={14} /> Back to bills
+      <a href="#/">
+        <Button variant="primary" size="sm">
+          <ArrowLeft size={14} strokeWidth={1.75} /> Back to bills
+        </Button>
       </a>
     </section>
   {:else}
@@ -216,50 +227,31 @@
 
       {#if !editMode}
         <div class="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onclick={copySummary}
-            class="inline-flex items-center gap-1 rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-sunken"
-          >
+          <Button variant="secondary" size="sm" onclick={copySummary}>
             {#if copied}
-              <Check size={14} /> Copied
+              <Check size={14} strokeWidth={1.75} /> Copied
             {:else}
-              <Copy size={14} /> Copy summary
+              <Copy size={14} strokeWidth={1.75} /> Copy summary
             {/if}
-          </button>
-          <button
-            type="button"
-            onclick={enterEdit}
-            class="inline-flex items-center gap-1 rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-sunken"
-          >
-            <Pencil size={14} /> Edit
-          </button>
-          <button
-            type="button"
-            onclick={confirmDelete}
-            disabled={deleting}
-            class="inline-flex items-center gap-1 rounded-md border border-danger/30 bg-surface-elevated px-3 py-1.5 text-sm font-medium text-danger hover:bg-danger-soft disabled:opacity-60"
-          >
-            <Trash2 size={14} /> {deleting ? 'Deleting…' : 'Delete'}
-          </button>
+          </Button>
+          <Button variant="secondary" size="sm" onclick={enterEdit}>
+            <Pencil size={14} strokeWidth={1.75} /> Edit
+          </Button>
+          <Button variant="danger" size="sm" onclick={confirmDelete} loading={deleting}>
+            <Trash2 size={14} strokeWidth={1.75} /> {deleting ? 'Deleting…' : 'Delete'}
+          </Button>
         </div>
       {/if}
     </header>
 
     {#if editMode}
       <section
-        class="rounded-lg bg-surface-elevated p-5 ring-1 ring-border"
-        transition:slide={{ duration: 180 }}
+        class="rounded-card border border-border bg-surface-elevated p-5"
+        transition:slide={{ duration: dur, easing: ease }}
       >
         <div class="flex items-center justify-between">
-          <h2 class="text-xl font-semibold text-text">Edit bill</h2>
-          <button
-            type="button"
-            onclick={cancelEdit}
-            class="rounded-md px-2.5 py-1.5 text-sm font-medium text-text-muted hover:bg-surface-sunken"
-          >
-            Cancel
-          </button>
+          <h2 class="font-serif text-xl font-semibold text-text">Edit bill</h2>
+          <Button variant="ghost" size="sm" onclick={cancelEdit}>Cancel</Button>
         </div>
 
         <div class="mt-4 flex flex-col gap-6">
@@ -270,8 +262,8 @@
             <input
               type="text"
               bind:value={editTitle}
-              placeholder="e.g. Team Lunch, Grocery Run"
-              class="rounded-md border border-border px-3 py-2 outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
+              placeholder="e.g. Team lunch, grocery run"
+              class="rounded-input border border-border bg-surface-elevated px-3 py-2 outline-none transition-colors focus:border-primary focus:shadow-[0_0_0_3px_var(--color-primary-soft)]"
             />
           </label>
 
@@ -283,72 +275,46 @@
           />
 
           {#if editError}
-            <div
-              role="alert"
-              class="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"
-              transition:fade={{ duration: 100 }}
-            >
-              {editError}
-            </div>
+            <Alert>{editError}</Alert>
           {/if}
 
           <div class="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onclick={saveEdit}
-              disabled={saving}
-              class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60"
-            >
+            <Button onclick={saveEdit} loading={saving}>
               {saving ? 'Saving…' : 'Save changes'}
-            </button>
-            <button
-              type="button"
-              onclick={cancelEdit}
-              disabled={saving}
-              class="rounded-md border border-border bg-surface-elevated px-4 py-2 text-sm font-medium text-text hover:bg-surface-sunken disabled:opacity-60"
-            >
-              Cancel
-            </button>
+            </Button>
+            <Button variant="secondary" onclick={cancelEdit} disabled={saving}>Cancel</Button>
           </div>
         </div>
       </section>
     {:else}
       <section class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div class="rounded-lg bg-surface-elevated p-4 ring-1 ring-border">
-          <div class="text-xs uppercase tracking-wide text-text-muted">Subtotal</div>
-          <div class="mt-1 text-xl font-semibold tabular-nums text-text">
-            {formatMoney(bill.subtotal ?? bill.total ?? 0)}
-          </div>
-        </div>
-        <div class="rounded-lg bg-surface-elevated p-4 ring-1 ring-border">
-          <div class="text-xs uppercase tracking-wide text-text-muted">Tax &amp; fees</div>
-          <div class="mt-1 text-xl font-semibold tabular-nums text-text">
-            {formatMoney((bill.total ?? 0) - (bill.subtotal ?? bill.total ?? 0))}
-          </div>
-        </div>
-        <div class="rounded-lg bg-surface-elevated p-4 ring-1 ring-border">
-          <div class="text-xs uppercase tracking-wide text-text-muted">Total</div>
-          <div class="mt-1 text-xl font-semibold tabular-nums text-text">
-            {formatMoney(bill.total ?? 0)}
-          </div>
-        </div>
+        <Card padding="sm">
+          <div class="text-[0.6875rem] uppercase tracking-wider text-text-muted">Subtotal</div>
+          <div class="mt-1"><Amount value={bill.subtotal ?? bill.total ?? 0} size="lg" /></div>
+        </Card>
+        <Card padding="sm">
+          <div class="text-[0.6875rem] uppercase tracking-wider text-text-muted">Tax &amp; fees</div>
+          <div class="mt-1"><Amount value={(bill.total ?? 0) - (bill.subtotal ?? bill.total ?? 0)} size="lg" /></div>
+        </Card>
+        <Card padding="sm">
+          <div class="text-[0.6875rem] uppercase tracking-wider text-text-muted">Total</div>
+          <div class="mt-1"><Amount value={bill.total ?? 0} size="xl" /></div>
+        </Card>
       </section>
 
       {#if (bill.items ?? []).length > 0}
         <section class="flex flex-col gap-2">
-          <h2 class="text-xl font-semibold text-text">Items</h2>
-          <ul class="divide-y divide-border overflow-hidden rounded-lg bg-surface-elevated ring-1 ring-border">
-            {#each bill.items as item}
+          <h2 class="font-serif text-xl font-semibold text-text">Items</h2>
+          <ul class="divide-y divide-border overflow-hidden rounded-card border border-border bg-surface-elevated">
+            {#each bill.items as item, i (item.description + ':' + i)}
               <li class="flex items-start justify-between gap-3 px-4 py-3">
                 <div class="flex flex-col">
                   <span class="font-medium text-text">{item.description || 'Item'}</span>
-                  <span class="text-sm text-text-muted">
+                  <span class="text-[0.8125rem] text-text-muted">
                     {(item.participantIds ?? []).join(', ') || '—'}
                   </span>
                 </div>
-                <span class="tabular-nums font-semibold text-text">
-                  {formatMoney(item.amount ?? 0)}
-                </span>
+                <Amount value={item.amount ?? 0} size="md" />
               </li>
             {/each}
           </ul>
@@ -356,7 +322,7 @@
       {/if}
 
       <section class="flex flex-col gap-3">
-        <h2 class="text-xl font-semibold text-text">Who owes what</h2>
+        <h2 class="font-serif text-xl font-semibold text-text">Who owes what</h2>
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {#each bill.participants ?? [] as p (p.displayName)}
             {@const raw = bill.split?.splits?.[p.displayName] ?? {}}
@@ -364,15 +330,13 @@
             {@const taxT = raw.tax ?? 0}
             {@const totalT = raw.total ?? 0}
             {@const personItems = raw.items ?? []}
-            <div class="rounded-lg bg-surface-elevated p-4 ring-1 ring-border">
+            <Card padding="sm">
               <div class="flex items-baseline justify-between gap-2">
                 <h3 class="font-medium text-text">{p.displayName}</h3>
-                <span class="text-lg font-semibold tabular-nums text-text">
-                  {formatMoney(totalT)}
-                </span>
+                <Amount value={totalT} size="lg" />
               </div>
               {#if personItems.length > 0}
-                <ul class="mt-2 flex flex-col gap-1 text-sm">
+                <ul class="mt-2 flex flex-col gap-1 text-[0.875rem]">
                   {#each personItems as it}
                     <li class="flex justify-between text-text-muted">
                       <span>{it.description}</span>
@@ -381,7 +345,7 @@
                   {/each}
                 </ul>
               {/if}
-              <div class="mt-3 border-t border-border pt-2 text-xs text-text-muted">
+              <div class="mt-3 border-t border-border pt-2 text-[0.75rem] text-text-muted">
                 <div class="flex justify-between">
                   <span>Subtotal</span>
                   <span class="tabular-nums">{formatMoney(subT)}</span>
@@ -391,13 +355,13 @@
                   <span class="tabular-nums">{formatMoney(taxT)}</span>
                 </div>
               </div>
-            </div>
+            </Card>
           {/each}
         </div>
       </section>
 
       <section class="flex flex-col gap-2">
-        <h2 class="text-xl font-semibold text-text">Participants</h2>
+        <h2 class="font-serif text-xl font-semibold text-text">Participants</h2>
         <p class="text-text-muted">
           {(bill.participants ?? []).map((p) => p.displayName).join(', ')}
         </p>

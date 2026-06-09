@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { fade, slide } from 'svelte/transition';
-  import { Check, X, UserPlus, UserMinus, Search, Users } from 'lucide-svelte';
+  import { flip } from 'svelte/animate';
+  import { Check, X, UserPlus, UserMinus, Search, UsersRound } from 'lucide-svelte';
   import {
     listFriends,
     listFriendRequests,
@@ -12,6 +13,12 @@
   import { searchUsers } from '$lib/api/split';
   import { ApiError } from '$lib/api/client';
   import { toasts } from '$lib/stores/toast';
+  import { confirmAction } from '$lib/stores/confirm';
+  import { dur, durFast, ease } from '$lib/motion';
+  import Button from '$lib/components/ui/Button.svelte';
+  import Badge from '$lib/components/ui/Badge.svelte';
+  import Skeleton from '$lib/components/ui/Skeleton.svelte';
+  import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import type {
     Friend,
     FriendRequest,
@@ -146,7 +153,13 @@
   }
 
   async function unfriend(f: Friend): Promise<void> {
-    if (!confirm(`Remove ${f.displayName} from your friends?`)) return;
+    const ok = await confirmAction({
+      title: `Remove ${f.displayName}?`,
+      body: 'They stay registered; just unlinked from you.',
+      confirmLabel: 'Unfriend',
+      tone: 'danger',
+    });
+    if (!ok) return;
     await withPending(
       f.userId,
       () => removeFriend(f.userId),
@@ -171,40 +184,33 @@
   }
 </script>
 
-<main class="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-6">
+<main class="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-6 sm:px-6">
   <header class="flex flex-col gap-1">
     <h1 class="font-serif text-3xl font-semibold text-text">Friends</h1>
-    <p class="text-sm text-text-muted">People you split bills with.</p>
+    <p class="text-[0.875rem] text-text-muted">People you split bills with.</p>
   </header>
 
   <!-- Incoming requests -->
   {#if incoming.length > 0}
-    <section class="flex flex-col gap-2" transition:slide={{ duration: 180 }}>
-      <h2 class="text-xl font-semibold text-text">Incoming requests</h2>
-      <ul class="divide-y divide-border overflow-hidden rounded-lg bg-surface-elevated ring-1 ring-border">
+    <section class="flex flex-col gap-2" transition:slide={{ duration: dur, easing: ease }}>
+      <h2 class="font-serif text-xl font-semibold text-text">Incoming requests</h2>
+      <ul class="divide-y divide-border overflow-hidden rounded-card border border-border bg-surface-elevated">
         {#each incoming as req (req.id)}
           {@const busy = pendingActionIds.has(req.id)}
-          <li class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <li
+            animate:flip={{ duration: durFast }}
+            class="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+          >
             <span class="font-medium text-text">
               {req.requesterDisplayName || 'Unknown'}
             </span>
             <div class="flex gap-2">
-              <button
-                type="button"
-                onclick={() => accept(req)}
-                disabled={busy}
-                class="inline-flex items-center gap-1 rounded-md border border-success/30 bg-success-soft px-3 py-1.5 text-sm font-medium text-success hover:bg-success-soft disabled:opacity-60"
-              >
-                <Check size={14} /> Accept
-              </button>
-              <button
-                type="button"
-                onclick={() => decline(req)}
-                disabled={busy}
-                class="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-text-muted hover:bg-surface-sunken disabled:opacity-60"
-              >
-                <X size={14} /> Decline
-              </button>
+              <Button variant="primary" size="sm" onclick={() => accept(req)} loading={busy}>
+                <Check size={14} strokeWidth={1.75} /> Accept
+              </Button>
+              <Button variant="secondary" size="sm" onclick={() => decline(req)} disabled={busy}>
+                <X size={14} strokeWidth={1.75} /> Decline
+              </Button>
             </div>
           </li>
         {/each}
@@ -214,54 +220,48 @@
 
   <!-- Add friends -->
   <section class="flex flex-col gap-2">
-    <h2 class="text-xl font-semibold text-text">Add friends</h2>
-    <p class="text-sm text-text-muted">
+    <h2 class="font-serif text-xl font-semibold text-text">Add friends</h2>
+    <p class="text-[0.875rem] text-text-muted">
       Search by email address. Friends can be added to bills and groups.
     </p>
 
     <div class="relative">
       <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-subtle">
-        <Search size={16} />
+        <Search size={16} strokeWidth={1.75} />
       </span>
       <input
         type="search"
         bind:value={searchQuery}
         oninput={handleSearchInput}
         placeholder="friend@example.com"
-        class="w-full rounded-md border border-border bg-surface-elevated py-2 pl-9 pr-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
+        class="w-full rounded-input border border-border bg-surface-elevated py-2 pl-9 pr-3 outline-none transition-colors focus:border-primary focus:shadow-[0_0_0_3px_var(--color-primary-soft)]"
       />
     </div>
 
     {#if searched}
-      <div transition:fade={{ duration: 100 }}>
+      <div transition:fade={{ duration: durFast, easing: ease }}>
         {#if searchResults.length === 0}
-          <p class="rounded-md bg-surface-elevated px-4 py-3 text-sm text-text-muted ring-1 ring-border">
-            {searching ? 'Searching…' : 'No users match that search.'}
+          <p class="rounded-card border border-border bg-surface-elevated px-4 py-3 text-[0.875rem] text-text-muted">
+            {searching ? 'Searching…' : 'No one matches that search.'}
           </p>
         {:else}
-          <ul class="divide-y divide-border overflow-hidden rounded-lg bg-surface-elevated ring-1 ring-border">
+          <ul class="divide-y divide-border overflow-hidden rounded-card border border-border bg-surface-elevated">
             {#each searchResults as u (u.userId)}
               {@const status = classifyUser(u)}
               {@const busy = pendingActionIds.has(u.userId)}
-              <li class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+              <li
+                animate:flip={{ duration: durFast }}
+                class="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+              >
                 <span class="font-medium text-text">{u.displayName}</span>
                 {#if status === 'friend'}
-                  <span class="inline-flex items-center gap-1 rounded-md bg-success-soft px-2.5 py-1 text-xs font-medium text-success">
-                    <Check size={12} /> Friends
-                  </span>
+                  <Badge tone="success"><Check size={12} strokeWidth={1.75} /> Friends</Badge>
                 {:else if status === 'pending'}
-                  <span class="inline-flex items-center gap-1 rounded-md bg-surface-sunken px-2.5 py-1 text-xs font-medium text-text-muted">
-                    Pending…
-                  </span>
+                  <Badge tone="neutral">Pending…</Badge>
                 {:else}
-                  <button
-                    type="button"
-                    onclick={() => addFriend(u)}
-                    disabled={busy}
-                    class="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60"
-                  >
-                    <UserPlus size={14} /> {busy ? 'Sending…' : 'Add friend'}
-                  </button>
+                  <Button variant="primary" size="sm" onclick={() => addFriend(u)} loading={busy}>
+                    <UserPlus size={14} strokeWidth={1.75} /> {busy ? 'Sending…' : 'Add friend'}
+                  </Button>
                 {/if}
               </li>
             {/each}
@@ -273,38 +273,36 @@
 
   <!-- My friends -->
   <section class="flex flex-col gap-2">
-    <h2 class="text-xl font-semibold text-text">My friends</h2>
+    <h2 class="font-serif text-xl font-semibold text-text">My friends</h2>
     {#if loading}
-      <div class="overflow-hidden rounded-lg bg-surface-elevated ring-1 ring-border">
-        {#each [1, 2, 3] as _}
-          <div class="h-12 animate-pulse border-b border-border last:border-b-0"></div>
-        {/each}
+      <div class="flex flex-col gap-2">
+        <Skeleton height="h-14" rounded="card" />
+        <Skeleton height="h-14" rounded="card" />
+        <Skeleton height="h-14" rounded="card" />
       </div>
     {:else if friends.length === 0}
-      <div class="flex flex-col items-center gap-2 rounded-lg bg-surface-elevated px-6 py-10 text-center ring-1 ring-border">
-        <Users size={28} class="text-text-subtle" />
-        <p class="text-text-muted">No friends yet.</p>
-        <p class="text-xs text-text-subtle">Search above to send your first request.</p>
-      </div>
+      <EmptyState
+        icon={UsersRound}
+        title="You haven't added anyone."
+        hint="Search above for someone you split with."
+      />
     {:else}
-      <ul class="divide-y divide-border overflow-hidden rounded-lg bg-surface-elevated ring-1 ring-border">
+      <ul class="divide-y divide-border overflow-hidden rounded-card border border-border bg-surface-elevated">
         {#each friends as f (f.userId)}
           {@const busy = pendingActionIds.has(f.userId)}
-          <li class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <li
+            animate:flip={{ duration: durFast }}
+            class="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+          >
             <div class="flex flex-col">
               <span class="font-medium text-text">{f.displayName || 'Unknown'}</span>
               {#if f.email}
-                <span class="text-xs text-text-muted">{f.email}</span>
+                <span class="text-[0.75rem] text-text-muted">{f.email}</span>
               {/if}
             </div>
-            <button
-              type="button"
-              onclick={() => unfriend(f)}
-              disabled={busy}
-              class="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-text-muted hover:bg-surface-sunken disabled:opacity-60"
-            >
-              <UserMinus size={14} /> {busy ? 'Removing…' : 'Unfriend'}
-            </button>
+            <Button variant="ghost" size="sm" onclick={() => unfriend(f)} loading={busy}>
+              <UserMinus size={14} strokeWidth={1.75} /> {busy ? 'Removing…' : 'Unfriend'}
+            </Button>
           </li>
         {/each}
       </ul>

@@ -64,29 +64,29 @@
       aria-labelledby={title ? headingId : undefined}
       aria-label={title ? undefined : 'Dialog'}
       tabindex="-1"
-      class="relative z-10 flex w-full {maxWidth} max-h-[90vh] flex-col overflow-hidden rounded-lg bg-surface-elevated shadow-xl outline-none ring-1 ring-border"
-      transition:scale={{ duration: 150, start: 0.96 }}
+      class="relative z-10 flex w-full {maxWidth} max-h-[90vh] flex-col overflow-hidden rounded-card border border-border bg-surface-elevated shadow-modal outline-none"
+      transition:scale={{ duration: 180, start: 0.96 }}
     >
       {#if title}
-        <header class="flex items-center justify-between border-b border-border px-4 py-3">
-          <h2 id={headingId} class="text-base font-semibold text-text">{title}</h2>
+        <header class="flex items-center justify-between border-b border-border px-5 py-3">
+          <h2 id={headingId} class="font-serif text-lg font-semibold text-text">{title}</h2>
           <button
             type="button"
             aria-label="Close"
-            class="rounded p-1 text-text-muted hover:bg-surface-sunken"
+            class="rounded-input p-1 text-text-muted transition-colors hover:bg-surface-sunken hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             onclick={onClose}
           >
-            <X size={16} />
+            <X size={16} strokeWidth={1.75} />
           </button>
         </header>
       {/if}
 
-      <div class="flex-1 overflow-y-auto px-4 py-4">
+      <div class="flex-1 overflow-y-auto px-5 py-4">
         {@render children()}
       </div>
 
       {#if footer}
-        <footer class="border-t border-border px-4 py-3">
+        <footer class="border-t border-border bg-surface-sunken/60 px-5 py-3">
           {@render footer()}
         </footer>
       {/if}

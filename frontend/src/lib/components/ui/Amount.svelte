@@ -1,4 +1,8 @@
 <script lang="ts">
+  import { tweened } from 'svelte/motion';
+  import { cubicOut } from 'svelte/easing';
+  import { dur } from '$lib/motion';
+
   interface Props {
     value: number;
     signed?: boolean;
@@ -6,6 +10,7 @@
     currency?: string;
     abbreviate?: boolean;
     size?: 'sm' | 'md' | 'lg' | 'xl' | 'display';
+    animate?: boolean;
   }
 
   let {
@@ -15,6 +20,7 @@
     currency = '$',
     abbreviate = false,
     size = 'md',
+    animate = false,
   }: Props = $props();
 
   const SIZE = {
@@ -24,6 +30,19 @@
     xl: 'text-2xl',
     display: 'text-3xl sm:text-4xl',
   } as const;
+
+  // Tween only when `animate` is enabled. The first effect run snaps the tween
+  // to the current value so initial paint never counts up.
+  const tween = tweened(0, { duration: dur * 1.6, easing: cubicOut });
+  let mounted = $state(false);
+  $effect(() => {
+    if (!animate) return;
+    const v = value;
+    tween.set(v, mounted ? undefined : { duration: 0 });
+    mounted = true;
+  });
+
+  const display = $derived(animate ? $tween : value);
 
   const colorClass = $derived(
     signed
@@ -36,7 +55,7 @@
   );
 
   const formatted = $derived.by(() => {
-    const abs = Math.abs(value);
+    const abs = Math.abs(display);
     let body: string;
     // Only abbreviate well above bill-splitting range — never round away cents
     // on a settlement-relevant amount by default.
@@ -48,7 +67,7 @@
         maximumFractionDigits: 2,
       });
     }
-    const sign = value < 0 ? '−' : showPlus && value > 0 ? '+' : '';
+    const sign = display < 0 ? '−' : showPlus && display > 0 ? '+' : '';
     return `${sign}${currency}${body}`;
   });
 </script>

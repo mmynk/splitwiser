@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
   import { push, querystring } from 'svelte-spa-router';
-  import { fade, slide } from 'svelte/transition';
-  import { Plus, ClipboardPaste, ChevronRight, Copy, Check, Receipt } from 'lucide-svelte';
+  import { fade, fly, slide } from 'svelte/transition';
+  import { flip } from 'svelte/animate';
+  import { Plus, ClipboardPaste, ChevronRight, Copy, Check, Receipt, HandCoins } from 'lucide-svelte';
   import { calculateSplit, createBill, listMyBills } from '$lib/api/split';
   import { getMyBalances, listGroups, settleUpWithPerson } from '$lib/api/groups';
   import type {
@@ -14,10 +15,18 @@
   } from '$lib/api/types';
   import { currentUser } from '$lib/stores/auth';
   import { toasts } from '$lib/stores/toast';
+  import { confirmAction } from '$lib/stores/confirm';
   import { ApiError } from '$lib/api/client';
   import { formatDate, formatMoney } from '$lib/util/format';
+  import { dur, durFast, ease, rise } from '$lib/motion';
   import BillForm from '$lib/components/BillForm.svelte';
   import Modal from '$lib/components/Modal.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
+  import Card from '$lib/components/ui/Card.svelte';
+  import Amount from '$lib/components/ui/Amount.svelte';
+  import Skeleton from '$lib/components/ui/Skeleton.svelte';
+  import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import Alert from '$lib/components/ui/Alert.svelte';
 
   const PROMPT_TEMPLATE = `Convert this receipt to JSON with this exact structure:
 {
@@ -135,7 +144,7 @@ Rules:
 
   function describeAmount(net: number): { dir: string; color: string } {
     if (net > 0) return { dir: 'owes you', color: 'text-success' };
-    if (net < 0) return { dir: 'you owe', color: 'text-rose-700' };
+    if (net < 0) return { dir: 'you owe', color: 'text-danger' };
     return { dir: 'settled', color: 'text-text-muted' };
   }
 
@@ -150,16 +159,40 @@ Rules:
 
   async function handleSettleUp(person: PersonBalance): Promise<void> {
     if (!person.userId) return;
-    const ok = confirm(
-      `Settle up all debts with ${person.displayName}? This will create settlement records across every group you share with them.`,
-    );
+    const ok = await confirmAction({
+      title: `Settle up with ${person.displayName}?`,
+      body: 'Creates settlement records across every group you share. Can be undone per record.',
+      confirmLabel: 'Settle up',
+      tone: 'default',
+    });
     if (!ok) return;
+
+    // Optimistic: subtract this person's net from the totals, mark them settled,
+    // and recover the previous snapshot on failure.
+    const snapshot = balances ? structuredClone(balances) : null;
+    if (balances) {
+      const net = person.netAmount ?? 0;
+      const youOwe = balances.totalYouOwe ?? 0;
+      const owedYou = balances.totalOwedToYou ?? 0;
+      balances = {
+        ...balances,
+        totalYouOwe: net < 0 ? Math.max(0, youOwe - Math.abs(net)) : youOwe,
+        totalOwedToYou: net > 0 ? Math.max(0, owedYou - net) : owedYou,
+        personBalances: (balances.personBalances ?? []).map((p) =>
+          p.userId && p.userId === person.userId
+            ? { ...p, netAmount: 0, groupBalances: (p.groupBalances ?? []).map((g) => ({ ...g, netAmount: 0 })) }
+            : p,
+        ),
+      };
+    }
+
     try {
       await settleUpWithPerson(person.userId);
-      toasts.success(`Settled up with ${person.displayName}.`);
+      toasts.success('Settled.');
       await loadBalances();
     } catch (e) {
-      const msg = e instanceof ApiError ? e.message : 'Failed to settle up.';
+      if (snapshot) balances = snapshot;
+      const msg = e instanceof ApiError ? e.message : 'Could not settle up. Try again.';
       toasts.error(msg);
     }
   }
@@ -301,33 +334,34 @@ Rules:
   );
 </script>
 
-<main class="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-6">
+<main class="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-6 sm:px-6">
   <!-- Balance summary -->
   {#if balancesLoading}
     <section class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      {#each [1, 2] as _}
-        <div class="h-20 animate-pulse rounded-lg bg-surface-elevated ring-1 ring-border"></div>
-      {/each}
+      <Skeleton height="h-20" rounded="card" />
+      <Skeleton height="h-20" rounded="card" />
     </section>
   {:else if hasBalanceData}
     <section class="flex flex-col gap-4">
       <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div class="rounded-lg bg-surface-elevated p-4 ring-1 ring-border">
-          <div class="text-xs uppercase tracking-wide text-text-muted">You owe</div>
-          <div class="mt-1 text-2xl font-semibold tabular-nums text-rose-700">
-            {formatMoney(balances?.totalYouOwe)}
+        <Card padding="sm">
+          <div class="text-[0.6875rem] uppercase tracking-wider text-text-muted">You owe</div>
+          <div class="mt-1">
+            <Amount value={balances?.totalYouOwe ?? 0} signed={false} size="xl" animate />
           </div>
-        </div>
-        <div class="rounded-lg bg-surface-elevated p-4 ring-1 ring-border">
-          <div class="text-xs uppercase tracking-wide text-text-muted">You're owed</div>
-          <div class="mt-1 text-2xl font-semibold tabular-nums text-success">
-            {formatMoney(balances?.totalOwedToYou)}
+        </Card>
+        <Card padding="sm">
+          <div class="text-[0.6875rem] uppercase tracking-wider text-text-muted">You're owed</div>
+          <div class="mt-1">
+            <span class="text-success">
+              <Amount value={balances?.totalOwedToYou ?? 0} signed={false} size="xl" animate />
+            </span>
           </div>
-        </div>
+        </Card>
       </div>
 
       {#if sortedPersonBalances.length > 0}
-        <ul class="divide-y divide-border overflow-hidden rounded-lg bg-surface-elevated ring-1 ring-border">
+        <ul class="divide-y divide-border overflow-hidden rounded-card border border-border bg-surface-elevated">
           {#each sortedPersonBalances as person (person.displayName)}
             {@const net = person.netAmount ?? 0}
             {@const meta = describeAmount(net)}
@@ -335,7 +369,7 @@ Rules:
             {@const groupBalances = person.groupBalances ?? []}
             {@const expandable = groupBalances.length > 1}
             {@const expanded = expandedPersons.has(person.displayName)}
-            <li>
+            <li animate:flip={{ duration: durFast }}>
               <div class="flex items-center gap-3 px-4 py-3">
                 {#if expandable}
                   <button
@@ -343,34 +377,31 @@ Rules:
                     aria-label={expanded ? 'Collapse' : 'Expand'}
                     aria-expanded={expanded}
                     onclick={() => togglePerson(person.displayName)}
-                    class="text-text-subtle transition-transform hover:text-text-muted"
+                    class="text-text-subtle transition-transform duration-150 hover:text-text-muted"
                     class:rotate-90={expanded}
                   >
-                    <ChevronRight size={16} />
+                    <ChevronRight size={16} strokeWidth={1.75} />
                   </button>
                 {:else}
                   <span class="inline-block w-4"></span>
                 {/if}
                 <div class="flex flex-1 flex-wrap items-baseline gap-x-3">
                   <span class="font-medium text-text">{person.displayName}</span>
-                  <span class="text-sm text-text-muted">{meta.dir}</span>
-                  <span class="tabular-nums font-semibold {meta.color}">
-                    {formatMoney(Math.abs(net))}
+                  <span class="text-[0.8125rem] text-text-muted">{meta.dir}</span>
+                  <span class={meta.color}>
+                    <Amount value={Math.abs(net)} size="lg" animate />
                   </span>
                 </div>
                 {#if canSettle}
-                  <button
-                    type="button"
-                    onclick={() => handleSettleUp(person)}
-                    class="rounded-md border border-success/30 bg-success-soft px-2.5 py-1 text-xs font-medium text-success hover:bg-success-soft"
-                  >
+                  <Button variant="secondary" size="sm" onclick={() => handleSettleUp(person)}>
+                    <HandCoins size={14} strokeWidth={1.75} />
                     Settle up
-                  </button>
+                  </Button>
                 {/if}
               </div>
 
               {#if expandable && expanded}
-                <ul class="border-t border-border bg-surface-sunken/60 px-4 py-2 text-sm" transition:slide={{ duration: 150 }}>
+                <ul class="border-t border-border bg-surface-sunken/60 px-4 py-2 text-sm" transition:slide={{ duration: durFast, easing: ease }}>
                   {#each groupBalances as gb (gb.groupId)}
                     {@const gbNet = gb.netAmount ?? 0}
                     {@const gbMeta = describeAmount(gbNet)}
@@ -380,7 +411,7 @@ Rules:
                     <li>
                       <a
                         href={`#/group/${gb.groupId}${settleQs}`}
-                        class="flex items-center justify-between rounded px-2 py-1 hover:bg-surface-elevated"
+                        class="flex items-center justify-between rounded-input px-2 py-1 transition-colors hover:bg-surface-elevated"
                       >
                         <span class="text-text">{gb.groupName}</span>
                         <span class="tabular-nums {gbMeta.color}">
@@ -396,44 +427,44 @@ Rules:
         </ul>
       {/if}
     </section>
+  {:else}
+    <section in:fly={rise}>
+      <EmptyState title="All square. Nice." hint="Add a bill and balances show up here." />
+    </section>
   {/if}
 
   <!-- My Bills -->
   <section class="flex flex-col gap-3">
     <div class="flex items-center justify-between">
-      <h2 class="text-xl font-semibold text-text">My Bills</h2>
+      <h2 class="font-serif text-2xl font-semibold text-text">My bills</h2>
       {#if !formOpen}
-        <button
-          type="button"
-          onclick={openForm}
-          class="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover"
-        >
-          <Plus size={14} /> New Bill
-        </button>
+        <Button variant="primary" size="sm" onclick={openForm}>
+          <Plus size={14} strokeWidth={1.75} />
+          New bill
+        </Button>
       {/if}
     </div>
 
     {#if billsLoading}
-      <div class="overflow-hidden rounded-lg bg-surface-elevated ring-1 ring-border">
-        {#each [1, 2, 3] as _}
-          <div class="h-12 animate-pulse border-b border-border last:border-b-0"></div>
-        {/each}
+      <div class="flex flex-col gap-2">
+        <Skeleton height="h-14" rounded="card" />
+        <Skeleton height="h-14" rounded="card" />
+        <Skeleton height="h-14" rounded="card" />
       </div>
     {:else if bills.length === 0}
-      <div class="flex flex-col items-center gap-2 rounded-lg bg-surface-elevated px-6 py-10 text-center ring-1 ring-border">
-        <Receipt size={28} class="text-text-subtle" />
-        <p class="text-text-muted">No bills yet.</p>
-        <button
-          type="button"
-          onclick={openForm}
-          class="mt-1 inline-flex items-center gap-1 rounded-md border border-primary bg-primary-soft px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary-soft"
-        >
-          <Plus size={14} /> Create your first bill
-        </button>
-      </div>
+      <EmptyState
+        icon={Receipt}
+        title="No bills yet."
+        hint="The first one's always the awkward one — just add it."
+      >
+        <Button variant="primary" size="sm" onclick={openForm}>
+          <Plus size={14} strokeWidth={1.75} />
+          Add the first one
+        </Button>
+      </EmptyState>
     {:else}
-      <div class="overflow-hidden rounded-lg bg-surface-elevated ring-1 ring-border">
-        <div class="hidden border-b border-border bg-surface-sunken px-4 py-2 text-xs font-medium uppercase tracking-wide text-text-muted sm:grid sm:grid-cols-[1fr_1fr_auto_auto_auto] sm:gap-4">
+      <div class="overflow-hidden rounded-card border border-border bg-surface-elevated">
+        <div class="hidden border-b border-border bg-surface-sunken px-4 py-2 text-[0.6875rem] font-medium uppercase tracking-wider text-text-muted sm:grid sm:grid-cols-[1fr_1fr_auto_auto_auto] sm:gap-4">
           <span>Bill</span>
           <span>Group</span>
           <span class="text-right">Total</span>
@@ -445,21 +476,21 @@ Rules:
             <li>
               <a
                 href={`#/bill/${bill.billId}`}
-                class="grid grid-cols-1 gap-1 px-4 py-3 hover:bg-surface-sunken sm:grid-cols-[1fr_1fr_auto_auto_auto] sm:items-center sm:gap-4"
+                class="grid grid-cols-1 gap-1 px-4 py-3 transition-colors hover:bg-surface-sunken sm:grid-cols-[1fr_1fr_auto_auto_auto] sm:items-center sm:gap-4"
               >
                 <span class="font-medium text-text">{bill.title || 'Untitled'}</span>
-                <span class="text-sm text-text-muted">
+                <span class="text-[0.8125rem] text-text-muted">
                   {#if bill.groupName}
                     {bill.groupName}
                   {:else}
                     <span class="text-text-subtle">—</span>
                   {/if}
                 </span>
-                <span class="text-sm tabular-nums sm:text-right">{formatMoney(bill.total)}</span>
-                <span class="text-sm tabular-nums text-text-muted sm:text-right">
+                <span class="text-[0.875rem] tabular-nums sm:text-right">{formatMoney(bill.total)}</span>
+                <span class="text-[0.875rem] tabular-nums text-text-muted sm:text-right">
                   {bill.participantCount ?? 0}
                 </span>
-                <span class="text-sm text-text-muted sm:text-right">{formatDate(bill.createdAt)}</span>
+                <span class="text-[0.8125rem] text-text-muted sm:text-right">{formatDate(bill.createdAt)}</span>
               </a>
             </li>
           {/each}
@@ -471,26 +502,17 @@ Rules:
   <!-- New / Edit Bill Form -->
   {#if formOpen}
     <section
-      class="rounded-lg bg-surface-elevated p-5 ring-1 ring-border"
-      transition:slide={{ duration: 200 }}
+      class="rounded-card border border-border bg-surface-elevated p-5"
+      transition:slide={{ duration: dur, easing: ease }}
     >
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <h2 class="text-xl font-semibold text-text">Bill Details</h2>
+        <h2 class="font-serif text-xl font-semibold text-text">Bill details</h2>
         <div class="flex items-center gap-2">
-          <button
-            type="button"
-            onclick={openImport}
-            class="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium text-text hover:bg-surface-sunken"
-          >
-            <ClipboardPaste size={14} /> Import JSON
-          </button>
-          <button
-            type="button"
-            onclick={closeForm}
-            class="rounded-md px-2.5 py-1.5 text-sm font-medium text-text-muted hover:bg-surface-sunken"
-          >
-            Cancel
-          </button>
+          <Button variant="secondary" size="sm" onclick={openImport}>
+            <ClipboardPaste size={14} strokeWidth={1.75} />
+            Import JSON
+          </Button>
+          <Button variant="ghost" size="sm" onclick={closeForm}>Cancel</Button>
         </div>
       </div>
 
@@ -502,8 +524,8 @@ Rules:
           <input
             type="text"
             bind:value={billTitle}
-            placeholder="e.g. Team Lunch, Grocery Run"
-            class="rounded-md border border-border px-3 py-2 outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
+            placeholder="e.g. Team lunch, grocery run"
+            class="rounded-input border border-border bg-surface-elevated px-3 py-2 outline-none transition-colors focus:border-primary focus:shadow-[0_0_0_3px_var(--color-primary-soft)]"
           />
           <small class="text-text-muted">Leave empty for an auto-generated name.</small>
         </label>
@@ -511,28 +533,16 @@ Rules:
         <BillForm bind:this={billForm} {groups} currentUser={$currentUser} />
 
         {#if formError}
-          <div role="alert" class="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" transition:fade={{ duration: 100 }}>
-            {formError}
-          </div>
+          <Alert>{formError}</Alert>
         {/if}
 
         <div class="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onclick={handleCalculate}
-            disabled={calculating || saving}
-            class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60"
-          >
-            {calculating ? 'Calculating…' : 'Calculate Split'}
-          </button>
-          <button
-            type="button"
-            onclick={handleSave}
-            disabled={calculating || saving}
-            class="rounded-md border border-border bg-surface-elevated px-4 py-2 text-sm font-medium text-text hover:bg-surface-sunken disabled:opacity-60"
-          >
-            {saving ? 'Saving…' : 'Save & Share'}
-          </button>
+          <Button onclick={handleCalculate} loading={calculating} disabled={saving}>
+            {calculating ? 'Calculating…' : 'Calculate split'}
+          </Button>
+          <Button variant="secondary" onclick={handleSave} loading={saving} disabled={calculating}>
+            {saving ? 'Saving…' : 'Save & share'}
+          </Button>
         </div>
       </div>
     </section>
@@ -540,8 +550,8 @@ Rules:
 
   <!-- Split Results -->
   {#if splitResult}
-    <section class="flex flex-col gap-3" transition:fade={{ duration: 120 }}>
-      <h2 class="text-xl font-semibold text-text">Split Results</h2>
+    <section class="flex flex-col gap-3" transition:fade={{ duration: durFast, easing: ease }}>
+      <h2 class="font-serif text-xl font-semibold text-text">Split results</h2>
       <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {#each splitResult.participantNames as name}
           {@const raw = splitResult.splits[name] ?? {}}
@@ -549,15 +559,13 @@ Rules:
           {@const taxT = raw.tax ?? 0}
           {@const totalT = raw.total ?? 0}
           {@const personItems = raw.items ?? []}
-          <div class="rounded-lg bg-surface-elevated p-4 ring-1 ring-border">
+          <Card padding="sm">
             <div class="flex items-baseline justify-between">
               <h3 class="font-medium text-text">{name}</h3>
-              <span class="text-lg font-semibold tabular-nums text-text">
-                {formatMoney(totalT)}
-              </span>
+              <Amount value={totalT} size="lg" />
             </div>
             {#if personItems.length > 0}
-              <ul class="mt-2 flex flex-col gap-1 text-sm">
+              <ul class="mt-2 flex flex-col gap-1 text-[0.875rem]">
                 {#each personItems as it}
                   <li class="flex justify-between text-text-muted">
                     <span>{it.description}</span>
@@ -566,11 +574,11 @@ Rules:
                 {/each}
               </ul>
             {/if}
-            <div class="mt-3 border-t border-border pt-2 text-xs text-text-muted">
+            <div class="mt-3 border-t border-border pt-2 text-[0.75rem] text-text-muted">
               <div class="flex justify-between"><span>Subtotal</span><span class="tabular-nums">{formatMoney(subT)}</span></div>
               <div class="flex justify-between"><span>Tax</span><span class="tabular-nums">{formatMoney(taxT)}</span></div>
             </div>
-          </div>
+          </Card>
         {/each}
       </div>
     </section>
@@ -580,22 +588,18 @@ Rules:
 <!-- Import JSON modal -->
 <Modal open={importOpen} title="Import from JSON" onClose={closeImport} maxWidth="max-w-2xl">
   <div class="flex flex-col gap-4">
-    <details class="rounded-md border border-border bg-surface-sunken px-3 py-2" bind:open={promptDetailsOpen}>
+    <details class="rounded-input border border-border bg-surface-sunken px-3 py-2" bind:open={promptDetailsOpen}>
       <summary class="cursor-pointer text-sm font-medium text-text">
         Get AI prompt template
       </summary>
       <div class="mt-2 flex flex-col gap-2">
         <p class="text-xs text-text-muted">
-          Copy this prompt and paste it into Claude or ChatGPT along with your receipt photo or text:
+          Copy this prompt and paste it into Claude or ChatGPT along with your receipt photo or text.
         </p>
-        <pre class="max-h-56 overflow-auto whitespace-pre-wrap rounded bg-surface-elevated p-2 text-xs text-text ring-1 ring-border">{PROMPT_TEMPLATE}</pre>
-        <button
-          type="button"
-          onclick={copyPrompt}
-          class="inline-flex w-fit items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-text hover:bg-surface-elevated"
-        >
-          {#if promptCopied}<Check size={12} /> Copied!{:else}<Copy size={12} /> Copy prompt{/if}
-        </button>
+        <pre class="max-h-56 overflow-auto whitespace-pre-wrap rounded-input border border-border bg-surface-elevated p-2 text-xs text-text">{PROMPT_TEMPLATE}</pre>
+        <Button variant="secondary" size="sm" onclick={copyPrompt}>
+          {#if promptCopied}<Check size={12} strokeWidth={1.75} /> Copied{:else}<Copy size={12} strokeWidth={1.75} /> Copy prompt{/if}
+        </Button>
       </div>
     </details>
 
@@ -615,33 +619,19 @@ Rules:
         rows="8"
         bind:value={importText}
         placeholder={'{"title": "Dinner", "total": 45.50, "participants": ["Alice", "Bob"]}'}
-        class="rounded-md border border-border px-3 py-2 font-mono text-xs outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
+        class="rounded-input border border-border bg-surface-elevated px-3 py-2 font-mono text-xs outline-none transition-colors focus:border-primary focus:shadow-[0_0_0_3px_var(--color-primary-soft)]"
       ></textarea>
     </label>
 
     {#if importError}
-      <div role="alert" class="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-        {importError}
-      </div>
+      <Alert>{importError}</Alert>
     {/if}
   </div>
 
   {#snippet footer()}
     <div class="flex justify-end gap-2">
-      <button
-        type="button"
-        onclick={closeImport}
-        class="rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-sm text-text hover:bg-surface-sunken"
-      >
-        Cancel
-      </button>
-      <button
-        type="button"
-        onclick={confirmImport}
-        class="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover"
-      >
-        Import
-      </button>
+      <Button variant="ghost" size="sm" onclick={closeImport}>Cancel</Button>
+      <Button variant="primary" size="sm" onclick={confirmImport}>Import</Button>
     </div>
   {/snippet}
 </Modal>
