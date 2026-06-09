@@ -82,7 +82,7 @@ func (a *PasswordAuthenticator) GetUserByID(ctx context.Context, id string) (*mo
 func (a *PasswordAuthenticator) Authenticate(ctx context.Context, email, credential string) (*models.User, error) {
 	// Get user by email
 	user, err := a.storage.GetUserByEmail(ctx, email)
-	if err != nil {
+	if err != nil || user == nil {
 		return nil, ErrInvalidCredentials
 	}
 
