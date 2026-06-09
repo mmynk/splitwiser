@@ -560,7 +560,7 @@
       <select
         bind:value={settleFrom}
         required
-        class="rounded-md border border-border bg-surface-elevated px-3 py-2 outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
+        class="rounded-input border border-border bg-surface-elevated px-3 py-2 outline-none focus:border-primary focus:shadow-[0_0_0_3px_var(--color-primary-soft)]"
       >
         <option value="">Select payer…</option>
         {#each groupMembers as m, i (memberKey(m, i))}
@@ -574,7 +574,7 @@
       <select
         bind:value={settleTo}
         required
-        class="rounded-md border border-border bg-surface-elevated px-3 py-2 outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
+        class="rounded-input border border-border bg-surface-elevated px-3 py-2 outline-none focus:border-primary focus:shadow-[0_0_0_3px_var(--color-primary-soft)]"
       >
         <option value="">Select recipient…</option>
         {#each groupMembers as m, i (memberKey(m, i))}
@@ -592,7 +592,7 @@
         bind:value={settleAmount}
         placeholder="0.00"
         required
-        class="rounded-md border border-border bg-surface-elevated px-3 py-2 tabular-nums outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
+        class="rounded-input border border-border bg-surface-elevated px-3 py-2 tabular-nums outline-none focus:border-primary focus:shadow-[0_0_0_3px_var(--color-primary-soft)]"
       />
     </label>
 
@@ -602,7 +602,7 @@
         type="text"
         bind:value={settleNote}
         placeholder="e.g. Venmo payment"
-        class="rounded-md border border-border bg-surface-elevated px-3 py-2 outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
+        class="rounded-input border border-border bg-surface-elevated px-3 py-2 outline-none focus:border-primary focus:shadow-[0_0_0_3px_var(--color-primary-soft)]"
       />
     </label>
 

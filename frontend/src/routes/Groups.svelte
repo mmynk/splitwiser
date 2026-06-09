@@ -223,10 +223,6 @@
       billsState = { ...billsState, [groupId]: { ...existing, open: false } };
       return;
     }
-    if (existing && existing.bills.length > 0) {
-      billsState = { ...billsState, [groupId]: { ...existing, open: true } };
-      return;
-    }
     billsState = {
       ...billsState,
       [groupId]: { open: true, loading: true, bills: existing?.bills ?? [] },
