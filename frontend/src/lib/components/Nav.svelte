@@ -26,13 +26,13 @@
 {#if $currentUser}
   <header class="border-b border-border bg-surface-elevated">
     <nav
-      class="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3 sm:px-6"
+      class="mx-auto flex max-w-5xl items-center justify-between gap-2 px-4 py-3 sm:gap-4 sm:px-6"
       aria-label="Primary"
     >
       <a
         use:link
         href="/"
-        class="display-wonk text-xl font-semibold text-text hover:text-primary"
+        class="display-wonk text-base font-semibold text-text hover:text-primary sm:text-xl"
       >
         Splitwiser
       </a>
