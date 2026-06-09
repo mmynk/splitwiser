@@ -279,6 +279,14 @@
 
   let groupMembers = $derived(group?.members ?? []);
   let hasMembers = $derived(groupMembers.length > 0);
+  let membersExpanded = $state(false);
+  const MEMBER_PREVIEW_COUNT = 3;
+  let visibleMembers = $derived(
+    membersExpanded || groupMembers.length <= MEMBER_PREVIEW_COUNT + 1
+      ? groupMembers
+      : groupMembers.slice(0, MEMBER_PREVIEW_COUNT),
+  );
+  let hiddenMemberCount = $derived(groupMembers.length - visibleMembers.length);
   let memberBalances = $derived(balances?.memberBalances ?? []);
   let debtMatrix = $derived(balances?.debtMatrix ?? []);
 </script>
@@ -308,7 +316,16 @@
       <div class="flex flex-wrap items-center gap-1.5 text-[0.875rem] text-text-muted">
         <Users size={14} strokeWidth={1.75} class="text-text-subtle" />
         {#if hasMembers}
-          <span>{groupMembers.map((m) => m.displayName).filter(Boolean).join(', ')}</span>
+          <span>{visibleMembers.map((m) => m.displayName).filter(Boolean).join(', ')}</span>
+          {#if hiddenMemberCount > 0}
+            <button
+              type="button"
+              onclick={() => (membersExpanded = true)}
+              class="rounded-input px-1.5 py-0.5 text-[0.75rem] font-medium text-text-muted underline-offset-2 hover:bg-surface-sunken hover:text-text"
+            >
+              +{hiddenMemberCount} more
+            </button>
+          {/if}
         {:else}
           <span class="italic text-text-subtle">No members</span>
         {/if}

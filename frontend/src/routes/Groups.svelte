@@ -404,14 +404,16 @@
             class:border-border={!isEditing}
           >
             <div class="flex items-start justify-between gap-2">
-              <a
-                use:link
-                href={`/group/${group.id}`}
-                class="display-wonk text-lg font-semibold text-text hover:text-primary"
-              >
-                {group.name}
-              </a>
-              <div class="flex items-center gap-1">
+              <div class="min-w-0 flex-1">
+                <a
+                  use:link
+                  href={`/group/${group.id}`}
+                  class="display-wonk block truncate text-lg font-semibold text-text hover:text-primary"
+                >
+                  {group.name}
+                </a>
+              </div>
+              <div class="flex flex-shrink-0 items-center gap-1">
                 <IconButton ariaLabel="Edit group" title="Edit" size="sm" onclick={() => openEdit(group)}>
                   <Pencil size={14} strokeWidth={1.75} />
                 </IconButton>
